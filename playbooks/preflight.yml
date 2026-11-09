@@ -32,7 +32,7 @@
     pve_log_dir: "{{ playbook_dir }}/../logs"
     pve_journal: "{{ playbook_dir }}/../logs/pve-api.jsonl"
     pve_tool: "{{ playbook_dir }}/tools/pve_read.py"
-    pve_manifest: "{{ playbook_dir }}/../inventory/group_vars/all.yml"
+    pve_manifest: "{{ playbook_dir }}/../labs/active/inventory/group_vars/all.yml"
     pve_secrets: "{{ playbook_dir }}/vars/secrets.yml"
   environment:
     PYTHONPATH: "{{ playbook_dir }}/tracing"

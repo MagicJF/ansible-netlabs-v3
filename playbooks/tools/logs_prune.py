@@ -9,7 +9,7 @@ accumulates every run forever. Two things bound that:
   * archives older than `keep_days`, or beyond `keep_count`, are DELETED, so the
     directory cannot grow without limit either.
 
-The policy lives in `inventory/group_vars/all.yml` with the rest of the declared
+The policy lives in `labs/netlab-v2/inventory/group_vars/all.yml` with the rest of the declared
 state, and every verb applies it before it does anything — so a lab driven only
 through the verbs never needs an operator. Run it standalone for the case where
 nobody runs the framework for days:
@@ -41,7 +41,7 @@ import sys
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MANIFEST = os.path.join(REPO, "inventory/group_vars/all.yml")
+MANIFEST = os.path.join(REPO, "labs/active/inventory/group_vars/all.yml")
 LOG_DIR = os.path.join(REPO, "logs")
 ARCHIVE_DIR = os.path.join(LOG_DIR, "archive")
 

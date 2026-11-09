@@ -5,7 +5,7 @@
 #
 # Why it exists: layer 2 is SSH, and the PVE API can be reached from anywhere
 # while the guests sit on an internal bridge. The path is infrastructure, so it
-# is declared (pve_tunnel in inventory/group_vars/all.yml) and converged here —
+# is declared (pve_tunnel in labs/netlab-v2/inventory/group_vars/all.yml) and converged here —
 # and configure/site.yml includes the SAME task file automatically when its
 # probe finds no guest answering, so a normal run never needs this verb.
 #
@@ -28,7 +28,7 @@
         that:
           - pve_tunnel.manage | default(false) | bool
         fail_msg: >-
-          pve_tunnel is undeclared or has manage false in inventory/group_vars/all.yml,
+          pve_tunnel is undeclared or has manage false in labs/netlab-v2/inventory/group_vars/all.yml,
           so there is nothing to converge. Layer 2 then relies on this node already
           routing to the guest LAN. Nothing was changed.
         success_msg: "Tunnel declared and enabled: {{ pve_tunnel.name }}."

@@ -1,6 +1,6 @@
 ---
 # ============================================================================
-# ESTADO DECLARADO DEL LABORATORIO — ansible-netlab-v2
+# ESTADO DECLARADO DEL LABORATORIO — ansible-netlabs-v3
 #
 # Una sola fuente de verdad. Este fichero declara QUÉ existe y CÓMO está; los
 # verbos (playbooks/*.yml) lo llevan a la realidad y lo verifican. Nada se toca
@@ -258,7 +258,7 @@ pve_defaults:
 
   # ---- behaviour (converged in place) --------------------------------------
   onboot: false
-  description: "Managed by ansible-netlab-v2. Declare changes in inventory/group_vars/all.yml."
+  description: "Managed by ansible-netlabs-v3. Declare changes in labs/netlab-v2/inventory/group_vars/all.yml."
   # Etiqueta base; cada invitado AÑADE las suyas (sede y papel) a esta lista.
   tags: [netlab, ansible-managed]
   timezone: host
@@ -857,7 +857,7 @@ pve_vm_defaults:
   vga: std
   onboot: false
   boot: "order=ide2;scsi0"
-  description: "Nested Proxmox VE managed by ansible-netlab-v2."
+  description: "Nested Proxmox VE managed by ansible-netlabs-v3."
   tags: [netlab, ansible-managed]
 
   net: {}

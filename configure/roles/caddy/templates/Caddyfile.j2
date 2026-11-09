@@ -1,5 +1,5 @@
 # Managed by layer 2 - configure/roles/caddy/templates/Caddyfile.j2
-# The sites are declared in inventory/group_vars/all.yml under
+# The sites are declared in labs/netlab-v2/inventory/group_vars/all.yml under
 # pve_containers[].config.caddy. Editing this file on the guest is drift and will
 # be reverted on the next run of configure/site.yml.
 {% for site in caddy_sites %}

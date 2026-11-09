@@ -51,7 +51,7 @@ import requests
 import yaml
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MANIFEST = os.path.join(REPO, "inventory/group_vars/all.yml")
+MANIFEST = os.path.join(REPO, "labs/active/inventory/group_vars/all.yml")
 SECRETS = os.path.join(REPO, "playbooks/vars/secrets.yml")
 # La declaración de RouterOS vive en los valores por defecto del rol: la lista de
 # menús que el framework reclama como suyos es lo que da contra qué comparar.

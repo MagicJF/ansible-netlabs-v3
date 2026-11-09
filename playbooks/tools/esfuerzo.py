@@ -62,7 +62,7 @@ def tst(s):
 
 # ------------------------------------------------------------------ nombres --
 def nombres():
-    man = yaml.safe_load(open(os.path.join(RAIZ, "inventory", "group_vars", "all.yml")))
+    man = yaml.safe_load(open(os.path.join(RAIZ, "labs", "active", "inventory", "group_vars", "all.yml")))
     nom, tipo = {}, {}
     for g in man["pve_containers"]:
         nom[int(g["vmid"])] = g["hostname"]

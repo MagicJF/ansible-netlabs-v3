@@ -2,7 +2,7 @@
 # ===========================================================================
 # Knobs shared by every Apache guest. Anything guest-specific — which vhosts
 # exist, on which port, serving which directory — comes from the declared state
-# (inventory/group_vars/all.yml), never from here.
+# (labs/netlab-v2/inventory/group_vars/all.yml), never from here.
 # ===========================================================================
 apache_packages:
   - apache2

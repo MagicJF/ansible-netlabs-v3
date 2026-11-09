@@ -6,7 +6,7 @@
 # the guests live on an internal bridge the control node is not attached to, so
 # without a path every guest is "unreachable" for a reason that has nothing to
 # do with its key. That path is infrastructure: it is DECLARED (pve_tunnel in
-# inventory/group_vars/all.yml) and converged here, exactly like the SSH key is
+# labs/netlab-v2/inventory/group_vars/all.yml) and converged here, exactly like the SSH key is
 # declared and injected by layer 1.
 #
 # Two entry points, one implementation:
@@ -36,7 +36,7 @@
       - pve_tunnel.guest_network | default('') | length > 0
       - pve_tunnel.private_key_path | default('') | length > 0
     fail_msg: >-
-      pve_tunnel in inventory/group_vars/all.yml is incomplete ({{ pve_tunnel | default({}) | to_json }}).
+      pve_tunnel in labs/netlab-v2/inventory/group_vars/all.yml is incomplete ({{ pve_tunnel | default({}) | to_json }}).
       Layer 2 reaches the guests through this tunnel; the framework will not invent an endpoint,
       a subnet or a key path. Nothing was changed.
     success_msg: >-
@@ -84,7 +84,7 @@
     mode: "0600"
     content: |
       # Managed by layer 2 — configure/tasks/tunnel.yml, rendered from pve_tunnel
-      # in inventory/group_vars/all.yml. Editing this file on the control node is
+      # in labs/netlab-v2/inventory/group_vars/all.yml. Editing this file on the control node is
       # drift and is reverted on the next run.
       [Interface]
       Address = {{ pve_tunnel.address }}

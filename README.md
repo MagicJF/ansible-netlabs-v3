@@ -51,7 +51,10 @@ del despliegue, el orden de montaje y cómo se verifica.
 ## Estructura
 
 ```text
-inventory/group_vars/all.yml           # EL estado deseado — el único fichero que cambia por petición
+labs/active -> netlab-v2               # symlink: la topología VIVA. Cambiar de laboratorio = repuntarlo
+labs/netlab-v2/inventory/hosts.yml     #   los hosts, y el grupo pve_config_targets que llena la capa 2
+labs/netlab-v2/inventory/group_vars/all.yml  # EL estado deseado — el único fichero que cambia por petición
+playbooks/vars/secrets.yml             # las credenciales del NODO de Proxmox: son del framework, no del lab
 ansible.cfg                            # pipelining, reutilización SSH, forks, rutas de plugins y log
 .ansible-lint                          # las reglas de lint que se exigen, y por qué no las demás
 playbooks/preflight.yml                # sólo lectura: comprobaciones de plataforma + declarado frente a vivo
@@ -84,7 +87,7 @@ logs/                                  # registros de ejecución, diario de la A
 La **capa 1** es un motor fijo con cuatro verbos —`preflight` (sólo lectura),
 `apply` (converge), `connect` (el camino) y `remove` (el destruir deliberado)—
 leyendo todos el mismo estado declarado. Una petición de cambio es una edición de
-`inventory/group_vars/all.yml` en una rama nueva, no un playbook nuevo: un
+`labs/netlab-v2/inventory/group_vars/all.yml` en una rama nueva, no un playbook nuevo: un
 playbook por cambio dispersaría el estado real en ficheros que se pisan unos a
 otros. **La rama se corta de `main` y se fusiona cuando el trabajo está
 terminado** — `main` es donde vive lo acabado y sólo hay una. Cortar de la rama
@@ -152,7 +155,7 @@ ejecución. Lanza `preflight` cuando sospeches drift, no como paso rutinario —
 
 ## El estado declarado
 
-`inventory/group_vars/all.yml` contiene `pve_node`, un bloque `pve_defaults`,
+`labs/netlab-v2/inventory/group_vars/all.yml` contiene `pve_node`, un bloque `pve_defaults`,
 `pve_containers` (los invitados LXC) y `pve_vms` (los invitados RouterOS CHR):
 **los únicos invitados que este repositorio gestiona**. Un invitado ausente de esas
 listas nunca se lee, se crea ni se modifica. Cualquier clave de `pve_defaults`
@@ -177,7 +180,7 @@ numerados `STNN` (sede, tipo, índice):
 El manifiesto de la v1 llevaba una segunda lista, `pve_config_targets`: invitados
 cuya **forma** no gestionaba pero cuyo **interior** sí. **La v2 no la usa como
 fuente de verdad** — cada invitado que configura es uno que también declara. El
-grupo sigue declarado vacío en `inventory/hosts.yml` por compatibilidad con los
+grupo sigue declarado vacío en `labs/netlab-v2/inventory/hosts.yml` por compatibilidad con los
 playbooks de capa 2, que lo llenan con `add_host` desde la declaración; en la v2
 no contiene nada. Lo que la v1 adoptaba queda fuera de la declaración, así que la
 convergencia nunca lo lee, lo crea ni lo modifica.
@@ -313,7 +316,7 @@ dentro.
 
 La metodología, una línea por regla:
 
-- **Un estado declarado, dos capas.** `inventory/group_vars/all.yml` sigue siendo
+- **Un estado declarado, dos capas.** `labs/netlab-v2/inventory/group_vars/all.yml` sigue siendo
   la única fuente de verdad: la capa 1 lee la forma del invitado, la capa 2 lee su
   bloque `config:`. Las direcciones nunca se duplican — la capa 2 deriva el destino
   SSH de la declaración de la interfaz con el filtro `pve_declared_ipv4`, o del
@@ -519,7 +522,7 @@ SEDE 1 (central)                     SEDE 2                SEDE 3
    fw-wan-edge ──▶ internet (NAT)
 ```
 
-**Once invitados RouterOS y ocho PCs**, todo en `inventory/group_vars/all.yml`:
+**Once invitados RouterOS y ocho PCs**, todo en `labs/netlab-v2/inventory/group_vars/all.yml`:
 
 - **Cuatro switches, y son L2 puros.** Meten sus patas de datos en un bridge de
   RouterOS y **no ponen ninguna dirección en él**. Eso es lo que los hace switches

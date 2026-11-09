@@ -3,7 +3,7 @@
 # Retención de logs/ — el único directorio del repositorio que crece solo.
 #
 # Lo incluye CADA verbo, antes de tocar nada, para que la política declarada en
-# inventory/group_vars/all.yml la aplique el framework y no un operador. Un lab
+# labs/netlab-v2/inventory/group_vars/all.yml la aplique el framework y no un operador. Un lab
 # que solo se maneja con los verbos nunca necesita acordarse de esto.
 #
 # La ruta lleva `../playbooks/` porque este fichero se incluye desde las DOS

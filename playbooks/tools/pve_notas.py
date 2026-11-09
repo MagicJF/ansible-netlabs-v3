@@ -2,7 +2,7 @@
 # ===========================================================================
 # pve_notas.py — las notas de los invitados, derivadas de la declaración.
 #
-# Qué hace: reescribe en inventory/group_vars/all.yml las dos cosas que PVE
+# Qué hace: reescribe en labs/netlab-v2/inventory/group_vars/all.yml las dos cosas que PVE
 # enseña en su interfaz y que hasta ahora se escribían a mano:
 #   * description — la nota HTML (tablas, diagrama de posición, intención)
 #   * tags        — tres y ni una más: quién lo gestiona, qué es y dónde está
@@ -42,7 +42,7 @@ import jinja2
 import yaml
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
-POR_DEFECTO = os.path.join(AQUI, "..", "..", "inventory", "group_vars", "all.yml")
+POR_DEFECTO = os.path.join(AQUI, "..", "..", "labs", "active", "inventory", "group_vars", "all.yml")
 MAN = sys.argv[1] if len(sys.argv) > 1 else os.path.normpath(POR_DEFECTO)
 man = yaml.safe_load(open(MAN))
 

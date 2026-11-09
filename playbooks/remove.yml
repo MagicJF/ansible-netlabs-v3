@@ -79,7 +79,7 @@
           - declared_matches | from_json | length == 0
         fail_msg: >-
           {{ target_hostname or target_vmid }} is still declared in
-          inventory/group_vars/all.yml ({{ declared_matches | from_json | join(', ') }}).
+          labs/netlab-v2/inventory/group_vars/all.yml ({{ declared_matches | from_json | join(', ') }}).
           Remove its entry from pve_containers / pve_vms / pve_config_targets first — otherwise
           the next `apply` recreates it. Nothing was changed.
         success_msg: "The declaration no longer owns this guest."

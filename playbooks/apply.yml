@@ -16,7 +16,7 @@
 # The checks were never the cost — validate/report/assert inside a task are
 # free. The number of execution boundaries was. So no check was removed.
 # ===========================================================================
-- name: Converge every guest declared in inventory/group_vars/all.yml
+- name: Converge every guest declared in labs/netlab-v2/inventory/group_vars/all.yml
   hosts: localhost
   gather_facts: false
   vars:
@@ -56,7 +56,7 @@
     # `playbooks/playbooks/tools/...`.
     pve_routeros_wait: "{{ playbook_dir }}/tools/routeros_wait.py"
     pve_start_batch: "{{ playbook_dir }}/tools/pve_start_batch.py"
-    pve_manifest: "{{ playbook_dir }}/../inventory/group_vars/all.yml"
+    pve_manifest: "{{ playbook_dir }}/../labs/active/inventory/group_vars/all.yml"
     pve_secrets: "{{ playbook_dir }}/vars/secrets.yml"
     # The API base for the two things no module covers: node networking
     # (pve_bridges) and growing an imported disk.
@@ -618,7 +618,7 @@
           - b.creation_time_drift | length == 0
           - not b.power_drift
         fail_msg: >-
-          VMID {{ vmid }} does not match inventory/group_vars/all.yml after apply:
+          VMID {{ vmid }} does not match labs/netlab-v2/inventory/group_vars/all.yml after apply:
           mismatched={{ b.declared_subset | to_json }} vs live={{ b.actual_subset | to_json }},
           still present but declared absent={{ b.forbidden_present | join(', ') or '-' }},
           creation-time drift={{ b.creation_time_drift | join(', ') or '-' }},

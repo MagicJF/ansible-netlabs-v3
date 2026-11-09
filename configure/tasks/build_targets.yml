@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
 # Shared by configure/site.yml and configure/audit.yml: turn the declared state
 # into an inventory of SSH targets, so the address and the guest identity are
-# declared exactly once (in inventory/group_vars/all.yml) and never duplicated
+# declared exactly once (in labs/netlab-v2/inventory/group_vars/all.yml) and never duplicated
 # in a second file.
 #
 # Runs as a task file inside a play on localhost.

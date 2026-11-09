@@ -13,14 +13,19 @@ Uso:
     segment_comments.py               # lo hace y verifica
 """
 import argparse
+import os
 import sys
 import time
 
 import requests
 import yaml
 
-MANIFEST = "/home/hermes/ansible-netlab-v2/inventory/group_vars/all.yml"
-SECRETS = "/home/hermes/ansible-netlab-v2/playbooks/vars/secrets.yml"
+# La ruta se DERIVA de la ubicacion del propio fichero, nunca se escribe a mano:
+# una ruta absoluta codificada hace que la herramienta solo funcione en la
+# maquina donde se escribio.
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MANIFEST = os.path.join(REPO, "labs/active/inventory/group_vars/all.yml")
+SECRETS = os.path.join(REPO, "playbooks/vars/secrets.yml")
 
 
 def session_and_node():

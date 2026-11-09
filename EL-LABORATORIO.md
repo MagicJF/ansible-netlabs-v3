@@ -227,7 +227,7 @@ no de una vía de gestión metida en las workstations.
   **siempre** por su API REST, con `ansible.builtin.uri`: nada de SSH, nada del
   puerto binario 8728.
 
-Un mismo fichero, `inventory/group_vars/all.yml`, declara **todo**.
+Un mismo fichero, `labs/netlab-v2/inventory/group_vars/all.yml`, declara **todo**.
 
 ---
 
