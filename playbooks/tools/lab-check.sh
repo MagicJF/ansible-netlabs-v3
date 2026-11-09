@@ -17,17 +17,32 @@
 set -u
 
 # --- el mapa del lab: nombre, dirección, sede (0 = red de gestión), tipo -----
-# Una sola verdad: de aquí salen a la vez los destinos y la identidad propia.
-LAB="pc-s1-01 10.11.0.11 1 pc;pc-s1-02 10.11.0.12 1 pc"
-LAB="$LAB;pc-s1-03 10.11.0.13 1 pc;pc-s1-04 10.11.0.14 1 pc"
-LAB="$LAB;pc-s2-01 10.12.0.11 2 pc;pc-s2-02 10.12.0.12 2 pc"
-LAB="$LAB;pc-s3-01 10.13.0.11 3 pc;pc-s3-02 10.13.0.12 3 pc"
-LAB="$LAB;sw-s1-acc-01 10.10.10.11 0 sw;sw-s1-acc-02 10.10.10.12 0 sw"
-LAB="$LAB;sw-s2-acc-01 10.10.10.13 0 sw;sw-s3-acc-01 10.10.10.14 0 sw"
-LAB="$LAB;rt-s1-core 10.10.10.21 0 rt;rt-s2-edge 10.10.10.22 0 rt;rt-s3-edge 10.10.10.23 0 rt"
-LAB="$LAB;fw-s1-perim 10.10.10.31 0 fw;fw-s2-perim 10.10.10.32 0 fw"
-LAB="$LAB;fw-s3-perim 10.10.10.33 0 fw;fw-wan-edge 10.10.10.34 0 fw"
+# GENERADO desde la declaración. No se edita a mano: la lista es la ENTRADA de
+# este test, así que una lista escrita a mano se queda ciega a los invitados que
+# se añaden después y nada lo detecta. Se regenera con:
+#     python3 playbooks/tools/framework_check.py labmap
+# >>> LABMAP
+LAB="pc-s1-01 10.11.0.11 1 pc"
+LAB="$LAB;pc-s1-02 10.11.0.12 1 pc"
+LAB="$LAB;pc-s1-03 10.11.0.13 1 pc"
+LAB="$LAB;pc-s1-04 10.11.0.14 1 pc"
+LAB="$LAB;pc-s2-01 10.12.0.11 2 pc"
+LAB="$LAB;pc-s2-02 10.12.0.12 2 pc"
+LAB="$LAB;pc-s3-01 10.13.0.11 3 pc"
+LAB="$LAB;pc-s3-02 10.13.0.12 3 pc"
+LAB="$LAB;sw-s1-acc-01 10.10.10.11 0 sw"
+LAB="$LAB;sw-s1-acc-02 10.10.10.12 0 sw"
+LAB="$LAB;sw-s2-acc-01 10.10.10.13 0 sw"
+LAB="$LAB;sw-s3-acc-01 10.10.10.14 0 sw"
+LAB="$LAB;rt-s1-core 10.10.10.21 0 rt"
+LAB="$LAB;rt-s2-edge 10.10.10.22 0 rt"
+LAB="$LAB;rt-s3-edge 10.10.10.23 0 rt"
+LAB="$LAB;fw-s1-perim 10.10.10.31 0 fw"
+LAB="$LAB;fw-s2-perim 10.10.10.32 0 fw"
+LAB="$LAB;fw-s3-perim 10.10.10.33 0 fw"
+LAB="$LAB;fw-wan-edge 10.10.10.34 0 fw"
 LAB="$LAB;infra-bootstrap 10.10.10.41 0 boot"
+# <<< LABMAP
 
 # --- la topología: quién es quién y por dónde se cruza -----------------------
 # En la v2 la LAN de la sede cuelga de su ROUTER (el router es la puerta y el

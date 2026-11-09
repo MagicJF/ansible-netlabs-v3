@@ -40,6 +40,7 @@ Run it from anywhere:  python3 playbooks/tools/framework_check.py invariant
 """
 
 import argparse
+import difflib
 import json
 import os
 import re
@@ -333,6 +334,46 @@ def declared_addresses():
         for a in ros.get("addresses", []):
             if a.get("interface") == "ether1":
                 out[v["name"]] = a["address"].split("/")[0]
+    return out
+
+
+def declared_targets():
+    """El mapa del lab derivado de la declaración: nombre, dirección, sede y tipo.
+
+    Es la lista que `lab-check.sh` lleva incrustada. Se deriva en vez de
+    escribirse a mano porque la lista es la ENTRADA del propio test: si se
+    mantiene a mano, añadir un invitado deja el test ciego a él y nada lo nota.
+    El tipo sale del nombre (pc/sw/rt/fw) y la sede del campo `site` declarado.
+    """
+    m = yaml.safe_load(open(MANIFEST, encoding="utf-8"))
+    out = []
+    for c in m.get("pve_containers", []):
+        cfg = c.get("config") or {}
+        if "bootstrap" in cfg:
+            net0 = (c.get("netif") or {}).get("net0", "")
+            ip = re.search(r"\bip=([\d.]+)/", net0)
+            if ip:
+                out.append({"name": c["hostname"], "ip": ip.group(1),
+                            "site": 0, "kind": "boot"})
+        elif "site" in c and c.get("address"):
+            # `site` se declara como "sede1"/"sede2"/"sede3"; el mapa usa el
+            # DIGITO porque es el que ata la estación a su puerta y su tránsito.
+            m_site = re.search(r"(\d+)", str(c["site"]))
+            out.append({"name": c["hostname"], "ip": c["address"],
+                        "site": int(m_site.group(1)) if m_site else 0, "kind": "pc"})
+    for v in m.get("pve_vms", []):
+        if not v.get("chr"):
+            continue
+        ros = (v.get("config") or {}).get("routeros") or {}
+        ip = None
+        for a in ros.get("addresses", []):
+            if a.get("interface") == "ether1":
+                ip = a["address"].split("/")[0]
+        if not ip:
+            continue
+        nombre = v["name"]
+        kind = "sw" if nombre.startswith("sw-") else "rt" if nombre.startswith("rt-") else "fw"
+        out.append({"name": nombre, "ip": ip, "site": 0, "kind": kind})
     return out
 
 
@@ -773,6 +814,56 @@ def notas_check():
     return 0
 
 
+LABMAP_START = "# >>> LABMAP"
+LABMAP_END = "# <<< LABMAP"
+
+
+def _labmap_block():
+    """El bloque `LAB=` que lab-check.sh lleva incrustado, derivado del manifiesto.
+
+    Se agrupa por tipo y se ordena por nombre para que dos generaciones seguidas
+    den el MISMO texto: si el orden bailara, el fichero pareceria cambiado sin
+    que nada haya cambiado de verdad.
+    """
+    orden = {"pc": 0, "sw": 1, "rt": 2, "fw": 3, "boot": 4}
+    destinos = sorted(declared_targets(), key=lambda x: (orden.get(x["kind"], 9), x["name"]))
+    lineas, primera = [], True
+    for d in destinos:
+        trozo = f"{d['name']} {d['ip']} {d['site']} {d['kind']}"
+        if primera:
+            lineas.append(f'LAB="{trozo}"')
+            primera = False
+        else:
+            lineas.append(f'LAB="$LAB;{trozo}"')
+    return "\n".join(lineas)
+
+
+def labmap(check=False):
+    """Reescribe (o verifica con --check) el mapa incrustado en lab-check.sh."""
+    say("== labmap: el mapa del test, derivado de la declaracion ==")
+    texto = open(LABCHECK, encoding="utf-8").read()
+    i, j = texto.find(LABMAP_START), texto.find(LABMAP_END)
+    if i < 0 or j < 0:
+        fail("lab-check.sh no tiene los marcadores LABMAP; no se puede regenerar")
+    actual = texto[i + len(LABMAP_START):j].strip("\n")
+    nuevo = _labmap_block()
+    if actual == nuevo:
+        say(f"  el mapa ya coincide con la declaracion ({len(declared_targets())} destinos)")
+        say("\nPASS: el mapa del test es el que la declaracion produce.")
+        return 0
+    if check:
+        say("  el mapa NO coincide con la declaracion:")
+        for linea in difflib.unified_diff(actual.splitlines(), nuevo.splitlines(),
+                                          "lab-check.sh", "derivado", lineterm="", n=1):
+            say("   " + linea)
+        fail("lab-check.sh esta desincronizado; ejecuta `labmap` para regenerarlo")
+    texto = texto[:i + len(LABMAP_START)] + "\n" + nuevo + "\n" + texto[j:]
+    open(LABCHECK, "w", encoding="utf-8").write(texto)
+    say(f"  mapa regenerado: {len(declared_targets())} destinos")
+    say("\nPASS: lab-check.sh ya lleva el mapa de la declaracion.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     sub = parser.add_subparsers(dest="mode")
@@ -785,6 +876,9 @@ def main():
     sub.add_parser("export", help="los equipos de red sólo tienen lo que la declaración declara")
     sub.add_parser("plan", help="el plan del rol RouterOS: sin red, sin equipo, sin credenciales")
     sub.add_parser("notas", help="la nota HTML y las etiquetas de cada invitado, contra la declaración")
+    lm = sub.add_parser("labmap", help="regenerar el mapa de destinos incrustado en lab-check.sh")
+    lm.add_argument("--check", action="store_true",
+                    help="solo verificar que el mapa coincide con la declaración")
     args = parser.parse_args()
 
     if args.mode == "invariant":
@@ -799,6 +893,8 @@ def main():
         return plan_check()
     if args.mode == "notas":
         return notas_check()
+    if args.mode == "labmap":
+        return labmap(args.check)
     parser.print_help()
     return 2
 
