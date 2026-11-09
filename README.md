@@ -120,6 +120,13 @@ Dos fuentes, en este orden de precedencia:
 
 Para volver a credenciales sólo por entorno, borra `playbooks/vars/secrets.yml`; no hay que cambiar nada más.
 
+**Un clon nuevo no trae `secrets.yml`**, porque está ignorado por git. Es lo primero que
+hay que crear al copiar el repositorio: sin él, `apply` e `invariant` fallan con
+`exited 2` y el error real es `missing credentials: host, token_id, token_secret,
+ca_path`. Ese `exit 2` es la señal de que falta el fichero, no de que la topología esté
+mal. Las credenciales son del **framework**, no de la topología: se declaran una vez por
+nodo y sirven a todos los laboratorios que viven en él.
+
 Nunca commitees estos valores. Si el token llega a un fichero versionado o al remoto, rótalo de inmediato (el motor lee lo que haya en `secrets.yml`, así que rotar es editar una línea).
 
 ### Variables de entorno (vía de respaldo)
@@ -741,6 +748,13 @@ comprueba que la lista de destinos que prueba la propia suite es exactamente la 
 declara el manifiesto: si alguien añade un invitado y no lo añade a la prueba (o al
 revés), falla. Una suite que prueba diecinueve de veinte sale verde y miente.
 
+Ese mapa **no se escribe a mano**: `framework_check.py labmap` lo deriva del
+manifiesto (nombre, dirección, sede y tipo de cada invitado) y lo reescribe entre dos
+marcadores en `lab-check.sh`. Con `--check` sólo verifica. Se deriva porque la lista
+es la *entrada* del propio test: si se mantiene a mano, añadir un invitado deja el test
+ciego a él y el script no puede echar en falta un destino que no sabe que existe.
+`agree` detecta ese desfase; `labmap` lo hace imposible.
+
 **¿Los equipos de red sólo tienen lo que la declaración declara?** `framework_check.py
 export` lee el `export` de RouterOS de cada equipo y exige que no sobre nada: ni una
 regla, ni una dirección, ni un pool que la declaración no declare. Es la mitad que
@@ -778,6 +792,7 @@ python3 playbooks/tools/framework_check.py agree
 python3 playbooks/tools/framework_check.py export
 python3 playbooks/tools/framework_check.py plan
 python3 playbooks/tools/framework_check.py notas
+python3 playbooks/tools/framework_check.py labmap --check
 python3 playbooks/tools/framework_check.py invariant --verb configure/site.yml
 python3 playbooks/tools/framework_check.py drill
 ```
