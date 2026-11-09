@@ -52,7 +52,11 @@ import requests
 import yaml
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MANIFEST = os.path.join(REPO, "labs/active/inventory/group_vars/all.yml")
+# La topología viva se resuelve por `labs/active`, que es un enlace al laboratorio
+# que se está operando. HERMES_LAB permite apuntar a OTRO sin tocar el enlace: es
+# lo que hace posible validar un laboratorio nuevo ANTES de activarlo.
+LAB = os.environ.get("HERMES_LAB", "labs/active")
+MANIFEST = os.path.join(REPO, LAB, "inventory/group_vars/all.yml")
 SECRETS = os.path.join(REPO, "playbooks/vars/secrets.yml")
 # La declaración de RouterOS vive en los valores por defecto del rol: la lista de
 # menús que el framework reclama como suyos es lo que da contra qué comparar.
@@ -943,6 +947,55 @@ def labmap(check=False):
     return 0
 
 
+def nuevo_lab(nombre, desde=None, activar=False):
+    """Crea un laboratorio nuevo copiando uno existente, listo para editar.
+
+    Un laboratorio no se escribe desde cero: se COPIA uno que funciona y se
+    cambia lo que hace distinto. Copiar arrastra lo que de verdad cuesta acertar
+    —los cables, los bridges, las direcciones coherentes— y deja el trabajo en
+    editar la topología, no en reconstruir el andamiaje.
+    """
+    import shutil
+
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", nombre):
+        fail(f"nombre inválido: {nombre!r}. Minúsculas, dígitos y guiones.")
+    origen = desde or "labs/active"
+    origen_real = os.path.realpath(os.path.join(REPO, origen))
+    if not os.path.isdir(origen_real):
+        fail(f"el laboratorio de origen no existe: {origen}")
+    destino = os.path.join(REPO, "labs", nombre)
+    if os.path.exists(destino):
+        fail(f"ya existe labs/{nombre}")
+
+    say(f"== nuevo-lab: {nombre} a partir de {os.path.relpath(origen_real, REPO)} ==")
+    shutil.copytree(origen_real, destino)
+    # El nombre del laboratorio aparece en las notas de los invitados; se corrige
+    # la RUTA, no el nombre del equipo, para no tocar ningún hostname.
+    manifiesto = os.path.join(destino, "inventory/group_vars/all.yml")
+    texto = open(manifiesto, encoding="utf-8").read()
+    origen_rel = os.path.relpath(origen_real, REPO).replace(os.sep, "/")
+    texto = texto.replace(f"{origen_rel}/inventory/group_vars/all.yml",
+                          f"labs/{nombre}/inventory/group_vars/all.yml")
+    open(manifiesto, "w", encoding="utf-8").write(texto)
+
+    say(f"  copiado en labs/{nombre}")
+    say("\n  Para validarlo SIN activarlo (no toca el laboratorio vivo):")
+    say(f"    HERMES_LAB=labs/{nombre} python3 playbooks/tools/framework_check.py agree")
+    say(f"    HERMES_LAB=labs/{nombre} python3 playbooks/tools/framework_check.py plan")
+    say(f"    HERMES_LAB=labs/{nombre} python3 playbooks/tools/framework_check.py notas")
+    say("\n  Edita su manifiesto y su hosts.yml, y cuando cuadre:")
+    if activar:
+        enlace = os.path.join(REPO, "labs/active")
+        if os.path.islink(enlace):
+            os.unlink(enlace)
+        os.symlink(nombre, enlace)
+        say(f"  labs/active -> {nombre}  (hecho)")
+    else:
+        say(f"    ln -sfn {nombre} labs/active   # o repite con --activar")
+    say("\nPASS: laboratorio creado. El motor no ha cambiado: sólo la topología.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     sub = parser.add_subparsers(dest="mode")
@@ -955,6 +1008,11 @@ def main():
     sub.add_parser("export", help="los equipos de red sólo tienen lo que la declaración declara")
     sub.add_parser("plan", help="el plan del rol RouterOS: sin red, sin equipo, sin credenciales")
     sub.add_parser("notas", help="la nota HTML y las etiquetas de cada invitado, contra la declaración")
+    nl = sub.add_parser("nuevo-lab", help="crear un laboratorio nuevo copiando uno existente")
+    nl.add_argument("nombre", help="nombre del laboratorio nuevo (labs/<nombre>)")
+    nl.add_argument("--desde", help="laboratorio de origen (por defecto: labs/active)")
+    nl.add_argument("--activar", action="store_true",
+                    help="reapuntar labs/active al laboratorio nuevo")
     lm = sub.add_parser("labmap", help="regenerar el mapa de destinos incrustado en lab-check.sh")
     lm.add_argument("--check", action="store_true",
                     help="solo verificar que el mapa coincide con la declaración")
@@ -974,6 +1032,8 @@ def main():
         return notas_check()
     if args.mode == "labmap":
         return labmap(args.check)
+    if args.mode == "nuevo-lab":
+        return nuevo_lab(args.nombre, args.desde, args.activar)
     parser.print_help()
     return 2
 

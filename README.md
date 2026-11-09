@@ -805,6 +805,30 @@ python3 playbooks/tools/framework_check.py invariant --verb configure/site.yml
 python3 playbooks/tools/framework_check.py drill
 ```
 
+## Un laboratorio nuevo
+
+El motor no se copia ni se bifurca: se copia un **laboratorio**. `framework_check.py
+nuevo-lab` crea `labs/<nombre>/` a partir de otro (por defecto `labs/active`) y corrige
+la ruta del manifiesto en las notas de los invitados, sin tocar ningún hostname.
+
+```bash
+python3 playbooks/tools/framework_check.py nuevo-lab delegacion-4
+HERMES_LAB=labs/delegacion-4 python3 playbooks/tools/framework_check.py agree
+HERMES_LAB=labs/delegacion-4 python3 playbooks/tools/framework_check.py plan
+HERMES_LAB=labs/delegacion-4 python3 playbooks/tools/framework_check.py notas
+```
+
+Se copia en vez de escribirse de cero porque un manifiesto de veinte invitados lleva
+dieciocho cables punto a punto, diecinueve bridges y un direccionamiento coherente
+entre sedes. Copiar arrastra lo que de verdad cuesta acertar; lo que se edita después
+es la topología.
+
+`HERMES_LAB` es la pieza que permite validar un laboratorio **sin activarlo**: `labs/active`
+es un enlace y el laboratorio vivo no se toca. Cuando el nuevo cuadre,
+`nuevo-lab --activar` (o `ln -sfn <nombre> labs/active`) reapunta el enlace. Los
+playbooks leen `labs/active` por `ansible.cfg`, así que el siguiente verbo ya opera el
+laboratorio nuevo sin cambiar una línea de código.
+
 ## Cómo se comporta el motor
 
 Los dos playbooks construyen un spec efectivo por invitado como
