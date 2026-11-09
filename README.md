@@ -749,11 +749,19 @@ declara el manifiesto: si alguien añade un invitado y no lo añade a la prueba 
 revés), falla. Una suite que prueba diecinueve de veinte sale verde y miente.
 
 Ese mapa **no se escribe a mano**: `framework_check.py labmap` lo deriva del
-manifiesto (nombre, dirección, sede y tipo de cada invitado) y lo reescribe entre dos
-marcadores en `lab-check.sh`. Con `--check` sólo verifica. Se deriva porque la lista
-es la *entrada* del propio test: si se mantiene a mano, añadir un invitado deja el test
-ciego a él y el script no puede echar en falta un destino que no sabe que existe.
-`agree` detecta ese desfase; `labmap` lo hace imposible.
+manifiesto y reescribe entre marcadores **dos** bloques de `lab-check.sh`. Con
+`--check` sólo verifica, sin tocar. Se derivan porque esa lista es la *entrada* del
+propio test: si se mantiene a mano, añadir un invitado deja el test ciego a él y el
+script no puede echar en falta un destino que no sabe que existe. `agree` detecta ese
+desfase; `labmap` lo hace imposible.
+
+- **`LABMAP`** — quién hay: nombre, dirección, sede y tipo de cada invitado.
+- **`TOPOLOGY`** — por dónde se cruza: la puerta de cada sede, el router de gestión de
+  cada sede y los saltos intermedios que predice cada par de sedes. El camino de A a B
+  se calcula de la forma declarada (el hub y sus spokes), no escribiendo a mano cada
+  par: el hub entrega en el extremo *spoke* del enlace del destino, un spoke entrega en
+  el extremo *hub* de su propio enlace. Cuatro saltos entre sedes, uno solo hacia la
+  gestión. Con dos sedes más esto sigue siendo el mismo código.
 
 **¿Los equipos de red sólo tienen lo que la declaración declara?** `framework_check.py
 export` lee el `export` de RouterOS de cada equipo y exige que no sobre nada: ni una

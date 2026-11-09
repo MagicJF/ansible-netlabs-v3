@@ -45,39 +45,41 @@ LAB="$LAB;infra-bootstrap 10.10.10.41 0 boot"
 # <<< LABMAP
 
 # --- la topología: quién es quién y por dónde se cruza -----------------------
-# En la v2 la LAN de la sede cuelga de su ROUTER (el router es la puerta y el
-# servidor DHCP), y el FIREWALL se interpone entre el router y la WAN. Por eso
-# el tránsito entre sedes tiene CUATRO saltos y no dos: el paquete entra y sale
-# por dos firewalls además de los dos routers.
-GW_1=10.11.0.1; GW_2=10.12.0.1; GW_3=10.13.0.1   # la puerta de cada sede
-TR_1=10.21.0.1; TR_2=10.22.0.1; TR_3=10.23.0.1   # el router entrega al FIREWALL
-TR_1_R=10.21.0.2; TR_2_R=10.22.0.2; TR_3_R=10.23.0.2  # y el firewall, al router
-W1_HUB=10.99.1.1; W1_SPOKE=10.99.1.2   # WAN 1: fw-s1-perim <-> fw-s2-perim
-W2_HUB=10.99.2.1; W2_SPOKE=10.99.2.2   # WAN 2: fw-s1-perim <-> fw-s3-perim
-# El router de cada sede, por su dirección de GESTIÓN. Hace falta porque un
-# paquete dirigido a él tiene al propio router como primer y último salto: no
-# hay ningún salto intermedio que exigirle.
-RT_1=10.10.10.21; RT_2=10.10.10.22; RT_3=10.10.10.23
+# GENERADO desde la declaración. No se edita a mano: las puertas, los routers de
+# gestión y los saltos de cada par de sedes se derivan de `lab_sites` y `lab_hub`.
+# Se regenera con:  python3 playbooks/tools/framework_check.py labmap
+#
+# La LAN de la sede cuelga de su ROUTER (el router es la puerta y el servidor
+# DHCP) y el FIREWALL se interpone entre el router y la WAN. Por eso el tránsito
+# entre sedes tiene CUATRO saltos: entra y sale por dos firewalls además de los
+# dos routers. El hub es la sede cuyo firewall termina el borde; las demás son
+# spokes con UN enlace hacia el hub.
+# >>> TOPOLOGY
+GW="1 10.11.0.1 2 10.12.0.1 3 10.13.0.1"
+RT="1 10.10.10.21 2 10.10.10.22 3 10.10.10.23"
+HOP="1-0 10.11.0.1
+1-1
+1-2 10.11.0.1 10.21.0.1 10.99.1.2 10.22.0.2
+1-3 10.11.0.1 10.21.0.1 10.99.2.2 10.23.0.2
+2-0 10.12.0.1
+2-1 10.12.0.1 10.22.0.1 10.99.1.1 10.21.0.2
+2-2
+2-3 10.12.0.1 10.22.0.1 10.99.1.1 10.99.2.2 10.23.0.2
+3-0 10.13.0.1
+3-1 10.13.0.1 10.23.0.1 10.99.2.1 10.21.0.2
+3-2 10.13.0.1 10.23.0.1 10.99.2.1 10.99.1.2 10.22.0.2
+3-3"
+# <<< TOPOLOGY
 
-rt_of() { case "$1" in 1) echo "$RT_1";; 2) echo "$RT_2";; 3) echo "$RT_3";; esac; }
+gw_of() { printf '%s\n' "$GW" | awk -v s="$1" '{for(i=1;i<=NF;i+=2) if($i==s){print $(i+1); exit}}'; }
+rt_of() { printf '%s\n' "$RT" | awk -v s="$1" '{for(i=1;i<=NF;i+=2) if($i==s){print $(i+1); exit}}'; }
 es_mi_puerta() { [ "$1" = "$MY_GW" ] || [ "$1" = "$(rt_of "$MY_SITE")" ]; }
-
-gw_of() { case "$1" in 1) echo "$GW_1";; 2) echo "$GW_2";; 3) echo "$GW_3";; esac; }
 
 # esperado <sede mía> <sede destino> -> saltos intermedios que predice la
 # topología. El destino NUNCA va aquí: el último salto del traceroute ES el
 # destino y se comprueba aparte, como prueba de alcance.
 esperado() {
-  case "$1-$2" in
-    1-0|2-0|3-0) gw_of "$1" ;;                    # a la gestión: sólo mi router
-    1-1|2-2|3-3) : ;;                             # mi sede: L2 directo, 0 saltos
-    1-2) echo "$GW_1 $TR_1 $W1_SPOKE $TR_2_R" ;;
-    1-3) echo "$GW_1 $TR_1 $W2_SPOKE $TR_3_R" ;;
-    2-1) echo "$GW_2 $TR_2 $W1_HUB $TR_1_R" ;;
-    2-3) echo "$GW_2 $TR_2 $W1_HUB $W2_SPOKE $TR_3_R" ;;
-    3-1) echo "$GW_3 $TR_3 $W2_HUB $TR_1_R" ;;
-    3-2) echo "$GW_3 $TR_3 $W2_HUB $W1_SPOKE $TR_2_R" ;;
-  esac
+  printf '%s\n' "$HOP" | awk -v k="$1-$2" '$1==k {if (NF==1) {print ""; exit}; sub(/^[^ ]+ /,""); print; exit}'
 }
 
 # Permite cargar sólo las funciones para probarlas:  LABCHECK_LIB=1 . lab-check.sh

@@ -814,6 +814,68 @@ def notas_check():
     return 0
 
 
+TOPOLOGY_START = "# >>> TOPOLOGY"
+TOPOLOGY_END = "# <<< TOPOLOGY"
+
+
+def _topology_data():
+    """La forma de la topología: quién es el hub, cada sede y el router de cada una.
+
+    El hub es la sede cuyo firewall termina el borde y tiene una boca por cada
+    enlace WAN. Las demás son spokes: su firewall termina UN enlace hacia el hub.
+    Eso no se deduce del direccionamiento, se declara con `lab_hub`.
+    """
+    m = yaml.safe_load(open(MANIFEST, encoding="utf-8"))
+    hub = int(m.get("lab_hub", 1))
+    sites = {int(s["id"]): s for s in m.get("lab_sites", [])}
+    routers = {}
+    for v in m.get("pve_vms", []):
+        if not v.get("chr"):
+            continue
+        mm = re.match(r"rt-s(\d+)-", v["name"])
+        if not mm:
+            continue
+        for a in ((v.get("config") or {}).get("routeros") or {}).get("addresses", []):
+            if a.get("interface") == "ether1":
+                routers[int(mm.group(1))] = a["address"].split("/")[0]
+    return hub, sites, routers
+
+
+def _topology_block():
+    """El bloque GW/RT/HOP: puertas, routers de gestión y saltos predichos.
+
+    Los saltos se DERIVAN de la forma declarada en vez de escribirse a mano por
+    par de sedes. El camino de A a B es: puerta de A, el firewall de A, el otro
+    extremo del enlace WAN (el del hub si A es spoke, el del spoke si B es
+    spoke), y el router de B. Cuatro saltos entre sedes; uno solo hacia la
+    gestión. Con dos sedes más, esto sigue siendo el mismo código.
+    """
+    hub, sites, routers = _topology_data()
+    gw = " ".join(f"{s} {sites[s]['puerta']}" for s in sorted(sites))
+    rt = " ".join(f"{s} {routers[s]}" for s in sorted(routers))
+    filas = []
+    for a in sorted(sites):
+        # Hacia la red de gestión: el paquete sólo cruza el router de A.
+        filas.append(f"{a}-0 {sites[a]['puerta']}")
+        for b in sorted(sites):
+            if a == b:
+                filas.append(f"{a}-{b}")
+                continue
+            ta, tb = sites[a]["transito"], sites[b]["transito"]
+            if a == hub:
+                # El hub entrega en el extremo SPOKE del enlace de B.
+                saltos = [sites[a]["puerta"], ta["fw"], sites[b]["wan"]["spoke"], tb["rt"]]
+            elif b == hub:
+                # El spoke entrega en el extremo HUB de su propio enlace.
+                saltos = [sites[a]["puerta"], ta["fw"], sites[a]["wan"]["hub"], tb["rt"]]
+            else:
+                # Spoke a spoke: sube al hub por su enlace y baja por el del otro.
+                saltos = [sites[a]["puerta"], ta["fw"], sites[a]["wan"]["hub"],
+                          sites[b]["wan"]["spoke"], tb["rt"]]
+            filas.append(f"{a}-{b} " + " ".join(saltos))
+    return 'GW="' + gw + '"\nRT="' + rt + '"\nHOP="' + "\n".join(filas) + '"'
+
+
 LABMAP_START = "# >>> LABMAP"
 LABMAP_END = "# <<< LABMAP"
 
@@ -838,29 +900,46 @@ def _labmap_block():
     return "\n".join(lineas)
 
 
-def labmap(check=False):
-    """Reescribe (o verifica con --check) el mapa incrustado en lab-check.sh."""
-    say("== labmap: el mapa del test, derivado de la declaracion ==")
-    texto = open(LABCHECK, encoding="utf-8").read()
-    i, j = texto.find(LABMAP_START), texto.find(LABMAP_END)
-    if i < 0 or j < 0:
-        fail("lab-check.sh no tiene los marcadores LABMAP; no se puede regenerar")
-    actual = texto[i + len(LABMAP_START):j].strip("\n")
-    nuevo = _labmap_block()
+def _reescribe(texto, marca, nuevo):
+    """Sustituye lo que hay entre los marcadores por `nuevo`. Devuelve (texto, igual)."""
+    ini, fin = texto.find(marca[0]), texto.find(marca[1])
+    if ini < 0 or fin < 0:
+        fail(f"lab-check.sh no tiene los marcadores {marca[0]}; no se puede regenerar")
+    actual = texto[ini + len(marca[0]):fin].strip("\n")
     if actual == nuevo:
-        say(f"  el mapa ya coincide con la declaracion ({len(declared_targets())} destinos)")
-        say("\nPASS: el mapa del test es el que la declaracion produce.")
+        return texto, True
+    return texto[:ini + len(marca[0])] + "\n" + nuevo + "\n" + texto[fin:], False
+
+
+def labmap(check=False):
+    """Regenera (o con --check verifica) los dos bloques incrustados en lab-check.sh.
+
+    Son dos porque responden a preguntas distintas: LABMAP es QUIÉN hay (la lista
+    de destinos) y TOPOLOGY es POR DÓNDE se cruza (puertas, routers de gestión y
+    saltos predichos de cada par de sedes). Los dos se derivan del manifiesto.
+    """
+    say("== labmap: el mapa y la topología del test, derivados de la declaración ==")
+    texto = open(LABCHECK, encoding="utf-8").read()
+    bloques = [
+        ((LABMAP_START, LABMAP_END), _labmap_block(), "destinos"),
+        ((TOPOLOGY_START, TOPOLOGY_END), _topology_block(), "saltos"),
+    ]
+    pendientes = []
+    for marca, nuevo, etiqueta in bloques:
+        texto, igual = _reescribe(texto, marca, nuevo)
+        if not igual:
+            pendientes.append(etiqueta)
+    if not pendientes:
+        say(f"  ya coincide con la declaración: {len(declared_targets())} destinos "
+            f"y {len(declared_targets())} pares de sedes")
+        say("\nPASS: el mapa y la topología del test son los que la declaración produce.")
         return 0
     if check:
-        say("  el mapa NO coincide con la declaracion:")
-        for linea in difflib.unified_diff(actual.splitlines(), nuevo.splitlines(),
-                                          "lab-check.sh", "derivado", lineterm="", n=1):
-            say("   " + linea)
-        fail("lab-check.sh esta desincronizado; ejecuta `labmap` para regenerarlo")
-    texto = texto[:i + len(LABMAP_START)] + "\n" + nuevo + "\n" + texto[j:]
+        say(f"  DESINCRONIZADO: {', '.join(pendientes)}")
+        fail("lab-check.sh no coincide con la declaración; ejecuta `labmap` para regenerarlo")
     open(LABCHECK, "w", encoding="utf-8").write(texto)
-    say(f"  mapa regenerado: {len(declared_targets())} destinos")
-    say("\nPASS: lab-check.sh ya lleva el mapa de la declaracion.")
+    say(f"  regenerado: {', '.join(pendientes)}")
+    say("\nPASS: lab-check.sh ya lleva el mapa y la topología de la declaración.")
     return 0
 
 
