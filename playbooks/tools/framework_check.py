@@ -550,9 +550,35 @@ def plan_check():
     env.filters["flatten"] = lambda x: [i for s in x for i in (s if isinstance(s, list) else [s])]
     env.filters["to_json"] = lambda x: json.dumps(x)
     env.filters["from_json"] = lambda x: json.loads(x)
+    # `zip` tampoco es de Jinja2 puro: es un filtro de Ansible. La tabla de sedes
+    # se indexa por id con `dict(ids | zip(sedes))`, asi que aqui hace falta.
+    env.filters["zip"] = lambda a, b: list(zip(a, b))
     tpl = env.from_string(open(plantilla).read())
 
+    # Las variables DERIVADAS de nivel raiz (hoy `lab_sede`, que indexa la tabla
+    # de sedes por id) llegan de PyYAML como texto con Jinja sin resolver. Se
+    # resuelven aqui, en orden de dependencia, para que el contexto con el que se
+    # renderiza la plantilla tenga valores REALES y no la cadena "{{ ... }}".
+    # Sin esto, `lab_sede[1].puerta` indexa la cadena por caracter y el plan
+    # revienta con "'str object' has no attribute 'puerta'".
+    # Ansible devuelve TIPOS NATIVOS de Jinja (un `{{ dict(...) }}` es un dict,
+    # no su representacion como texto). Por eso la resolucion usa un entorno
+    # nativo: con el entorno normal, `lab_sede` quedaria siendo una cadena y
+    # `lab_sede[1]` indexaria el CARACTER 1 en vez de la sede 1.
+    import jinja2.nativetypes
+    nenv = jinja2.nativetypes.NativeEnvironment(undefined=jinja2.StrictUndefined)
+    nenv.filters.update(env.filters)
     ctx = dict(man)
+    for _ in range(4):
+        pendiente = [k for k, v in ctx.items()
+                     if isinstance(v, str) and "{{" in v]
+        if not pendiente:
+            break
+        for k in pendiente:
+            try:
+                ctx[k] = nenv.from_string(ctx[k]).render(**ctx)
+            except Exception:
+                pass  # se queda sin resolver; lo denunciara el render que la use
     ctx["routeros_disabled_services"] = defaults["routeros_disabled_services"]
 
     def declarado(equipo):
