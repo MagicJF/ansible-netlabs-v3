@@ -1,0 +1,2010 @@
+---
+# ============================================================================
+# ESTADO DECLARADO DEL LABORATORIO — ansible-netlab-v2
+#
+# Una sola fuente de verdad. Este fichero declara QUÉ existe y CÓMO está; los
+# verbos (playbooks/*.yml) lo llevan a la realidad y lo verifican. Nada se toca
+# por SSH al hipervisor: todo va por la API de Proxmox y por la API de RouterOS.
+#
+# ---------------------------------------------------------------------------
+# QUÉ CAMBIA RESPECTO A LA v1 (proxmox-ansible-lxc-test)
+# ---------------------------------------------------------------------------
+#   1. Numeración de CUATRO dígitos en todos los invitados, con la ubicación
+#      primero y el tipo de equipo después:   S T NN
+#         S  = sede / ubicación   0=infra  1=central  2=delegación-2  3=delegación-3  9=borde
+#         T  = tipo de equipo     1=firewall  2=router  3=switch  4=workstation  9=servicio
+#         NN = índice dentro de ese tipo y sede
+#      Así `1301` se lee "sede 1, switch, el primero" y `1401` "sede 1,
+#      workstation, la primera". El número dice dónde está y qué es.
+#
+#   2. DISTINCIÓN DE FUNCIONES POR MÁQUINA. En la v1 cada sede tenía un router
+#      que lo hacía todo. Aquí cada función es un equipo:
+#        - el SWITCH   conmuta (L2), no enruta ni filtra;
+#        - el ROUTER   es la PUERTA DE ENLACE y el servidor DHCP de su LAN, y
+#                      enruta dentro de la empresa (entre sedes);
+#        - el FIREWALL filtra el PERÍMETRO: está entre el router de su sede y la
+#                      WAN, y entre el núcleo y el proveedor.
+#
+#      El orden de un paquete es:  pc -> sw -> rt -> fw -> WAN
+#
+#      Y no es una preferencia de estilo: el DHCP es un broadcast de CAPA 2, así
+#      que quien reparte las direcciones tiene que estar en el MISMO segmento que
+#      sus clientes. Un firewall de capa 3 en medio rompería el DHCP; por eso la
+#      LAN cuelga del router y el firewall se pone DESPUÉS, de cara a la WAN.
+#
+#   3. SALIDA A INTERNET. La v1 era una red cerrada a propósito. Aquí el firewall
+#      de borde (`fw-wan-edge`) sale por la red de gestión hacia el host Proxmox
+#      (10.10.10.1) — el único gateway real del nodo, y está MEDIDO que da salida
+#      — y hace NAT (masquerade) para toda la empresa. NO se pone ningún invitado
+#      en vmbr0 (el bridge público): la salida va por la LAN de gestión, nunca
+#      exponiendo la máquina a internet directamente. El NAT vive SÓLO en el
+#      borde: los firewalls de sede filtran pero no traducen, así que dentro de la
+#      empresa las direcciones son las reales y las rutas de vuelta existen.
+#
+#   4. NOMBRES DESCRIPTIVOS: sw-s1-acc-01, rt-s2-edge, fw-s3-perim, pc-s1-01,
+#      fw-wan-edge, infra-bootstrap. El nombre dice el tipo, la sede y la
+#      función; no hay que consultar nada para saber qué es cada máquina.
+# ============================================================================
+
+pve_node: Proxmox
+
+# ---------------------------------------------------------------------------
+# DIRECCIONAMIENTO
+#
+# Todas las direcciones de GESTIÓN viven en 10.10.10.0/24 (vmbr1), cuya puerta
+# es el host Proxmox (10.10.10.1). Ese /24 no se puede ampliar sin reconfigurar
+# el host, y el host no se toca (ver .hermes.md), así que la regla de la v1
+# ("el último octeto es el vmid") NO cabe con cuatro dígitos: aquí las
+# direcciones de gestión se asignan por BLOQUES DE FUNCIÓN.
+#
+#   10.10.10.1      el host Proxmox (NO es nuestro; es el gateway)
+#   10.10.10.2      un invitado preexistente, AJENO a este repositorio
+#   10.10.10.11-19  switches      (ST = 13/23/33)
+#   10.10.10.21-29  routers       (ST = 12/22/32)
+#   10.10.10.31-39  firewalls     (ST = 11/21/31, y el de borde 91)
+#   10.10.10.41-49  infraestructura (ST = 09)
+# ---------------------------------------------------------------------------
+lab_mgmt_network: "10.10.10.0/24"
+lab_mgmt_gateway: "10.10.10.1"
+
+# LAN de cada sede: la red de sus estaciones. Cada sede es su propia red, así que
+# un paquete de una sede a otra tiene que cruzar la topología (no hay atajo). Su
+# puerta de enlace es el ROUTER de la sede, que es también quien reparte las
+# direcciones por DHCP.
+lab_site1_network: "10.11.0.0/24"
+lab_site1_gateway: "10.11.0.1"
+lab_site1_pool: "10.11.0.100-10.11.0.199"
+lab_site2_network: "10.12.0.0/24"
+lab_site2_gateway: "10.12.0.1"
+lab_site2_pool: "10.12.0.100-10.12.0.199"
+lab_site3_network: "10.13.0.0/24"
+lab_site3_gateway: "10.13.0.1"
+lab_site3_pool: "10.13.0.100-10.13.0.199"
+
+# Enlaces WAN punto a punto. Ahora los terminan los FIREWALLS de cada sede (cada
+# uno en su extremo de la WAN), no los routers: el firewall es la boca de la
+# sede hacia fuera. Dos /30, no un segmento compartido, es lo que hace que una
+# sede nueva no toque las demás.
+lab_wan1_network: "10.99.1.0/30"
+lab_wan1_hub: "10.99.1.1"
+lab_wan1_spoke: "10.99.1.2"
+lab_wan2_network: "10.99.2.0/30"
+lab_wan2_hub: "10.99.2.1"
+lab_wan2_spoke: "10.99.2.2"
+
+# Tránsitos router<->firewall de cada sede, uno por sede (/30). Es el cable que
+# separa LITERALMENTE la LAN del equipo que filtra: el router ve su LAN por
+# dentro, el firewall la empresa por fuera.
+lab_tr1_network: "10.21.0.0/30"
+lab_tr1_fw: "10.21.0.1"
+lab_tr1_rt: "10.21.0.2"
+lab_tr2_network: "10.22.0.0/30"
+lab_tr2_fw: "10.22.0.1"
+lab_tr2_rt: "10.22.0.2"
+lab_tr3_network: "10.23.0.0/30"
+lab_tr3_fw: "10.23.0.1"
+lab_tr3_rt: "10.23.0.2"
+
+# El borde de la empresa: el firewall de la central entrega aquí todo lo que
+# sale, y el firewall de borde lo NAT-ea hacia la red de gestión.
+lab_edge_network: "10.29.0.0/30"
+lab_edge_core: "10.29.0.1"
+lab_edge_fw: "10.29.0.2"
+
+# El "proveedor de internet" es el propio host Proxmox: es el único que tiene
+# salida real, y está medido (TCP a internet desde la LAN de gestión funciona).
+lab_internet_gateway: "10.10.10.1"
+lab_internet_dns: "1.1.1.1"
+
+# Red del nodo de control (el túnel). No es una red de la empresa: es el camino
+# por el que ESTE nodo entra a gestionar.
+lab_control_network: "10.99.99.0/24"
+lab_control_via: "10.10.10.1"
+
+# ---------------------------------------------------------------------------
+# CLAVE DE AUTOMATIZACIÓN (fuera del repositorio; aquí sólo su RUTA)
+# ---------------------------------------------------------------------------
+pve_ssh_pubkey_path: "/home/hermes/.hermes/profiles/hermione/secrets/pve-automation_ed25519.pub"
+
+# ---------------------------------------------------------------------------
+# TÚNEL DE GESTIÓN (WireGuard)
+#
+# El control node no está en la LAN del laboratorio: entra por un túnel cuyo
+# extremo vive en el host Proxmox. La mitad del host NO la puede configurar la
+# API (sería ejecutar código en el hipervisor), así que se pega UNA vez con
+# playbooks/tools/wg_endpoint_setup.sh — incluida la ruta por sede, que es el
+# último argumento.
+# ---------------------------------------------------------------------------
+pve_tunnel:
+  manage: true
+  name: wg-lab
+  endpoint: "54.36.168.83:51820"
+  endpoint_public_key: "3+bBS+GqR4EtWUFst+2s49rneVguWquuRBGINt/tZXQ="
+  address: "10.99.99.2/24"
+  guest_network:
+    - "10.10.10.0/24"   # la LAN de gestión (host y patas de gestión)
+    - "10.11.0.0/24"    # SEDE 1 (central)
+    - "10.12.0.0/24"    # SEDE 2
+    - "10.13.0.0/24"    # SEDE 3
+  # Rutas que el ENDPOINT (el host) necesita para entregar el tráfico del túnel
+  # a cada LAN de sede. Se llega a la red de una sede por la pata de gestión de
+  # su ROUTER (el que tiene esa LAN conectada), que es como se llega en la vida
+  # real: por la pata de administración del equipo que es puerta de esa red.
+  endpoint_routes:
+    - to: "{{ lab_site1_network }}"
+      via: "10.10.10.21"   # rt-s1-core
+    - to: "{{ lab_site2_network }}"
+      via: "10.10.10.22"   # rt-s2-edge
+    - to: "{{ lab_site3_network }}"
+      via: "10.10.10.23"   # rt-s3-edge
+  private_key_path: "/home/hermes/.hermes/profiles/hermione/secrets/wg-lab-client"
+  keepalive: 25
+
+# ---------------------------------------------------------------------------
+# SEGMENTOS DEL HOST (bridges, los "cables")
+#
+# Uno por CABLE, aislado (sin puertos de uplink), y el nombre del bridge aparece
+# literal en sus dos puntas. El motor sólo CREA bridges: los que dejan de
+# declararse se quedan en el host y se retiran por la API. Los comentarios de
+# los segmentos que ya existen los pone el repositorio con una llamada aparte
+# (playbooks/tools/segment_comments.py), porque el motor no los reescribe.
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# ESQUEMA DE COLOR DE LAS ETIQUETAS (Datacenter -> Options -> Tag Style).
+#
+# No es decoración: es cómo se lee una máquina de un vistazo en el árbol del
+# interfaz. Tres ejes y un color reservado:
+#
+#   ROJO            -> gestionado por ESTE repositorio. Si un invitado no lleva
+#                      el rojo, este repositorio no lo declara y no lo toca.
+#   color por ROL   -> qué es: switch, router, firewall, workstation, bootstrap.
+#   color por SEDE  -> dónde está: central, delegación, borde, infraestructura.
+#
+# El vocabulario de etiquetas es corto a propósito (tres por invitado) y tiene
+# que caber en la lista permitida del datacenter (`allowed-tags`), que PVE
+# aplica: un tag que no esté allí lo rechaza.
+# ---------------------------------------------------------------------------
+pve_tag_style:
+  # full dibuja la etiqueta entera en el árbol; circle y dense la abrevian, y
+  # none la esconde. Con tres tags por invitado, "full" es lo que se lee.
+  shape: full
+  # Forma que almacena PVE (comprobada contra la API):
+  #   color-map=<tag>:<color-de-fondo>[:<color-del-texto>];<tag>:...
+  colors: "ansible-managed:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;central:00838f:ffffff;delegacion:6d4c41:ffffff;borde:37474f:ffffff;infra:5e35b1:ffffff"
+
+pve_bridges:
+  # ---- SEDE 1 (central) -----------------------------------------------------
+  - iface: vmbr4
+    comments: "cable: pc-s1-01 eth0 <-> sw-s1-acc-01 ether2"
+  - iface: vmbr5
+    comments: "cable: pc-s1-02 eth0 <-> sw-s1-acc-01 ether3"
+  - iface: vmbr6
+    comments: "cable: pc-s1-03 eth0 <-> sw-s1-acc-02 ether2"
+  - iface: vmbr7
+    comments: "cable: pc-s1-04 eth0 <-> sw-s1-acc-02 ether3"
+  - iface: vmbr8
+    comments: "cable: sw-s1-acc-01 ether4 <-> sw-s1-acc-02 ether4 (troncal L2)"
+  - iface: vmbr9
+    comments: "cable: sw-s1-acc-01 ether5 <-> rt-s1-core ether2 (LA LAN DE LA SEDE 1, 10.11.0.0/24)"
+  - iface: vmbr10
+    comments: "cable: rt-s1-core ether3 <-> fw-s1-perim ether2 (transito 10.21.0.0/30)"
+  - iface: vmbr11
+    comments: "WAN 1: fw-s1-perim ether3 <-> fw-s2-perim ether3 (10.99.1.0/30)"
+  - iface: vmbr12
+    comments: "WAN 2: fw-s1-perim ether4 <-> fw-s3-perim ether3 (10.99.2.0/30)"
+  - iface: vmbr13
+    comments: "cable: fw-s1-perim ether5 <-> fw-wan-edge ether2 (transito de borde 10.29.0.0/30)"
+  # ---- SEDE 2 (delegacion) --------------------------------------------------
+  - iface: vmbr14
+    comments: "cable: pc-s2-01 eth0 <-> sw-s2-acc-01 ether2"
+  - iface: vmbr15
+    comments: "cable: pc-s2-02 eth0 <-> sw-s2-acc-01 ether3"
+  - iface: vmbr16
+    comments: "cable: sw-s2-acc-01 ether4 <-> rt-s2-edge ether2 (LA LAN DE LA SEDE 2, 10.12.0.0/24)"
+  - iface: vmbr17
+    comments: "cable: rt-s2-edge ether3 <-> fw-s2-perim ether2 (transito 10.22.0.0/30)"
+  # ---- SEDE 3 (delegacion) --------------------------------------------------
+  - iface: vmbr18
+    comments: "cable: pc-s3-01 eth0 <-> sw-s3-acc-01 ether2"
+  - iface: vmbr19
+    comments: "cable: pc-s3-02 eth0 <-> sw-s3-acc-01 ether3"
+  - iface: vmbr20
+    comments: "cable: sw-s3-acc-01 ether4 <-> rt-s3-edge ether2 (LA LAN DE LA SEDE 3, 10.13.0.0/24)"
+  - iface: vmbr21
+    comments: "cable: rt-s3-edge ether3 <-> fw-s3-perim ether2 (transito 10.23.0.0/30)"
+
+# ---------------------------------------------------------------------------
+# CONTENEDORES (LXC)
+# ---------------------------------------------------------------------------
+pve_defaults:
+  # ---- creation-time: PVE cannot change these on an existing container ------
+  template: "local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst"
+  template_storage: local
+  storage: local-zfs
+  rootfs_size: 8
+  unprivileged: true
+  ostype: debian
+
+  # ---- power state ---------------------------------------------------------
+  # started | stopped. En marcha: aplicar la declaración ES levantar el
+  # laboratorio, y ese es el sentido de tenerlo declarado.
+  status: started
+
+  # ---- resources (converged in place) --------------------------------------
+  memory: 2048
+  swap: 512
+  cores: 2
+  cpuunits: 1024
+
+  # ---- behaviour (converged in place) --------------------------------------
+  onboot: false
+  description: "Managed by ansible-netlab-v2. Declare changes in inventory/group_vars/all.yml."
+  # Etiqueta base; cada invitado AÑADE las suyas (sede y papel) a esta lista.
+  tags: [netlab, ansible-managed]
+  timezone: host
+  cmode: shell
+  features: []
+  startup: []
+
+  # ---- network (converged in place; empty = no interface at all) ----------
+  netif: {}
+  nameserver: null
+  searchdomain: null
+
+  # ---- attachments (converged in place; empty = must not exist) -----------
+  hookscript: null
+  mounts: {}
+  mount_devices: []
+
+  # ---- the key at birth ----------------------------------------------------
+  pubkey: "{{ lookup('file', pve_ssh_pubkey_path, errors='ignore') | default('', true) | trim }}"
+
+# The containers this repository manages — and nothing else. A container absent
+# from this list is never read, created or modified.
+pve_containers:
+  # ==========================================================================
+  # 09xx — INFRAESTRUCTURA
+  #
+  # Lo mínimo para que el laboratorio nazca: el equipo que da a los routers su
+  # primera dirección. No hay más servicios: esto describe una red de empresa,
+  # no un parque de aplicaciones.
+  # ==========================================================================
+
+  # infra-bootstrap: concede a cada equipo de red su primera dirección por DHCP,
+  # atada a su MAC, para que su API REST exista desde el primer arranque. Vive
+  # en la LAN de gestión. Es la SALA DE PARTOS, no una dependencia de
+  # funcionamiento: una vez cada equipo tiene su dirección, no interviene.
+  - vmid: 901
+    hostname: infra-bootstrap
+    cores: 1
+    memory: 1024
+    rootfs_size: 4
+    swap: 256
+    onboot: true
+    startup: ["order=1"]
+    tags: [ansible-managed, bootstrap, infra]
+    description: |
+      <b>infra-bootstrap</b> — herramienta de despliegue. Da a cada equipo de red su <b>primera</b> dirección y no interviene en nada más.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>901</td></tr>
+       <tr><td>Tipo</td><td>Contenedor LXC (Debian 13, sin privilegios)</td></tr>
+       <tr><td>Dónde</td><td>red de gestión</td></tr>
+       <tr><td>Rol</td><td>bootstrap</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>bootstrap</code> <code>infra</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>eth0</td><td><code>vmbr1</code></td><td>—</td><td>segmento compartido (12 patas)</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CÓMO ESTÁ DIRIGIDA</b>
+      <table>
+       <tr><td>Dirección</td><td>None — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
+       <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>
+        infra-bootstrap ── vmbr1 (red de gestión) ──▶ todos los equipos
+           «ESTE»            da la PRIMERA dirección a cada uno, una vez
+      </pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Hace un solo trabajo y por eso existe.</b> La primera dirección de un CHR llega por una difusión que no cruza un enlace de capa 3, así que tiene que haber algo en su mismo segmento que se la dé. Después no vuelve a intervenir.</li>
+      </ul>
+    netif:
+      net0: "name=eth0,bridge=vmbr1,gw=10.10.10.1,ip=10.10.10.41/24"
+    manage: true
+    config:
+      bootstrap:
+        interface: eth0
+        # A qué tiene que saber VOLVER: las redes de las tres sedes. Sin esto
+        # recibe los pings de una workstation y no puede contestarlos, porque su
+        # ruta por defecto va al host y el host no enruta hacia el interior. El
+        # gateway es el núcleo, que es el que conoce las tres sedes.
+        routes:
+          - "{{ lab_site1_network }}"
+          - "{{ lab_site2_network }}"
+          - "{{ lab_site3_network }}"
+        route_gateway: "10.10.10.21"   # rt-s1-core
+        hosts: >-
+          {%- set out = [] -%}
+          {%- for v in pve_vms | selectattr('chr', 'defined') -%}
+          {%-   set mac = v.net.net0 | regex_replace('^.*virtio=([0-9A-Fa-f:]{17}).*$', '\\1') -%}
+          {%-   set mgmt = v.config.routeros.addresses
+                          | selectattr('interface', 'equalto', 'ether1') | first -%}
+          {%-   set _ = out.append({'mac': mac,
+                                    'address': mgmt.address.split('/')[0],
+                                    'name': v.name}) -%}
+          {%- endfor -%}
+          {{ out }}
+
+  # ==========================================================================
+  # 14xx / 24xx / 34xx — LAS OCHO WORKSTATIONS
+  #
+  # Cada una es un PC: UNA sola NIC, en su propio segmento aislado (el latiguillo
+  # hacia su switch) y SIN interfaz de gestión. Así se hace en una empresa: un PC
+  # de oficina tiene un interfaz y recibe su dirección por DHCP; nadie le pone un
+  # segundo NIC "de gestión" ni entra en él por SSH desde la red.
+  #
+  # Su dirección se la da por DHCP el ROUTER de su sede, con una reserva atada a
+  # su MAC declarada aquí.
+  # ==========================================================================
+
+  - vmid: 1401
+    hostname: pc-s1-01
+    site: sede1
+    address: "10.11.0.11"
+    cores: 1
+    memory: 256
+    rootfs_size: 4
+    swap: 256
+    tags: [ansible-managed, workstation, central]
+    onboot: true
+    startup: ["order=3"]
+    manage: true
+    config:
+      netlab:
+        dhcp:
+          timeout: 300
+          retry: 30
+    description: |
+      <b>pc-s1-01</b> — workstation de la central (sede 1). Un PC de usuario: toma su dirección por DHCP y <b>no tiene ninguna vía de gestión</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>1401</td></tr>
+       <tr><td>Tipo</td><td>Contenedor LXC (Debian 13, sin privilegios)</td></tr>
+       <tr><td>Dónde</td><td>la central (sede 1)</td></tr>
+       <tr><td>Rol</td><td>workstation</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>workstation</code> <code>central</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>eth0</td><td><code>vmbr4</code></td><td><code>BC:24:11:00:51:01</code></td><td>sw-s1-acc-01 ether2</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2 al que se enchufan exactamente estas dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CÓMO ESTÁ DIRIGIDA</b>
+      <table>
+       <tr><td>Dirección</td><td>10.11.0.11 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
+       <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre><b>pc-s1-01</b> «ESTE»  ──▶  sw-s1-acc-01  ──▶  rt-s1-core  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Una sola NIC y ninguna de gestión.</b> Así se hace en una empresa: el PC tiene un cable, y la administración de parque es un agente que <i>sale</i> hacia fuera. Por eso este invitado no aparece en el diario de la API como destino.</li>
+      <li><b>Su dirección vive en la declaración, no en el equipo.</b> El <code>address:</code> de su ficha <i>es</i> la reserva que el router deriva: no hay dos sitios donde se puedan desincronizar.</li>
+      </ul>
+    netif:
+      net0: "name=eth0,bridge=vmbr4,hwaddr=BC:24:11:00:51:01,ip=dhcp"
+
+  - vmid: 1402
+    hostname: pc-s1-02
+    site: sede1
+    address: "10.11.0.12"
+    cores: 1
+    memory: 256
+    rootfs_size: 4
+    swap: 256
+    tags: [ansible-managed, workstation, central]
+    onboot: true
+    startup: ["order=3"]
+    manage: true
+    config:
+      netlab:
+        dhcp:
+          timeout: 300
+          retry: 30
+    description: |
+      <b>pc-s1-02</b> — workstation de la central (sede 1). Un PC de usuario: toma su dirección por DHCP y <b>no tiene ninguna vía de gestión</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>1402</td></tr>
+       <tr><td>Tipo</td><td>Contenedor LXC (Debian 13, sin privilegios)</td></tr>
+       <tr><td>Dónde</td><td>la central (sede 1)</td></tr>
+       <tr><td>Rol</td><td>workstation</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>workstation</code> <code>central</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>eth0</td><td><code>vmbr5</code></td><td><code>BC:24:11:00:51:02</code></td><td>sw-s1-acc-01 ether3</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2 al que se enchufan exactamente estas dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CÓMO ESTÁ DIRIGIDA</b>
+      <table>
+       <tr><td>Dirección</td><td>10.11.0.12 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
+       <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s1-01  ──▶  sw-s1-acc-01  ──▶  rt-s1-core  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Una sola NIC y ninguna de gestión.</b> Así se hace en una empresa: el PC tiene un cable, y la administración de parque es un agente que <i>sale</i> hacia fuera. Por eso este invitado no aparece en el diario de la API como destino.</li>
+      <li><b>Su dirección vive en la declaración, no en el equipo.</b> El <code>address:</code> de su ficha <i>es</i> la reserva que el router deriva: no hay dos sitios donde se puedan desincronizar.</li>
+      </ul>
+    netif:
+      net0: "name=eth0,bridge=vmbr5,hwaddr=BC:24:11:00:51:02,ip=dhcp"
+
+  - vmid: 1403
+    hostname: pc-s1-03
+    site: sede1
+    address: "10.11.0.13"
+    cores: 1
+    memory: 256
+    rootfs_size: 4
+    swap: 256
+    tags: [ansible-managed, workstation, central]
+    onboot: true
+    startup: ["order=3"]
+    manage: true
+    config:
+      netlab:
+        dhcp:
+          timeout: 300
+          retry: 30
+    description: |
+      <b>pc-s1-03</b> — workstation de la central (sede 1). Un PC de usuario: toma su dirección por DHCP y <b>no tiene ninguna vía de gestión</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>1403</td></tr>
+       <tr><td>Tipo</td><td>Contenedor LXC (Debian 13, sin privilegios)</td></tr>
+       <tr><td>Dónde</td><td>la central (sede 1)</td></tr>
+       <tr><td>Rol</td><td>workstation</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>workstation</code> <code>central</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>eth0</td><td><code>vmbr6</code></td><td><code>BC:24:11:00:51:03</code></td><td>sw-s1-acc-02 ether2</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2 al que se enchufan exactamente estas dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CÓMO ESTÁ DIRIGIDA</b>
+      <table>
+       <tr><td>Dirección</td><td>10.11.0.13 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
+       <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s1-01  ──▶  sw-s1-acc-01  ──▶  rt-s1-core  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Una sola NIC y ninguna de gestión.</b> Así se hace en una empresa: el PC tiene un cable, y la administración de parque es un agente que <i>sale</i> hacia fuera. Por eso este invitado no aparece en el diario de la API como destino.</li>
+      <li><b>Su dirección vive en la declaración, no en el equipo.</b> El <code>address:</code> de su ficha <i>es</i> la reserva que el router deriva: no hay dos sitios donde se puedan desincronizar.</li>
+      </ul>
+    netif:
+      net0: "name=eth0,bridge=vmbr6,hwaddr=BC:24:11:00:51:03,ip=dhcp"
+
+  - vmid: 1404
+    hostname: pc-s1-04
+    site: sede1
+    address: "10.11.0.14"
+    cores: 1
+    memory: 256
+    rootfs_size: 4
+    swap: 256
+    tags: [ansible-managed, workstation, central]
+    onboot: true
+    startup: ["order=3"]
+    manage: true
+    config:
+      netlab:
+        dhcp:
+          timeout: 300
+          retry: 30
+    description: |
+      <b>pc-s1-04</b> — workstation de la central (sede 1). Un PC de usuario: toma su dirección por DHCP y <b>no tiene ninguna vía de gestión</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>1404</td></tr>
+       <tr><td>Tipo</td><td>Contenedor LXC (Debian 13, sin privilegios)</td></tr>
+       <tr><td>Dónde</td><td>la central (sede 1)</td></tr>
+       <tr><td>Rol</td><td>workstation</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>workstation</code> <code>central</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>eth0</td><td><code>vmbr7</code></td><td><code>BC:24:11:00:51:04</code></td><td>sw-s1-acc-02 ether3</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2 al que se enchufan exactamente estas dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CÓMO ESTÁ DIRIGIDA</b>
+      <table>
+       <tr><td>Dirección</td><td>10.11.0.14 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
+       <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s1-01  ──▶  sw-s1-acc-01  ──▶  rt-s1-core  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Una sola NIC y ninguna de gestión.</b> Así se hace en una empresa: el PC tiene un cable, y la administración de parque es un agente que <i>sale</i> hacia fuera. Por eso este invitado no aparece en el diario de la API como destino.</li>
+      <li><b>Su dirección vive en la declaración, no en el equipo.</b> El <code>address:</code> de su ficha <i>es</i> la reserva que el router deriva: no hay dos sitios donde se puedan desincronizar.</li>
+      </ul>
+    netif:
+      net0: "name=eth0,bridge=vmbr7,hwaddr=BC:24:11:00:51:04,ip=dhcp"
+
+  - vmid: 2401
+    hostname: pc-s2-01
+    site: sede2
+    address: "10.12.0.11"
+    cores: 1
+    memory: 256
+    rootfs_size: 4
+    swap: 256
+    tags: [ansible-managed, workstation, delegacion]
+    onboot: true
+    startup: ["order=3"]
+    manage: true
+    config:
+      netlab:
+        dhcp:
+          timeout: 300
+          retry: 30
+    description: |
+      <b>pc-s2-01</b> — workstation de la delegación 2. Un PC de usuario: toma su dirección por DHCP y <b>no tiene ninguna vía de gestión</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>2401</td></tr>
+       <tr><td>Tipo</td><td>Contenedor LXC (Debian 13, sin privilegios)</td></tr>
+       <tr><td>Dónde</td><td>la delegación 2</td></tr>
+       <tr><td>Rol</td><td>workstation</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>workstation</code> <code>delegacion</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>eth0</td><td><code>vmbr14</code></td><td><code>BC:24:11:00:52:01</code></td><td>sw-s2-acc-01 ether2</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2 al que se enchufan exactamente estas dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CÓMO ESTÁ DIRIGIDA</b>
+      <table>
+       <tr><td>Dirección</td><td>10.12.0.11 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
+       <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre><b>pc-s2-01</b> «ESTE»  ──▶  sw-s2-acc-01  ──▶  rt-s2-edge  ──▶  fw-s2-perim  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Una sola NIC y ninguna de gestión.</b> Así se hace en una empresa: el PC tiene un cable, y la administración de parque es un agente que <i>sale</i> hacia fuera. Por eso este invitado no aparece en el diario de la API como destino.</li>
+      <li><b>Su dirección vive en la declaración, no en el equipo.</b> El <code>address:</code> de su ficha <i>es</i> la reserva que el router deriva: no hay dos sitios donde se puedan desincronizar.</li>
+      </ul>
+    netif:
+      net0: "name=eth0,bridge=vmbr14,hwaddr=BC:24:11:00:52:01,ip=dhcp"
+
+  - vmid: 2402
+    hostname: pc-s2-02
+    site: sede2
+    address: "10.12.0.12"
+    cores: 1
+    memory: 256
+    rootfs_size: 4
+    swap: 256
+    tags: [ansible-managed, workstation, delegacion]
+    onboot: true
+    startup: ["order=3"]
+    manage: true
+    config:
+      netlab:
+        dhcp:
+          timeout: 300
+          retry: 30
+    description: |
+      <b>pc-s2-02</b> — workstation de la delegación 2. Un PC de usuario: toma su dirección por DHCP y <b>no tiene ninguna vía de gestión</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>2402</td></tr>
+       <tr><td>Tipo</td><td>Contenedor LXC (Debian 13, sin privilegios)</td></tr>
+       <tr><td>Dónde</td><td>la delegación 2</td></tr>
+       <tr><td>Rol</td><td>workstation</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>workstation</code> <code>delegacion</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>eth0</td><td><code>vmbr15</code></td><td><code>BC:24:11:00:52:02</code></td><td>sw-s2-acc-01 ether3</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2 al que se enchufan exactamente estas dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CÓMO ESTÁ DIRIGIDA</b>
+      <table>
+       <tr><td>Dirección</td><td>10.12.0.12 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
+       <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s2-01  ──▶  sw-s2-acc-01  ──▶  rt-s2-edge  ──▶  fw-s2-perim  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Una sola NIC y ninguna de gestión.</b> Así se hace en una empresa: el PC tiene un cable, y la administración de parque es un agente que <i>sale</i> hacia fuera. Por eso este invitado no aparece en el diario de la API como destino.</li>
+      <li><b>Su dirección vive en la declaración, no en el equipo.</b> El <code>address:</code> de su ficha <i>es</i> la reserva que el router deriva: no hay dos sitios donde se puedan desincronizar.</li>
+      </ul>
+    netif:
+      net0: "name=eth0,bridge=vmbr15,hwaddr=BC:24:11:00:52:02,ip=dhcp"
+
+  - vmid: 3401
+    hostname: pc-s3-01
+    site: sede3
+    address: "10.13.0.11"
+    cores: 1
+    memory: 256
+    rootfs_size: 4
+    swap: 256
+    tags: [ansible-managed, workstation, delegacion]
+    onboot: true
+    startup: ["order=3"]
+    manage: true
+    config:
+      netlab:
+        dhcp:
+          timeout: 300
+          retry: 30
+    description: |
+      <b>pc-s3-01</b> — workstation de la delegación 3. Un PC de usuario: toma su dirección por DHCP y <b>no tiene ninguna vía de gestión</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>3401</td></tr>
+       <tr><td>Tipo</td><td>Contenedor LXC (Debian 13, sin privilegios)</td></tr>
+       <tr><td>Dónde</td><td>la delegación 3</td></tr>
+       <tr><td>Rol</td><td>workstation</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>workstation</code> <code>delegacion</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>eth0</td><td><code>vmbr18</code></td><td><code>BC:24:11:00:53:01</code></td><td>sw-s3-acc-01 ether2</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2 al que se enchufan exactamente estas dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CÓMO ESTÁ DIRIGIDA</b>
+      <table>
+       <tr><td>Dirección</td><td>10.13.0.11 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
+       <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre><b>pc-s3-01</b> «ESTE»  ──▶  sw-s3-acc-01  ──▶  rt-s3-edge  ──▶  fw-s3-perim  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Una sola NIC y ninguna de gestión.</b> Así se hace en una empresa: el PC tiene un cable, y la administración de parque es un agente que <i>sale</i> hacia fuera. Por eso este invitado no aparece en el diario de la API como destino.</li>
+      <li><b>Su dirección vive en la declaración, no en el equipo.</b> El <code>address:</code> de su ficha <i>es</i> la reserva que el router deriva: no hay dos sitios donde se puedan desincronizar.</li>
+      </ul>
+    netif:
+      net0: "name=eth0,bridge=vmbr18,hwaddr=BC:24:11:00:53:01,ip=dhcp"
+
+  - vmid: 3402
+    hostname: pc-s3-02
+    site: sede3
+    address: "10.13.0.12"
+    cores: 1
+    memory: 256
+    rootfs_size: 4
+    swap: 256
+    tags: [ansible-managed, workstation, delegacion]
+    onboot: true
+    startup: ["order=3"]
+    manage: true
+    config:
+      netlab:
+        dhcp:
+          timeout: 300
+          retry: 30
+    description: |
+      <b>pc-s3-02</b> — workstation de la delegación 3. Un PC de usuario: toma su dirección por DHCP y <b>no tiene ninguna vía de gestión</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>3402</td></tr>
+       <tr><td>Tipo</td><td>Contenedor LXC (Debian 13, sin privilegios)</td></tr>
+       <tr><td>Dónde</td><td>la delegación 3</td></tr>
+       <tr><td>Rol</td><td>workstation</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>workstation</code> <code>delegacion</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>eth0</td><td><code>vmbr19</code></td><td><code>BC:24:11:00:53:02</code></td><td>sw-s3-acc-01 ether3</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2 al que se enchufan exactamente estas dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CÓMO ESTÁ DIRIGIDA</b>
+      <table>
+       <tr><td>Dirección</td><td>10.13.0.12 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
+       <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s3-01  ──▶  sw-s3-acc-01  ──▶  rt-s3-edge  ──▶  fw-s3-perim  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Una sola NIC y ninguna de gestión.</b> Así se hace en una empresa: el PC tiene un cable, y la administración de parque es un agente que <i>sale</i> hacia fuera. Por eso este invitado no aparece en el diario de la API como destino.</li>
+      <li><b>Su dirección vive en la declaración, no en el equipo.</b> El <code>address:</code> de su ficha <i>es</i> la reserva que el router deriva: no hay dos sitios donde se puedan desincronizar.</li>
+      </ul>
+    netif:
+      net0: "name=eth0,bridge=vmbr19,hwaddr=BC:24:11:00:53:02,ip=dhcp"
+
+# ============================================================================
+# QEMU VMs — mismas reglas declarativas que los contenedores, con una
+# diferencia: proxmox_kvm se niega a actualizar net/scsi/ide/sata/virtio (y
+# bios/machine/scsihw/ostype), así que para una VM son creation-time: la deriva
+# en ellos se RECHAZA, no se converge. Y por eso cambiar de qué bridge cuelga
+# una pata obliga a recrear la máquina.
+# ============================================================================
+pve_vm_defaults:
+  bios: seabios
+  machine: q35
+  scsihw: virtio-scsi-single
+  ostype: l26
+
+  status: stopped
+
+  sockets: 1
+  cpu: host
+  vga: std
+  onboot: false
+  boot: "order=ide2;scsi0"
+  description: "Nested Proxmox VE managed by ansible-netlab-v2."
+  tags: [netlab, ansible-managed]
+
+  net: {}
+  scsi: {}
+  sata: {}
+  ide: {}
+  virtio: {}
+
+  cloudinit: true
+  cloudinit_storage: local-zfs
+  ciuser: root
+  sshkeys: "{{ pve_defaults.pubkey }}"
+
+# ---------------------------------------------------------------------------
+# CHR (MikroTik RouterOS) — valores por defecto de TODO equipo de red.
+#
+# Aquí viven el sabor, el orden de arranque y la forma común, porque los equipos
+# de red son once y repetir eso en cada uno es pedir que se desincronicen. Cada
+# equipo AÑADE sus propias etiquetas (sede y papel) sin repetir estas.
+#
+# Los equipos de red van ANTES que las workstations: la petición DHCP de una
+# workstation la contesta el router de su sede, así que arrancarlos juntos es
+# una carrera que la workstation pierde.
+# ---------------------------------------------------------------------------
+pve_chr_defaults:
+  onboot: true
+  startup: ["order=2"]
+  # 1 core y 256 MiB por equipo de red: un CHR que conmuta, enruta o filtra
+  # (que es todo lo que hace) no necesita más, y ahora son once.
+  cores: 1
+  memory: 256
+  # En marcha: aplicar la declaración ES levantar el laboratorio.
+  status: started
+  manage: true
+  # La imagen del fabricante no tiene cloud-init, así que esa unidad sería peso
+  # muerto.
+  cloudinit: false
+  # CHR es una imagen de la era i440fx: arranca en el chipset PC, no en q35.
+  machine: pc
+  # La imagen importada es el ÚNICO disco, así que es el dispositivo de arranque
+  # (el orden por defecto espera la unidad cloud-init que esta VM no tiene).
+  boot: "order=scsi0"
+  scsi:
+    # 1 GiB y no 8: la imagen del fabricante ocupa 128 MiB y RouterOS CHR vive en
+    # RAM, así que un disco grande aquí es espacio asignado que nadie usa.
+    scsi0: "local-zfs:1"
+  # La imagen del fabricante se IMPORTA en vez de crearse: proxmox_kvm sólo sabe
+  # construir un disco a partir de un tamaño, así que la imagen raw está subida a
+  # un storage que acepta `import` y se adjunta con la sintaxis import-from de la
+  # API en el momento de crear la VM (ver playbooks/tasks/disk_import.yml).
+  disk_import:
+    - key: scsi0
+      source: "local:import/chr-7.25.1.raw"
+  # La consola que respeta un teclado que no es US: lleva CARACTERES, no
+  # scancodes. `vga: serial0` es lo que hace que el botón Console de PVE abra
+  # esta consola en vez de un noVNC que no tiene nada que mostrar.
+  serial:
+    serial0: socket
+  vga: serial0
+  description: "MikroTik RouterOS: una funcion de red, un equipo. Gestionado por REST."
+  tags: [netlab, routeros, red, ansible-managed]
+
+pve_vms:
+  # ==========================================================================
+  # SWITCHES (ST = 3S) — conmutan. No enrutan, no filtran y NO dan DHCP.
+  #
+  # Un switch de acceso: los puertos de los PCs a un lado, el puerto hacia su
+  # router al otro. Su única dirección es la de gestión.
+  # ==========================================================================
+
+  # sw-s1-acc-01: primer switch de acceso de la central. Une pc-s1-01 y pc-s1-02
+  # y entrega la sede a su router. El troncal hacia el segundo switch va por
+  # ether4.
+  - vmid: 1301
+    name: sw-s1-acc-01
+    chr: true
+    tags: [ansible-managed, switch, central]
+    description: |
+      <b>sw-s1-acc-01</b> — switch de acceso de la central (sede 1). Conmuta y nada más: <b>no enruta, no filtra y no da DHCP</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>1301</td></tr>
+       <tr><td>Tipo</td><td>Máquina virtual (RouterOS CHR)</td></tr>
+       <tr><td>Dónde</td><td>la central (sede 1)</td></tr>
+       <tr><td>Rol</td><td>switch</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>switch</code> <code>central</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>ether1</td><td><code>vmbr1</code></td><td><code>BC:24:11:00:31:01</code></td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>ether2</td><td><code>vmbr4</code></td><td><code>BC:24:11:00:31:02</code></td><td>pc-s1-01 eth0</td></tr>
+       <tr><td>net2</td><td>ether3</td><td><code>vmbr5</code></td><td><code>BC:24:11:00:31:03</code></td><td>pc-s1-02 eth0</td></tr>
+       <tr><td>net3</td><td>ether4</td><td><code>vmbr8</code></td><td><code>BC:24:11:00:31:04</code></td><td>sw-s1-acc-02 ether4</td></tr>
+       <tr><td>net4</td><td>ether5</td><td><code>vmbr9</code></td><td><code>BC:24:11:00:31:05</code></td><td>rt-s1-core ether2</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CONFIGURACIÓN DECLARADA (RouterOS)</b>
+      <table>
+       <tr><th>Interfaz</th><th>Dirección de gestión</th></tr>
+       <tr><td>ether1</td><td>10.10.10.11/24</td></tr>
+      </table>
+      
+      Puente <code>lan</code> con las bocas ether2, ether3, ether4, ether5. <b>Sin dirección</b>: eso es lo que lo hace un switch y no un router.
+      
+      <b>Rutas</b>
+      <table>
+       <tr><th>Destino</th><th>Por dónde</th></tr>
+       <tr><td>0.0.0.0/0</td><td>vía 10.10.10.21</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s1-01  ──▶  <b>sw-s1-acc-01</b> «ESTE»  ──▶  rt-s1-core  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Sin dirección en el puente.</b> Un switch con dirección en el puente empieza a enrutar, y la topología deja de ser la del diagrama <i>sin que nada falle</i>. Su dirección vive sólo en su pata de gestión.</li>
+      <li><b>Pero esa pata SÍ lleva puerta de enlace</b>, apuntando al router de su sede. Sin ella el switch recibe los pings y no puede contestarlos.</li>
+      </ul>
+    net:
+      net0: "virtio=BC:24:11:00:31:01,bridge=vmbr1"    # ether1 gestion
+      net1: "virtio=BC:24:11:00:31:02,bridge=vmbr4"    # ether2 -> pc-s1-01
+      net2: "virtio=BC:24:11:00:31:03,bridge=vmbr5"    # ether3 -> pc-s1-02
+      net3: "virtio=BC:24:11:00:31:04,bridge=vmbr8"    # ether4 -> sw-s1-acc-02 (troncal)
+      net4: "virtio=BC:24:11:00:31:05,bridge=vmbr9"    # ether5 -> rt-s1-core (la LAN de la sede)
+    config:
+      routeros:
+        identity: sw-s1-acc-01
+        addresses:
+          - address: "10.10.10.11/24"
+            interface: ether1
+        bridges:
+          - name: lan
+            ports: [ether2, ether3, ether4, ether5]
+        dhcp_client: false
+        # La puerta de enlace de gestión apunta al router de su sede, que es el
+        # que conecta con el resto. Es lo que convierte al switch en un equipo
+        # gestionable de verdad.
+        routes:
+          - dst_address: "0.0.0.0/0"
+            gateway: "10.10.10.21"
+
+  # sw-s1-acc-02: segundo switch de acceso de la central. Cuelga del troncal
+  # (mismo dominio L2, que es lo que hace que las cuatro workstations de la sede
+  # compartan una sola red).
+  - vmid: 1302
+    name: sw-s1-acc-02
+    chr: true
+    tags: [ansible-managed, switch, central]
+    description: |
+      <b>sw-s1-acc-02</b> — switch de acceso de la central (sede 1). Conmuta y nada más: <b>no enruta, no filtra y no da DHCP</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>1302</td></tr>
+       <tr><td>Tipo</td><td>Máquina virtual (RouterOS CHR)</td></tr>
+       <tr><td>Dónde</td><td>la central (sede 1)</td></tr>
+       <tr><td>Rol</td><td>switch</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>switch</code> <code>central</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>ether1</td><td><code>vmbr1</code></td><td><code>BC:24:11:00:32:01</code></td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>ether2</td><td><code>vmbr6</code></td><td><code>BC:24:11:00:32:02</code></td><td>pc-s1-03 eth0</td></tr>
+       <tr><td>net2</td><td>ether3</td><td><code>vmbr7</code></td><td><code>BC:24:11:00:32:03</code></td><td>pc-s1-04 eth0</td></tr>
+       <tr><td>net3</td><td>ether4</td><td><code>vmbr8</code></td><td><code>BC:24:11:00:32:04</code></td><td>sw-s1-acc-01 ether4</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CONFIGURACIÓN DECLARADA (RouterOS)</b>
+      <table>
+       <tr><th>Interfaz</th><th>Dirección de gestión</th></tr>
+       <tr><td>ether1</td><td>10.10.10.12/24</td></tr>
+      </table>
+      
+      Puente <code>lan</code> con las bocas ether2, ether3, ether4. <b>Sin dirección</b>: eso es lo que lo hace un switch y no un router.
+      
+      <b>Rutas</b>
+      <table>
+       <tr><th>Destino</th><th>Por dónde</th></tr>
+       <tr><td>0.0.0.0/0</td><td>vía 10.10.10.21</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s1-01  ──▶  sw-s1-acc-01  ──▶  rt-s1-core  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Sin dirección en el puente.</b> Un switch con dirección en el puente empieza a enrutar, y la topología deja de ser la del diagrama <i>sin que nada falle</i>. Su dirección vive sólo en su pata de gestión.</li>
+      <li><b>Pero esa pata SÍ lleva puerta de enlace</b>, apuntando al router de su sede. Sin ella el switch recibe los pings y no puede contestarlos.</li>
+      </ul>
+    net:
+      net0: "virtio=BC:24:11:00:32:01,bridge=vmbr1"    # ether1 gestion
+      net1: "virtio=BC:24:11:00:32:02,bridge=vmbr6"    # ether2 -> pc-s1-03
+      net2: "virtio=BC:24:11:00:32:03,bridge=vmbr7"    # ether3 -> pc-s1-04
+      net3: "virtio=BC:24:11:00:32:04,bridge=vmbr8"    # ether4 -> sw-s1-acc-01 (troncal)
+    config:
+      routeros:
+        identity: sw-s1-acc-02
+        addresses:
+          - address: "10.10.10.12/24"
+            interface: ether1
+        bridges:
+          - name: lan
+            ports: [ether2, ether3, ether4]
+        dhcp_client: false
+        routes:
+          - dst_address: "0.0.0.0/0"
+            gateway: "10.10.10.21"
+
+  # sw-s2-acc-01: el switch de acceso de la delegación 2.
+  - vmid: 2301
+    name: sw-s2-acc-01
+    chr: true
+    tags: [ansible-managed, switch, delegacion]
+    description: |
+      <b>sw-s2-acc-01</b> — switch de acceso de la delegación 2. Conmuta y nada más: <b>no enruta, no filtra y no da DHCP</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>2301</td></tr>
+       <tr><td>Tipo</td><td>Máquina virtual (RouterOS CHR)</td></tr>
+       <tr><td>Dónde</td><td>la delegación 2</td></tr>
+       <tr><td>Rol</td><td>switch</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>switch</code> <code>delegacion</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>ether1</td><td><code>vmbr1</code></td><td><code>BC:24:11:00:33:01</code></td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>ether2</td><td><code>vmbr14</code></td><td><code>BC:24:11:00:33:02</code></td><td>pc-s2-01 eth0</td></tr>
+       <tr><td>net2</td><td>ether3</td><td><code>vmbr15</code></td><td><code>BC:24:11:00:33:03</code></td><td>pc-s2-02 eth0</td></tr>
+       <tr><td>net3</td><td>ether4</td><td><code>vmbr16</code></td><td><code>BC:24:11:00:33:04</code></td><td>rt-s2-edge ether2</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CONFIGURACIÓN DECLARADA (RouterOS)</b>
+      <table>
+       <tr><th>Interfaz</th><th>Dirección de gestión</th></tr>
+       <tr><td>ether1</td><td>10.10.10.13/24</td></tr>
+      </table>
+      
+      Puente <code>lan</code> con las bocas ether2, ether3, ether4. <b>Sin dirección</b>: eso es lo que lo hace un switch y no un router.
+      
+      <b>Rutas</b>
+      <table>
+       <tr><th>Destino</th><th>Por dónde</th></tr>
+       <tr><td>0.0.0.0/0</td><td>vía 10.10.10.22</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s2-01  ──▶  <b>sw-s2-acc-01</b> «ESTE»  ──▶  rt-s2-edge  ──▶  fw-s2-perim  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Sin dirección en el puente.</b> Un switch con dirección en el puente empieza a enrutar, y la topología deja de ser la del diagrama <i>sin que nada falle</i>. Su dirección vive sólo en su pata de gestión.</li>
+      <li><b>Pero esa pata SÍ lleva puerta de enlace</b>, apuntando al router de su sede. Sin ella el switch recibe los pings y no puede contestarlos.</li>
+      </ul>
+    net:
+      net0: "virtio=BC:24:11:00:33:01,bridge=vmbr1"    # ether1 gestion
+      net1: "virtio=BC:24:11:00:33:02,bridge=vmbr14"   # ether2 -> pc-s2-01
+      net2: "virtio=BC:24:11:00:33:03,bridge=vmbr15"   # ether3 -> pc-s2-02
+      net3: "virtio=BC:24:11:00:33:04,bridge=vmbr16"   # ether4 -> rt-s2-edge (la LAN de la sede)
+    config:
+      routeros:
+        identity: sw-s2-acc-01
+        addresses:
+          - address: "10.10.10.13/24"
+            interface: ether1
+        bridges:
+          - name: lan
+            ports: [ether2, ether3, ether4]
+        dhcp_client: false
+        routes:
+          - dst_address: "0.0.0.0/0"
+            gateway: "10.10.10.22"
+
+  # sw-s3-acc-01: el switch de acceso de la delegación 3.
+  - vmid: 3301
+    name: sw-s3-acc-01
+    chr: true
+    tags: [ansible-managed, switch, delegacion]
+    description: |
+      <b>sw-s3-acc-01</b> — switch de acceso de la delegación 3. Conmuta y nada más: <b>no enruta, no filtra y no da DHCP</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>3301</td></tr>
+       <tr><td>Tipo</td><td>Máquina virtual (RouterOS CHR)</td></tr>
+       <tr><td>Dónde</td><td>la delegación 3</td></tr>
+       <tr><td>Rol</td><td>switch</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>switch</code> <code>delegacion</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>ether1</td><td><code>vmbr1</code></td><td><code>BC:24:11:00:34:01</code></td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>ether2</td><td><code>vmbr18</code></td><td><code>BC:24:11:00:34:02</code></td><td>pc-s3-01 eth0</td></tr>
+       <tr><td>net2</td><td>ether3</td><td><code>vmbr19</code></td><td><code>BC:24:11:00:34:03</code></td><td>pc-s3-02 eth0</td></tr>
+       <tr><td>net3</td><td>ether4</td><td><code>vmbr20</code></td><td><code>BC:24:11:00:34:04</code></td><td>rt-s3-edge ether2</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CONFIGURACIÓN DECLARADA (RouterOS)</b>
+      <table>
+       <tr><th>Interfaz</th><th>Dirección de gestión</th></tr>
+       <tr><td>ether1</td><td>10.10.10.14/24</td></tr>
+      </table>
+      
+      Puente <code>lan</code> con las bocas ether2, ether3, ether4. <b>Sin dirección</b>: eso es lo que lo hace un switch y no un router.
+      
+      <b>Rutas</b>
+      <table>
+       <tr><th>Destino</th><th>Por dónde</th></tr>
+       <tr><td>0.0.0.0/0</td><td>vía 10.10.10.23</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s3-01  ──▶  <b>sw-s3-acc-01</b> «ESTE»  ──▶  rt-s3-edge  ──▶  fw-s3-perim  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Sin dirección en el puente.</b> Un switch con dirección en el puente empieza a enrutar, y la topología deja de ser la del diagrama <i>sin que nada falle</i>. Su dirección vive sólo en su pata de gestión.</li>
+      <li><b>Pero esa pata SÍ lleva puerta de enlace</b>, apuntando al router de su sede. Sin ella el switch recibe los pings y no puede contestarlos.</li>
+      </ul>
+    net:
+      net0: "virtio=BC:24:11:00:34:01,bridge=vmbr1"    # ether1 gestion
+      net1: "virtio=BC:24:11:00:34:02,bridge=vmbr18"   # ether2 -> pc-s3-01
+      net2: "virtio=BC:24:11:00:34:03,bridge=vmbr19"   # ether3 -> pc-s3-02
+      net3: "virtio=BC:24:11:00:34:04,bridge=vmbr20"   # ether4 -> rt-s3-edge (la LAN de la sede)
+    config:
+      routeros:
+        identity: sw-s3-acc-01
+        addresses:
+          - address: "10.10.10.14/24"
+            interface: ether1
+        bridges:
+          - name: lan
+            ports: [ether2, ether3, ether4]
+        dhcp_client: false
+        routes:
+          - dst_address: "0.0.0.0/0"
+            gateway: "10.10.10.23"
+
+  # ==========================================================================
+  # ROUTERS (ST = 2S) — son la PUERTA DE ENLACE y el SERVIDOR DHCP de su LAN, y
+  # enrutan dentro de la empresa. No filtran: eso es del firewall.
+  #
+  # Su LAN cuelga de ether2 (por el cable al switch de su sede) y por eso pueden
+  # repartir direcciones: el DHCP es broadcast L2 y el router está DENTRO de ese
+  # segmento. Por ether3 hablan con su firewall, que es la boca hacia fuera.
+  # ==========================================================================
+
+  # rt-s1-core: el router de la central. Conoce las tres sedes (a través de su
+  # firewall) y es el núcleo de la WAN interna.
+  - vmid: 1201
+    name: rt-s1-core
+    chr: true
+    tags: [ansible-managed, router, central]
+    description: |
+      <b>rt-s1-core</b> — router de la central (sede 1). Es la <b>puerta de enlace y el servidor DHCP</b> de su LAN, y conoce las demás sedes.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>1201</td></tr>
+       <tr><td>Tipo</td><td>Máquina virtual (RouterOS CHR)</td></tr>
+       <tr><td>Dónde</td><td>la central (sede 1)</td></tr>
+       <tr><td>Rol</td><td>router</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>router</code> <code>central</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>ether1</td><td><code>vmbr1</code></td><td><code>BC:24:11:00:21:01</code></td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>ether2</td><td><code>vmbr9</code></td><td><code>BC:24:11:00:21:02</code></td><td>sw-s1-acc-01 ether5</td></tr>
+       <tr><td>net2</td><td>ether3</td><td><code>vmbr10</code></td><td><code>BC:24:11:00:21:03</code></td><td>fw-s1-perim ether2</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CONFIGURACIÓN DECLARADA (RouterOS)</b>
+      <table>
+       <tr><th>Interfaz</th><th>Dirección de gestión</th></tr>
+       <tr><td>ether1</td><td>10.10.10.21/24</td></tr>
+       <tr><td>ether2</td><td>10.11.0.1/24</td></tr>
+       <tr><td>ether3</td><td>10.21.0.2/30</td></tr>
+      </table>
+      
+      <b>Servidor DHCP de su sede</b>
+      <table>
+       <tr><td>Nombre</td><td>sede1</td></tr>
+       <tr><td>Interfaz</td><td>ether2</td></tr>
+       <tr><td>Rango que reparte</td><td>10.11.0.100-10.11.0.199</td></tr>
+       <tr><td>Red de la LAN</td><td>10.11.0.0/24</td></tr>
+       <tr><td>Puerta de enlace que anuncia</td><td>10.11.0.1</td></tr>
+       <tr><td>DNS que anuncia</td><td>1.1.1.1</td></tr>
+       <tr><td>Reservas</td><td>una por workstation de la sede, atada a su MAC</td></tr>
+      </table>
+      
+      <b>Rutas</b>
+      <table>
+       <tr><th>Destino</th><th>Por dónde</th></tr>
+       <tr><td>10.12.0.0/24</td><td>vía 10.21.0.1</td></tr>
+       <tr><td>10.13.0.0/24</td><td>vía 10.21.0.1</td></tr>
+       <tr><td>10.99.99.0/24</td><td>vía 10.10.10.1</td></tr>
+       <tr><td>0.0.0.0/0</td><td>vía 10.21.0.1</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s1-01  ──▶  sw-s1-acc-01  ──▶  <b>rt-s1-core</b> «ESTE»  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Da el DHCP de su LAN porque tiene que estar en su segmento.</b> El DHCP es una difusión de capa 2: un firewall de capa 3 en medio lo rompería. Por eso la LAN cuelga de él y el firewall se pone después, de cara a la WAN.</li>
+      <li><b>El reparto es jerárquico:</b> la central conoce las dos redes remotas y las delegaciones salen por su firewall. Añadir una sede es una entrada y una ruta.</li>
+      </ul>
+    net:
+      net0: "virtio=BC:24:11:00:21:01,bridge=vmbr1"    # ether1 gestion
+      net1: "virtio=BC:24:11:00:21:02,bridge=vmbr9"    # ether2 -> sw-s1-acc-01 (LA LAN DE LA SEDE)
+      net2: "virtio=BC:24:11:00:21:03,bridge=vmbr10"   # ether3 -> fw-s1-perim (transito)
+    config:
+      routeros:
+        identity: rt-s1-core
+        addresses:
+          - address: "10.10.10.21/24"
+            interface: ether1
+          - address: "{{ lab_site1_gateway }}/24"
+            interface: ether2
+          - address: "{{ lab_tr1_rt }}/30"
+            interface: ether3
+        dhcp_client: false
+        routes:
+          # Las delegaciones y la salida, por su firewall.
+          - dst_address: "{{ lab_site2_network }}"
+            gateway: "{{ lab_tr1_fw }}"
+          - dst_address: "{{ lab_site3_network }}"
+            gateway: "{{ lab_tr1_fw }}"
+          - dst_address: "{{ lab_control_network }}"
+            gateway: "{{ lab_mgmt_gateway }}"
+          - dst_address: "0.0.0.0/0"
+            gateway: "{{ lab_tr1_fw }}"
+        # El DHCP lo sirve AQUÍ, no en el firewall: es el router de la sede.
+        dhcp_servers:
+          - name: sede1
+            interface: ether2
+            address_pool: "{{ lab_site1_pool }}"
+            network: "{{ lab_site1_network }}"
+            gateway: "{{ lab_site1_gateway }}"
+            dns_server: "{{ lab_internet_dns }}"
+            # Una reserva por workstation DE ESTA SEDE. Dirección y MAC salen de
+            # la declaración de la propia workstation: aquí no se repite ningún
+            # valor, así que no pueden desincronizarse.
+            leases: >-
+              {%- set out = [] -%}
+              {%- for c in pve_containers
+                     | selectattr('site', 'defined')
+                     | selectattr('site', 'equalto', 'sede1') -%}
+              {%-   set _ = out.append({
+                    'address': c.address,
+                    'mac_address': c.netif.net0 | regex_replace('^.*hwaddr=([0-9A-Fa-f:]{17}).*$', '\\1'),
+                    'comment': c.hostname }) -%}
+              {%- endfor -%}
+              {{ out }}
+
+  # rt-s2-edge: el router de la delegación 2. Su LAN, su DHCP y una ruta por
+  # defecto hacia su firewall: la configuración real de una delegación, que no
+  # necesita saber qué hay al otro lado.
+  - vmid: 2201
+    name: rt-s2-edge
+    chr: true
+    tags: [ansible-managed, router, delegacion]
+    description: |
+      <b>rt-s2-edge</b> — router de la delegación 2. Es la <b>puerta de enlace y el servidor DHCP</b> de su LAN, y conoce las demás sedes.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>2201</td></tr>
+       <tr><td>Tipo</td><td>Máquina virtual (RouterOS CHR)</td></tr>
+       <tr><td>Dónde</td><td>la delegación 2</td></tr>
+       <tr><td>Rol</td><td>router</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>router</code> <code>delegacion</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>ether1</td><td><code>vmbr1</code></td><td><code>BC:24:11:00:22:01</code></td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>ether2</td><td><code>vmbr16</code></td><td><code>BC:24:11:00:22:02</code></td><td>sw-s2-acc-01 ether4</td></tr>
+       <tr><td>net2</td><td>ether3</td><td><code>vmbr17</code></td><td><code>BC:24:11:00:22:03</code></td><td>fw-s2-perim ether2</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CONFIGURACIÓN DECLARADA (RouterOS)</b>
+      <table>
+       <tr><th>Interfaz</th><th>Dirección de gestión</th></tr>
+       <tr><td>ether1</td><td>10.10.10.22/24</td></tr>
+       <tr><td>ether2</td><td>10.12.0.1/24</td></tr>
+       <tr><td>ether3</td><td>10.22.0.2/30</td></tr>
+      </table>
+      
+      <b>Servidor DHCP de su sede</b>
+      <table>
+       <tr><td>Nombre</td><td>sede2</td></tr>
+       <tr><td>Interfaz</td><td>ether2</td></tr>
+       <tr><td>Rango que reparte</td><td>10.12.0.100-10.12.0.199</td></tr>
+       <tr><td>Red de la LAN</td><td>10.12.0.0/24</td></tr>
+       <tr><td>Puerta de enlace que anuncia</td><td>10.12.0.1</td></tr>
+       <tr><td>DNS que anuncia</td><td>1.1.1.1</td></tr>
+       <tr><td>Reservas</td><td>una por workstation de la sede, atada a su MAC</td></tr>
+      </table>
+      
+      <b>Rutas</b>
+      <table>
+       <tr><th>Destino</th><th>Por dónde</th></tr>
+       <tr><td>0.0.0.0/0</td><td>vía 10.22.0.1</td></tr>
+       <tr><td>10.99.99.0/24</td><td>vía 10.10.10.1</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s2-01  ──▶  sw-s2-acc-01  ──▶  <b>rt-s2-edge</b> «ESTE»  ──▶  fw-s2-perim  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Da el DHCP de su LAN porque tiene que estar en su segmento.</b> El DHCP es una difusión de capa 2: un firewall de capa 3 en medio lo rompería. Por eso la LAN cuelga de él y el firewall se pone después, de cara a la WAN.</li>
+      <li><b>El reparto es jerárquico:</b> la central conoce las dos redes remotas y las delegaciones salen por su firewall. Añadir una sede es una entrada y una ruta.</li>
+      </ul>
+    net:
+      net0: "virtio=BC:24:11:00:22:01,bridge=vmbr1"    # ether1 gestion
+      net1: "virtio=BC:24:11:00:22:02,bridge=vmbr16"   # ether2 -> sw-s2-acc-01 (LA LAN DE LA SEDE)
+      net2: "virtio=BC:24:11:00:22:03,bridge=vmbr17"   # ether3 -> fw-s2-perim (transito)
+    config:
+      routeros:
+        identity: rt-s2-edge
+        addresses:
+          - address: "10.10.10.22/24"
+            interface: ether1
+          - address: "{{ lab_site2_gateway }}/24"
+            interface: ether2
+          - address: "{{ lab_tr2_rt }}/30"
+            interface: ether3
+        dhcp_client: false
+        routes:
+          - dst_address: "0.0.0.0/0"
+            gateway: "{{ lab_tr2_fw }}"
+          - dst_address: "{{ lab_control_network }}"
+            gateway: "{{ lab_mgmt_gateway }}"
+        dhcp_servers:
+          - name: sede2
+            interface: ether2
+            address_pool: "{{ lab_site2_pool }}"
+            network: "{{ lab_site2_network }}"
+            gateway: "{{ lab_site2_gateway }}"
+            dns_server: "{{ lab_internet_dns }}"
+            leases: >-
+              {%- set out = [] -%}
+              {%- for c in pve_containers
+                     | selectattr('site', 'defined')
+                     | selectattr('site', 'equalto', 'sede2') -%}
+              {%-   set _ = out.append({
+                    'address': c.address,
+                    'mac_address': c.netif.net0 | regex_replace('^.*hwaddr=([0-9A-Fa-f:]{17}).*$', '\\1'),
+                    'comment': c.hostname }) -%}
+              {%- endfor -%}
+              {{ out }}
+
+  # rt-s3-edge: el router de la delegación 3, simétrico al anterior.
+  - vmid: 3201
+    name: rt-s3-edge
+    chr: true
+    tags: [ansible-managed, router, delegacion]
+    description: |
+      <b>rt-s3-edge</b> — router de la delegación 3. Es la <b>puerta de enlace y el servidor DHCP</b> de su LAN, y conoce las demás sedes.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>3201</td></tr>
+       <tr><td>Tipo</td><td>Máquina virtual (RouterOS CHR)</td></tr>
+       <tr><td>Dónde</td><td>la delegación 3</td></tr>
+       <tr><td>Rol</td><td>router</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>router</code> <code>delegacion</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>ether1</td><td><code>vmbr1</code></td><td><code>BC:24:11:00:23:01</code></td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>ether2</td><td><code>vmbr20</code></td><td><code>BC:24:11:00:23:02</code></td><td>sw-s3-acc-01 ether4</td></tr>
+       <tr><td>net2</td><td>ether3</td><td><code>vmbr21</code></td><td><code>BC:24:11:00:23:03</code></td><td>fw-s3-perim ether2</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CONFIGURACIÓN DECLARADA (RouterOS)</b>
+      <table>
+       <tr><th>Interfaz</th><th>Dirección de gestión</th></tr>
+       <tr><td>ether1</td><td>10.10.10.23/24</td></tr>
+       <tr><td>ether2</td><td>10.13.0.1/24</td></tr>
+       <tr><td>ether3</td><td>10.23.0.2/30</td></tr>
+      </table>
+      
+      <b>Servidor DHCP de su sede</b>
+      <table>
+       <tr><td>Nombre</td><td>sede3</td></tr>
+       <tr><td>Interfaz</td><td>ether2</td></tr>
+       <tr><td>Rango que reparte</td><td>10.13.0.100-10.13.0.199</td></tr>
+       <tr><td>Red de la LAN</td><td>10.13.0.0/24</td></tr>
+       <tr><td>Puerta de enlace que anuncia</td><td>10.13.0.1</td></tr>
+       <tr><td>DNS que anuncia</td><td>1.1.1.1</td></tr>
+       <tr><td>Reservas</td><td>una por workstation de la sede, atada a su MAC</td></tr>
+      </table>
+      
+      <b>Rutas</b>
+      <table>
+       <tr><th>Destino</th><th>Por dónde</th></tr>
+       <tr><td>0.0.0.0/0</td><td>vía 10.23.0.1</td></tr>
+       <tr><td>10.99.99.0/24</td><td>vía 10.10.10.1</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s3-01  ──▶  sw-s3-acc-01  ──▶  <b>rt-s3-edge</b> «ESTE»  ──▶  fw-s3-perim  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>Da el DHCP de su LAN porque tiene que estar en su segmento.</b> El DHCP es una difusión de capa 2: un firewall de capa 3 en medio lo rompería. Por eso la LAN cuelga de él y el firewall se pone después, de cara a la WAN.</li>
+      <li><b>El reparto es jerárquico:</b> la central conoce las dos redes remotas y las delegaciones salen por su firewall. Añadir una sede es una entrada y una ruta.</li>
+      </ul>
+    net:
+      net0: "virtio=BC:24:11:00:23:01,bridge=vmbr1"    # ether1 gestion
+      net1: "virtio=BC:24:11:00:23:02,bridge=vmbr20"   # ether2 -> sw-s3-acc-01 (LA LAN DE LA SEDE)
+      net2: "virtio=BC:24:11:00:23:03,bridge=vmbr21"   # ether3 -> fw-s3-perim (transito)
+    config:
+      routeros:
+        identity: rt-s3-edge
+        addresses:
+          - address: "10.10.10.23/24"
+            interface: ether1
+          - address: "{{ lab_site3_gateway }}/24"
+            interface: ether2
+          - address: "{{ lab_tr3_rt }}/30"
+            interface: ether3
+        dhcp_client: false
+        routes:
+          - dst_address: "0.0.0.0/0"
+            gateway: "{{ lab_tr3_fw }}"
+          - dst_address: "{{ lab_control_network }}"
+            gateway: "{{ lab_mgmt_gateway }}"
+        dhcp_servers:
+          - name: sede3
+            interface: ether2
+            address_pool: "{{ lab_site3_pool }}"
+            network: "{{ lab_site3_network }}"
+            gateway: "{{ lab_site3_gateway }}"
+            dns_server: "{{ lab_internet_dns }}"
+            leases: >-
+              {%- set out = [] -%}
+              {%- for c in pve_containers
+                     | selectattr('site', 'defined')
+                     | selectattr('site', 'equalto', 'sede3') -%}
+              {%-   set _ = out.append({
+                    'address': c.address,
+                    'mac_address': c.netif.net0 | regex_replace('^.*hwaddr=([0-9A-Fa-f:]{17}).*$', '\\1'),
+                    'comment': c.hostname }) -%}
+              {%- endfor -%}
+              {{ out }}
+
+  # ==========================================================================
+  # FIREWALLS (ST = 1S, y 91 el de borde) — filtran el PERÍMETRO. Están entre el
+  # router de su sede y la WAN: no son la puerta de nadie ni dan DHCP, son el
+  # filtro por el que sale (y entra) el tráfico de la sede.
+  #
+  # El NAT vive SÓLO en el de borde: dentro de la empresa las direcciones son las
+  # reales, así que las rutas de vuelta existen y no hay traducciones anidadas.
+  # ==========================================================================
+
+  # fw-s1-perim: perímetro de la central. Por ether2 habla con su router; por
+  # ether3 y ether4 con las WAN de las delegaciones, y por ether5 con el borde.
+  - vmid: 1101
+    name: fw-s1-perim
+    chr: true
+    tags: [ansible-managed, firewall, central]
+    description: |
+      <b>fw-s1-perim</b> — firewall de la central (sede 1). <b>Filtra el perímetro</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>1101</td></tr>
+       <tr><td>Tipo</td><td>Máquina virtual (RouterOS CHR)</td></tr>
+       <tr><td>Dónde</td><td>la central (sede 1)</td></tr>
+       <tr><td>Rol</td><td>firewall</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>firewall</code> <code>central</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>ether1</td><td><code>vmbr1</code></td><td><code>BC:24:11:00:41:01</code></td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>ether2</td><td><code>vmbr10</code></td><td><code>BC:24:11:00:41:02</code></td><td>rt-s1-core ether3</td></tr>
+       <tr><td>net2</td><td>ether3</td><td><code>vmbr11</code></td><td><code>BC:24:11:00:41:03</code></td><td>fw-s2-perim ether3</td></tr>
+       <tr><td>net3</td><td>ether4</td><td><code>vmbr12</code></td><td><code>BC:24:11:00:41:04</code></td><td>fw-s3-perim ether3</td></tr>
+       <tr><td>net4</td><td>ether5</td><td><code>vmbr13</code></td><td><code>BC:24:11:00:41:05</code></td><td>fw-wan-edge ether2</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CONFIGURACIÓN DECLARADA (RouterOS)</b>
+      <table>
+       <tr><th>Interfaz</th><th>Dirección de gestión</th></tr>
+       <tr><td>ether1</td><td>10.10.10.31/24</td></tr>
+       <tr><td>ether2</td><td>10.21.0.1/30</td></tr>
+       <tr><td>ether3</td><td>10.99.1.1/30</td></tr>
+       <tr><td>ether4</td><td>10.99.2.1/30</td></tr>
+       <tr><td>ether5</td><td>10.29.0.1/30</td></tr>
+      </table>
+      
+      <b>Rutas</b>
+      <table>
+       <tr><th>Destino</th><th>Por dónde</th></tr>
+       <tr><td>10.11.0.0/24</td><td>vía 10.21.0.2</td></tr>
+       <tr><td>10.12.0.0/24</td><td>vía 10.99.1.2</td></tr>
+       <tr><td>10.13.0.0/24</td><td>vía 10.99.2.2</td></tr>
+       <tr><td>10.99.99.0/24</td><td>vía 10.10.10.1</td></tr>
+       <tr><td>0.0.0.0/0</td><td>vía 10.29.0.2</td></tr>
+      </table>
+      
+      <b>Filtrado y NAT</b>
+      <table>
+       <tr><td>Reglas de filtrado</td><td>17 (el orden importa: decide qué se acepta)</td></tr>
+       <tr><td>Reglas de NAT</td><td>0</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s1-01  ──▶  sw-s1-acc-01  ──▶  rt-s1-core  ──▶  <b>fw-s1-perim</b> «ESTE»  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>El orden de las reglas es el que filtra</b>, así que la verificación relee la tabla y comprueba el orden, no sólo el conjunto.</li>
+      <li><b>Deja hablar a sus bocas exteriores entre sí.</b> Sin esas reglas, el tráfico de una delegación hacia el borde entra por una boca y muere en el <code>drop</code>: lo destapó la prueba de conectividad, no la lectura del fichero.</li>
+      </ul>
+    net:
+      net0: "virtio=BC:24:11:00:41:01,bridge=vmbr1"    # ether1 gestion
+      net1: "virtio=BC:24:11:00:41:02,bridge=vmbr10"   # ether2 -> rt-s1-core (transito)
+      net2: "virtio=BC:24:11:00:41:03,bridge=vmbr11"   # ether3 -> WAN 1 (a la sede 2)
+      net3: "virtio=BC:24:11:00:41:04,bridge=vmbr12"   # ether4 -> WAN 2 (a la sede 3)
+      net4: "virtio=BC:24:11:00:41:05,bridge=vmbr13"   # ether5 -> fw-wan-edge (borde)
+    config:
+      routeros:
+        identity: fw-s1-perim
+        addresses:
+          - address: "10.10.10.31/24"
+            interface: ether1
+          - address: "{{ lab_tr1_fw }}/30"
+            interface: ether2
+          - address: "{{ lab_wan1_hub }}/30"
+            interface: ether3
+          - address: "{{ lab_wan2_hub }}/30"
+            interface: ether4
+          - address: "{{ lab_edge_core }}/30"
+            interface: ether5
+        dhcp_client: false
+        routes:
+          # Su propia sede, detrás del router.
+          - dst_address: "{{ lab_site1_network }}"
+            gateway: "{{ lab_tr1_rt }}"
+          # Las delegaciones, por sus WAN.
+          - dst_address: "{{ lab_site2_network }}"
+            gateway: "{{ lab_wan1_spoke }}"
+          - dst_address: "{{ lab_site3_network }}"
+            gateway: "{{ lab_wan2_spoke }}"
+          - dst_address: "{{ lab_control_network }}"
+            gateway: "{{ lab_mgmt_gateway }}"
+          # Y lo que sale de la empresa, por el borde.
+          - dst_address: "0.0.0.0/0"
+            gateway: "{{ lab_edge_fw }}"
+        # Perímetro: lo establecido pasa, y el tráfico de su sede puede salir y
+        # volver por cada una de sus bocas. Además, la central es el punto por el
+        # que una delegación llega al borde (y a la otra delegación), así que sus
+        # bocas EXTERIORES también pueden hablar entre sí: sin esas reglas el
+        # tráfico de la sede 2 hacia internet entra por ether3 y muere en el
+        # `drop` porque nadie le dio salida por ether5. Lo destapó la prueba de
+        # conectividad, no la lectura del fichero.
+        firewall:
+          filter:
+            - {chain: forward, action: accept, connection_state: "established,related"}
+            - {chain: forward, action: accept, in_interface: ether2, out_interface: ether3}
+            - {chain: forward, action: accept, in_interface: ether2, out_interface: ether4}
+            - {chain: forward, action: accept, in_interface: ether2, out_interface: ether5}
+            - {chain: forward, action: accept, in_interface: ether3, out_interface: ether2}
+            - {chain: forward, action: accept, in_interface: ether4, out_interface: ether2}
+            - {chain: forward, action: accept, in_interface: ether5, out_interface: ether2}
+            - {chain: forward, action: accept, in_interface: ether3, out_interface: ether5}
+            - {chain: forward, action: accept, in_interface: ether4, out_interface: ether5}
+            - {chain: forward, action: accept, in_interface: ether3, out_interface: ether4}
+            - {chain: forward, action: accept, in_interface: ether4, out_interface: ether3}
+            # Y las VUELTAS desde el borde hacia cada delegación. No basta con
+            # `established,related`: el paquete que pregunta al borde por su
+            # dirección de gestión va DIRECTO por la LAN de gestión (el router de
+            # la delegación la tiene conectada), así que este firewall nunca vio
+            # esa conversación y no tiene estado que reconocer. La respuesta sí
+            # vuelve por aquí —el borde sólo conoce las sedes por el tránsito— y
+            # sin estas dos reglas muere en el `drop`. Lo destapó lab-check
+            # ejecutado DESDE una delegación: 18/19, y el que faltaba era el borde.
+            - {chain: forward, action: accept, in_interface: ether5, out_interface: ether3}
+            - {chain: forward, action: accept, in_interface: ether5, out_interface: ether4}
+            - {chain: forward, action: drop}
+            - {chain: input, action: accept, in_interface: ether1}
+            - {chain: input, action: accept, connection_state: "established,related"}
+            - {chain: input, action: drop}
+
+  # fw-s2-perim: perímetro de la delegación 2. Su WAN la conecta con la central.
+  - vmid: 2101
+    name: fw-s2-perim
+    chr: true
+    tags: [ansible-managed, firewall, delegacion]
+    description: |
+      <b>fw-s2-perim</b> — firewall de la delegación 2. <b>Filtra el perímetro</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>2101</td></tr>
+       <tr><td>Tipo</td><td>Máquina virtual (RouterOS CHR)</td></tr>
+       <tr><td>Dónde</td><td>la delegación 2</td></tr>
+       <tr><td>Rol</td><td>firewall</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>firewall</code> <code>delegacion</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>ether1</td><td><code>vmbr1</code></td><td><code>BC:24:11:00:42:01</code></td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>ether2</td><td><code>vmbr17</code></td><td><code>BC:24:11:00:42:02</code></td><td>rt-s2-edge ether3</td></tr>
+       <tr><td>net2</td><td>ether3</td><td><code>vmbr11</code></td><td><code>BC:24:11:00:42:03</code></td><td>fw-s1-perim ether3</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CONFIGURACIÓN DECLARADA (RouterOS)</b>
+      <table>
+       <tr><th>Interfaz</th><th>Dirección de gestión</th></tr>
+       <tr><td>ether1</td><td>10.10.10.32/24</td></tr>
+       <tr><td>ether2</td><td>10.22.0.1/30</td></tr>
+       <tr><td>ether3</td><td>10.99.1.2/30</td></tr>
+      </table>
+      
+      <b>Rutas</b>
+      <table>
+       <tr><th>Destino</th><th>Por dónde</th></tr>
+       <tr><td>10.12.0.0/24</td><td>vía 10.22.0.2</td></tr>
+       <tr><td>10.11.0.0/24</td><td>vía 10.99.1.1</td></tr>
+       <tr><td>10.13.0.0/24</td><td>vía 10.99.1.1</td></tr>
+       <tr><td>10.99.99.0/24</td><td>vía 10.99.1.1</td></tr>
+       <tr><td>0.0.0.0/0</td><td>vía 10.99.1.1</td></tr>
+      </table>
+      
+      <b>Filtrado y NAT</b>
+      <table>
+       <tr><td>Reglas de filtrado</td><td>7 (el orden importa: decide qué se acepta)</td></tr>
+       <tr><td>Reglas de NAT</td><td>0</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s2-01  ──▶  sw-s2-acc-01  ──▶  rt-s2-edge  ──▶  <b>fw-s2-perim</b> «ESTE»  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>El orden de las reglas es el que filtra</b>, así que la verificación relee la tabla y comprueba el orden, no sólo el conjunto.</li>
+      <li><b>Deja hablar a sus bocas exteriores entre sí.</b> Sin esas reglas, el tráfico de una delegación hacia el borde entra por una boca y muere en el <code>drop</code>: lo destapó la prueba de conectividad, no la lectura del fichero.</li>
+      </ul>
+    net:
+      net0: "virtio=BC:24:11:00:42:01,bridge=vmbr1"    # ether1 gestion
+      net1: "virtio=BC:24:11:00:42:02,bridge=vmbr17"   # ether2 -> rt-s2-edge (transito)
+      net2: "virtio=BC:24:11:00:42:03,bridge=vmbr11"   # ether3 -> WAN 1 (a la central)
+    config:
+      routeros:
+        identity: fw-s2-perim
+        addresses:
+          - address: "10.10.10.32/24"
+            interface: ether1
+          - address: "{{ lab_tr2_fw }}/30"
+            interface: ether2
+          - address: "{{ lab_wan1_spoke }}/30"
+            interface: ether3
+        dhcp_client: false
+        routes:
+          - dst_address: "{{ lab_site2_network }}"
+            gateway: "{{ lab_tr2_rt }}"
+          - dst_address: "{{ lab_site1_network }}"
+            gateway: "{{ lab_wan1_hub }}"
+          - dst_address: "{{ lab_site3_network }}"
+            gateway: "{{ lab_wan1_hub }}"
+          - dst_address: "{{ lab_control_network }}"
+            gateway: "{{ lab_wan1_hub }}"
+          - dst_address: "0.0.0.0/0"
+            gateway: "{{ lab_wan1_hub }}"
+        firewall:
+          filter:
+            - {chain: forward, action: accept, connection_state: "established,related"}
+            - {chain: forward, action: accept, in_interface: ether2, out_interface: ether3}
+            - {chain: forward, action: accept, in_interface: ether3, out_interface: ether2}
+            - {chain: forward, action: drop}
+            - {chain: input, action: accept, in_interface: ether1}
+            - {chain: input, action: accept, connection_state: "established,related"}
+            - {chain: input, action: drop}
+
+  # fw-s3-perim: perímetro de la delegación 3, simétrico por la WAN 2.
+  - vmid: 3101
+    name: fw-s3-perim
+    chr: true
+    tags: [ansible-managed, firewall, delegacion]
+    description: |
+      <b>fw-s3-perim</b> — firewall de la delegación 3. <b>Filtra el perímetro</b>.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>3101</td></tr>
+       <tr><td>Tipo</td><td>Máquina virtual (RouterOS CHR)</td></tr>
+       <tr><td>Dónde</td><td>la delegación 3</td></tr>
+       <tr><td>Rol</td><td>firewall</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>firewall</code> <code>delegacion</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>ether1</td><td><code>vmbr1</code></td><td><code>BC:24:11:00:43:01</code></td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>ether2</td><td><code>vmbr21</code></td><td><code>BC:24:11:00:43:02</code></td><td>rt-s3-edge ether3</td></tr>
+       <tr><td>net2</td><td>ether3</td><td><code>vmbr12</code></td><td><code>BC:24:11:00:43:03</code></td><td>fw-s1-perim ether4</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CONFIGURACIÓN DECLARADA (RouterOS)</b>
+      <table>
+       <tr><th>Interfaz</th><th>Dirección de gestión</th></tr>
+       <tr><td>ether1</td><td>10.10.10.33/24</td></tr>
+       <tr><td>ether2</td><td>10.23.0.1/30</td></tr>
+       <tr><td>ether3</td><td>10.99.2.2/30</td></tr>
+      </table>
+      
+      <b>Rutas</b>
+      <table>
+       <tr><th>Destino</th><th>Por dónde</th></tr>
+       <tr><td>10.13.0.0/24</td><td>vía 10.23.0.2</td></tr>
+       <tr><td>10.11.0.0/24</td><td>vía 10.99.2.1</td></tr>
+       <tr><td>10.12.0.0/24</td><td>vía 10.99.2.1</td></tr>
+       <tr><td>10.99.99.0/24</td><td>vía 10.99.2.1</td></tr>
+       <tr><td>0.0.0.0/0</td><td>vía 10.99.2.1</td></tr>
+      </table>
+      
+      <b>Filtrado y NAT</b>
+      <table>
+       <tr><td>Reglas de filtrado</td><td>7 (el orden importa: decide qué se acepta)</td></tr>
+       <tr><td>Reglas de NAT</td><td>0</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s3-01  ──▶  sw-s3-acc-01  ──▶  rt-s3-edge  ──▶  <b>fw-s3-perim</b> «ESTE»  ──▶  fw-s1-perim  ──▶  fw-wan-edge  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>El orden de las reglas es el que filtra</b>, así que la verificación relee la tabla y comprueba el orden, no sólo el conjunto.</li>
+      <li><b>Deja hablar a sus bocas exteriores entre sí.</b> Sin esas reglas, el tráfico de una delegación hacia el borde entra por una boca y muere en el <code>drop</code>: lo destapó la prueba de conectividad, no la lectura del fichero.</li>
+      </ul>
+    net:
+      net0: "virtio=BC:24:11:00:43:01,bridge=vmbr1"    # ether1 gestion
+      net1: "virtio=BC:24:11:00:43:02,bridge=vmbr21"   # ether2 -> rt-s3-edge (transito)
+      net2: "virtio=BC:24:11:00:43:03,bridge=vmbr12"   # ether3 -> WAN 2 (a la central)
+    config:
+      routeros:
+        identity: fw-s3-perim
+        addresses:
+          - address: "10.10.10.33/24"
+            interface: ether1
+          - address: "{{ lab_tr3_fw }}/30"
+            interface: ether2
+          - address: "{{ lab_wan2_spoke }}/30"
+            interface: ether3
+        dhcp_client: false
+        routes:
+          - dst_address: "{{ lab_site3_network }}"
+            gateway: "{{ lab_tr3_rt }}"
+          - dst_address: "{{ lab_site1_network }}"
+            gateway: "{{ lab_wan2_hub }}"
+          - dst_address: "{{ lab_site2_network }}"
+            gateway: "{{ lab_wan2_hub }}"
+          - dst_address: "{{ lab_control_network }}"
+            gateway: "{{ lab_wan2_hub }}"
+          - dst_address: "0.0.0.0/0"
+            gateway: "{{ lab_wan2_hub }}"
+        firewall:
+          filter:
+            - {chain: forward, action: accept, connection_state: "established,related"}
+            - {chain: forward, action: accept, in_interface: ether2, out_interface: ether3}
+            - {chain: forward, action: accept, in_interface: ether3, out_interface: ether2}
+            - {chain: forward, action: drop}
+            - {chain: input, action: accept, in_interface: ether1}
+            - {chain: input, action: accept, connection_state: "established,related"}
+            - {chain: input, action: drop}
+
+  # fw-wan-edge: el firewall de BORDE, y el ÚNICO que traduce direcciones. Su
+  # pata exterior (ether1) es la red de gestión, donde vive el proveedor real (el
+  # host Proxmox): NO hay un segmento "ISP" inventado.
+  - vmid: 9101
+    name: fw-wan-edge
+    chr: true
+    tags: [ansible-managed, firewall, borde]
+    description: |
+      <b>fw-wan-edge</b> — firewall de borde. <b>Filtra el perímetro</b> y es el único que hace NAT hacia internet.
+      
+      <b>IDENTIDAD</b>
+      <table>
+       <tr><td>vmid</td><td>9101</td></tr>
+       <tr><td>Tipo</td><td>Máquina virtual (RouterOS CHR)</td></tr>
+       <tr><td>Dónde</td><td>el borde de la empresa</td></tr>
+       <tr><td>Rol</td><td>firewall</td></tr>
+       <tr><td>Tags</td><td><code>ansible-managed</code> <code>firewall</code> <code>borde</code></td></tr>
+      </table>
+      
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
+       <tr><td>net0</td><td>ether1</td><td><code>vmbr1</code></td><td><code>BC:24:11:00:49:01</code></td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>ether2</td><td><code>vmbr13</code></td><td><code>BC:24:11:00:49:02</code></td><td>fw-s1-perim ether5</td></tr>
+      </table>
+      
+      Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
+      
+      <b>CONFIGURACIÓN DECLARADA (RouterOS)</b>
+      <table>
+       <tr><th>Interfaz</th><th>Dirección de gestión</th></tr>
+       <tr><td>ether1</td><td>10.10.10.34/24</td></tr>
+       <tr><td>ether2</td><td>10.29.0.2/30</td></tr>
+      </table>
+      
+      <b>Rutas</b>
+      <table>
+       <tr><th>Destino</th><th>Por dónde</th></tr>
+       <tr><td>0.0.0.0/0</td><td>vía 10.10.10.1</td></tr>
+       <tr><td>10.11.0.0/24</td><td>vía 10.29.0.1</td></tr>
+       <tr><td>10.12.0.0/24</td><td>vía 10.29.0.1</td></tr>
+       <tr><td>10.13.0.0/24</td><td>vía 10.29.0.1</td></tr>
+       <tr><td>10.99.99.0/24</td><td>vía 10.10.10.1</td></tr>
+      </table>
+      
+      <b>Filtrado y NAT</b>
+      <table>
+       <tr><td>Reglas de filtrado</td><td>6 (el orden importa: decide qué se acepta)</td></tr>
+       <tr><td>Reglas de NAT</td><td>1</td></tr>
+      </table>
+      
+      <b>DÓNDE ESTÁ</b>
+      <pre>pc-s1-01  ──▶  sw-s1-acc-01  ──▶  rt-s1-core  ──▶  fw-s1-perim  ──▶  <b>fw-wan-edge</b> «ESTE»  ──▶  internet</pre>
+      El camino está <b>medido</b> con traceroute desde una estación, no dibujado: es el que sigue un paquete de verdad.
+      
+      <b>POR QUÉ ASÍ</b>
+      <ul>
+      <li><b>El orden de las reglas es el que filtra</b>, así que la verificación relee la tabla y comprueba el orden, no sólo el conjunto.</li>
+      <li><b>Es el único que hace NAT</b> (masquerade). Dentro de la empresa las direcciones son reales: por eso hay rutas de vuelta y no traducciones anidadas.</li>
+      <li><b>Su pata exterior sale por la red de gestión</b> y el proveedor es el host. Ningún invitado va en el bridge público del nodo, así que nada queda expuesto.</li>
+      </ul>
+    net:
+      net0: "virtio=BC:24:11:00:49:01,bridge=vmbr1"    # ether1 -> "proveedor" (red de gestion)
+      net1: "virtio=BC:24:11:00:49:02,bridge=vmbr13"   # ether2 -> fw-s1-perim (transito de borde)
+    config:
+      routeros:
+        identity: fw-wan-edge
+        addresses:
+          - address: "10.10.10.34/24"
+            interface: ether1
+          - address: "{{ lab_edge_fw }}/30"
+            interface: ether2
+        dhcp_client: false
+        routes:
+          - dst_address: "0.0.0.0/0"
+            gateway: "{{ lab_internet_gateway }}"
+          - dst_address: "{{ lab_site1_network }}"
+            gateway: "{{ lab_edge_core }}"
+          - dst_address: "{{ lab_site2_network }}"
+            gateway: "{{ lab_edge_core }}"
+          - dst_address: "{{ lab_site3_network }}"
+            gateway: "{{ lab_edge_core }}"
+          - dst_address: "{{ lab_control_network }}"
+            gateway: "{{ lab_internet_gateway }}"
+        firewall:
+          filter:
+            - {chain: forward, action: accept, connection_state: "established,related"}
+            - {chain: forward, action: accept, in_interface: ether2, out_interface: ether1}
+            - {chain: forward, action: drop, connection_state: "new"}
+            - {chain: input, action: accept, in_interface: ether1}
+            - {chain: input, action: accept, connection_state: "established,related"}
+            - {chain: input, action: drop}
+          nat:
+            - {chain: srcnat, action: masquerade, out_interface: ether1}
+
+# ============================================================================
+# NOTA: no hay lista de "invitados parcialmente adoptados".
+#
+# La v1 traía una lista de invitados "parcialmente adoptados" (los que
+# configuraba sin gestionarles la forma). Aquí no existe: todo invitado que se
+# configura se declara también, y el que no se declara no aparece en ninguna
+# lista ni se lee nunca. Si algún día hay que configurar uno preexistente desde
+# capa 2, se declara aquí y se explica por qué.
+# ============================================================================
+
+# ============================================================================
+# TIEMPOS DE ENERGÍA (verbos apply/preflight)
+# ============================================================================
+# Cuánto se espera, como máximo, a que un escalón entero acabe en marcha. El
+# lote se pide de golpe y se relanza lo que quede parado.
+pve_power_start_timeout: 240
+
+# Margen de cortesía entre un escalón y el siguiente (clave = `order` del que
+# acaba de arrancar). Sólo lo usa lo que no tiene una señal propia que consultar:
+# los equipos de red esperan a que su API conteste de verdad.
+pve_power_gap_after:
+  1: 10
+
+# Cuánto se espera a que un escalón de RouterOS levante de verdad y conteste su
+# API: un CHR tarda decenas de segundos en levantar RouterOS.
+pve_power_ready_timeout: 180
+
+# ============================================================================
+# RETENCIÓN DE logs/ — el único directorio del repositorio que crece solo.
+# ============================================================================
+pve_log_retention:
+  live_max_mb: 8
+  keep_days: 14
+  keep_count: 10

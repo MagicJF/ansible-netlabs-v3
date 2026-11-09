@@ -1,0 +1,192 @@
+---
+# ===========================================================================
+# bootstrap — converge the one thing that has to exist before a router's own
+# API can be used: its first address.
+#
+# The declaration (inventory/group_vars/all.yml, the guest's `config.bootstrap`
+# block) says which interface, which MAC asks and which address is handed over.
+# This role converges the machine that hands it over, and then PROVES the router
+# took it: a running dnsmasq is not proof that the router got an address.
+# ===========================================================================
+- name: Refuse a bootstrap declaration without an interface and a list of hosts
+  ansible.builtin.assert:
+    that:
+      - bootstrap_interface is defined and bootstrap_interface | length > 0
+      - bootstrap_hosts is defined and bootstrap_hosts | length > 0
+      # Every entry carries BOTH keys. `rejectattr` twice looked like it said
+      # this and did not: an entry with a `mac` but no `address` is dropped by
+      # the first rejection, so a half-declared host passed the check.
+      - bootstrap_hosts | selectattr('mac', 'defined') | selectattr('address', 'defined')
+        | list | length == bootstrap_hosts | length
+    fail_msg: >-
+      A `bootstrap` block needs `interface` and a non-empty `hosts` list, each
+      entry carrying `mac` and `address` (got
+      {{ l2_config.bootstrap | default({}) | to_json }}). The MAC is what makes
+      each concession deterministic; the address is what each router will have
+      before its own API exists.
+    success_msg: >-
+      Bootstrap is well formed: {{ bootstrap_hosts | length }} reservation(s) on
+      {{ bootstrap_interface }} — {{ bootstrap_hosts | map(attribute='address') | join(', ') }}.
+
+- name: Install the DHCP server and the tool that fixes its offers
+  ansible.builtin.apt:
+    name:
+      - dnsmasq
+      - ethtool
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# --- the mechanism, not the symptom --------------------------------------
+# A DHCP offer leaving this container goes through a veth, which marks the
+# checksum CHECKSUM_PARTIAL and leaves it for a NIC to finish. The bridge does
+# not finish it, and the router's kernel validates UDP checksums and drops the
+# frame. Turning the offload off here is what makes the offer arrive intact.
+- name: Install the unit that turns the TX checksum offload off
+  ansible.builtin.template:
+    src: bootstrap-offload.service.j2
+    dest: "/etc/systemd/system/{{ bootstrap_offload_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: bootstrap_offload_unit_file
+
+- name: Apply the offload setting now, and on every boot
+  ansible.builtin.systemd_service:
+    name: "{{ bootstrap_offload_unit }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Install the DHCP configuration
+  ansible.builtin.template:
+    src: dnsmasq-bootstrap.conf.j2
+    dest: "{{ bootstrap_dnsmasq_conf }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: bootstrap_conf
+
+- name: Serve the declared address
+  ansible.builtin.systemd_service:
+    name: dnsmasq
+    enabled: true
+    state: "{{ 'restarted' if bootstrap_conf.changed else 'started' }}"
+  register: bootstrap_dnsmasq
+
+# --- el camino de vuelta -----------------------------------------------------
+# Este contenedor tiene su ruta por defecto hacia el host, y el host no enruta
+# hacia el interior del lab: así que sin esto recibe los pings de una
+# workstation y no puede contestarlos. Un servidor DHCP de verdad sabría volver
+# a las redes que sirve, y es lo que se declara aquí.
+- name: Read the routes this container already has
+  ansible.builtin.command: ip -4 route show
+  register: bootstrap_live_routes
+  changed_when: false
+  when: bootstrap_routes | length > 0
+- name: Install the unit that restores the declared routes on every boot
+  # The same shape as the offload unit: without it these routes exist only until
+  # the container is restarted, and a cold start comes up with a path that looks
+  # broken for a reason no converge run would explain.
+  ansible.builtin.template:
+    src: bootstrap-routes.service.j2
+    dest: "/etc/systemd/system/{{ bootstrap_routes_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: bootstrap_routes_unit_file
+  when: bootstrap_routes | length > 0
+- name: Apply the declared routes now, and on every boot
+  ansible.builtin.systemd_service:
+    name: "{{ bootstrap_routes_unit }}"
+    enabled: true
+    state: "{{ 'restarted' if bootstrap_routes_unit_file.changed else 'started' }}"
+    daemon_reload: true
+  when: bootstrap_routes | length > 0
+
+- name: Route the declared networks back through the site router
+  ansible.builtin.command: >-
+    ip route replace {{ item }} via {{ bootstrap_route_gateway }}
+  loop: "{{ bootstrap_routes }}"
+  when:
+    - bootstrap_routes | length > 0
+    # `ip route replace` es idempotente en efecto pero no lo declara, así que el
+    # `when` es lo que mantiene honesto el informe: sin él, cada convergencia
+    # diría que ha cambiado algo.
+    - item not in bootstrap_live_routes.stdout
+
+# --- the proof ------------------------------------------------------------
+- name: Read the interface's offload settings
+  ansible.builtin.command:
+    cmd: "ethtool -k {{ bootstrap_interface }}"
+  register: bootstrap_offload_live
+  changed_when: false
+
+- name: Assert the offer will leave with a valid checksum
+  ansible.builtin.assert:
+    that:
+      - "'tx-checksumming: off' in bootstrap_offload_live.stdout"
+    fail_msg: >-
+      {{ bootstrap_interface }} still has TX checksumming on, so every offer
+      this container sends arrives at the router with an unresolved checksum and
+      is dropped — the router would broadcast its request forever while dnsmasq
+      logs a successful offer. `ethtool -k {{ bootstrap_interface }}` said:
+      {{ bootstrap_offload_live.stdout }}.
+    success_msg: "TX checksumming is off on {{ bootstrap_interface }}: the offer will carry a valid checksum."
+
+- name: Read what dnsmasq has handed out
+  # Evidence, not the check: the router asks for this address ONCE and releases
+  # it as soon as it is configured with a static one, so an empty lease file
+  # after a successful bootstrap is the expected end state, not a failure.
+  ansible.builtin.command:
+    cmd: cat /var/lib/misc/dnsmasq.leases
+  register: bootstrap_leases
+  changed_when: false
+  failed_when: false
+
+- name: Wait for every router to take the address this container hands over
+  # The real question is not "did dnsmasq log a lease" but "does the router have
+  # an address" — and the only thing a router WITH an address can answer on is
+  # its own API. This stays true after the router has taken the address as a
+  # static one, which is what makes the role idempotent.
+  #
+  # NO `failed_when: false` here, deliberately, and the reason is a bug this role
+  # used to have: `failed_when: false` OVERWRITES the result's `failed` to false,
+  # so an assertion reading `bootstrap_answer.failed` is always satisfied and a
+  # router that never took its address passes silently. Measured with a
+  # wait_for against a closed port: the result came back with `failed=False` and
+  # the only surviving trace was the message. So the task is allowed to fail —
+  # the loop label names the router, and Ansible's own error names it again —
+  # and the block below turns it into a diagnosis instead of a stack trace.
+  block:
+    - name: Wait for the API port of every router this container addresses
+      ansible.builtin.wait_for:
+        host: "{{ item.address }}"
+        port: "{{ bootstrap_answer_port }}"
+        timeout: "{{ bootstrap_answer_timeout }}"
+      loop: "{{ bootstrap_hosts }}"
+      loop_control:
+        label: "{{ item.name | default(item.address) }}"
+  rescue:
+    - name: Report which router did not take its first address
+      ansible.builtin.fail:
+        msg: >-
+          A router did not answer on :{{ bootstrap_answer_port }}, so it does not
+          have its first address yet and its REST API does not exist. dnsmasq's
+          lease file says "{{ bootstrap_leases.stdout | default('(empty)') | trim }}".
+          Check that dnsmasq is running on this guest (`ss -ulpn` shows it on :67)
+          and that TX checksumming is off on {{ bootstrap_interface }}: a DHCP
+          offer that leaves a veth with an unfinished UDP checksum is dropped by
+          the router's kernel, and the router then asks forever while dnsmasq
+          logs a successful offer. Every router this container serves:
+          {{ bootstrap_hosts | map(attribute='name') | zip(bootstrap_hosts | map(attribute='address'))
+             | map('join', '=') | join(', ') }}.
+
+- name: Report what the bootstrap had to do
+  ansible.builtin.debug:
+    msg: >-
+      {{ bootstrap_hosts | length }} router(s) have their first address and their
+      REST API exists: {{ bootstrap_hosts | map(attribute='address') | join(', ') }}.
+      {{ 'dnsmasq still holds the leases it handed over'
+         if bootstrap_hosts | map(attribute='mac') | map('lower') | select('in', bootstrap_leases.stdout | default('') | lower) | list | length > 0
+         else 'dnsmasq no longer holds them — expected: each router gave its lease back when it took the address as a static one' }}.

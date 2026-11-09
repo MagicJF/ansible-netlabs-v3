@@ -1,0 +1,57 @@
+---
+# ---------------------------------------------------------------------------
+# Un escalón de energía, con el criterio de la casa: OPTIMISTA Y VERIFICADO.
+#
+# Se pide el lote ENTERO de golpe, sin limitar trabajadores —si el hipervisor
+# puede con todos a la vez, están arriba en un momento—, y a los pocos segundos se
+# comprueba quién quedó parado y se relanza SÓLO eso. Limitar los trabajadores
+# evita el problema de raíz, pero paga el precio de serializar siempre; el
+# reintento paga sólo cuando hace falta. Quién relanza, cómo y por qué está
+# contado en `playbooks/tools/pve_start_batch.py`.
+#
+# Entre escalones SÍ hay espera prudencial, porque hay una dependencia de verdad:
+# las estaciones necesitan la infraestructura de red, y la red necesita el
+# bootstrap. Y donde esa dependencia tiene una señal propia que consultar, se
+# consulta en vez de esperar a ciegas: la API de los equipos de red.
+#
+# Las tres cosas van en el mismo recorrido, y eso no es estilo: con la llamada en
+# una tarea con `loop` y el margen en otra, Ansible recorre primero TODAS las
+# llamadas y sólo después todos los márgenes, así que se piden los escalones
+# seguidos y luego se duerme. Visto en el laboratorio, no deducido.
+# ---------------------------------------------------------------------------
+- name: Arrancar este escalón de golpe, y asegurar que levanta entero
+  ansible.builtin.command:
+    cmd: >-
+      python3 {{ pve_start_batch }}
+      --manifest {{ pve_manifest }} --secrets {{ pve_secrets }}
+      --timeout {{ pve_power_start_timeout }} --label "order={{ paso.order }}"
+      {{ paso.vmids | join(' ') }}
+  register: paso_arranque
+  changed_when: true
+  # Si un invitado no acaba en marcha dentro del margen, la tarea FALLA con su
+  # vmid y su estado: no se sigue adelante con un escalón a medias.
+
+- name: Decir cómo fue el arranque de este escalón
+  ansible.builtin.debug:
+    msg: "{{ paso_arranque.stdout | default('') | trim }}"
+
+- name: Esperar a que los equipos de red de este escalón estén LISTOS, no sólo pedidos
+  # La tarea de arranque acaba cuando Proxmox ha DADO la orden, no cuando el
+  # invitado está listo, y un CHR tarda decenas de segundos en levantar RouterOS —
+  # hasta entonces no sirve el DHCP del que depende el escalón siguiente. Se espera
+  # en un solo proceso para todos, no con una tarea por equipo.
+  ansible.builtin.command:
+    cmd: >-
+      python3 {{ pve_routeros_wait }}
+      {{ pve_power_ready_timeout }} {{ paso.routeros | join(' ') }}
+  register: paso_espera
+  changed_when: false
+  when: paso.routeros | length > 0
+
+- name: Dar a este escalón, antes del siguiente, el margen que declara
+  # Sólo para lo que no tiene una señal propia que consultar: el escalón del
+  # bootstrap. Los equipos de red no lo necesitan, porque su API ya dice cuándo
+  # están listos, y las estaciones no tienen a nadie detrás esperándolas.
+  ansible.builtin.pause:
+    seconds: "{{ paso.espera }}"
+  when: paso.espera | int > 0

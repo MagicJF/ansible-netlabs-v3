@@ -1,0 +1,37 @@
+[Unit]
+Description=Restore the declared return routes to the site LANs ({{ bootstrap_routes | join(', ') }})
+# A DHCP server on a real network knows how to reach the networks it serves. This
+# container does not: its default route points at the Proxmox host, and the host
+# does not route into the lab, so without these routes it receives a workstation's
+# ping and has no way to answer it. They used to be applied only by a converge
+# run, which meant a cold start came up without them and a working path looked
+# like a broken one — declared, but not durable. This unit is the durable half:
+# `ip route replace` on every boot, exactly as the offload unit does for its own
+# setting.
+# `After=network-online.target` is NOT enough here, and that was measured rather
+# than assumed: the unit ran twenty seconds into the container's boot, before eth0
+# carried its address, and `ip route` answered `Nexthop has invalid gateway` for
+# all three. The service failed, the routes were never restored, and the cold start
+# came up with no path into the sites — which also takes layer 2 down with it,
+# because this container is the SSH jump into them. Hence the retry loop: the
+# gateway has to exist before the routes can point at it, so the unit waits.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Waiting indefinitely is the point, so systemd must not time the unit out before
+# the gateway shows up.
+TimeoutStartSec=0
+# Retries until the routes stick: they point at a router that starts in a LATER
+# tier (see the startup order in the manifest), so at this container's own boot the
+# gateway does not exist yet. The first version of this loop used `continue 2`,
+# which is not valid with a single loop level in `sh`: the container's own log
+# shows it booting at 15:59:59 and giving up at 16:00:16 — seventeen seconds
+# instead of the two minutes it was supposed to keep trying. `until` is the POSIX
+# way to say it.
+ExecStart=/bin/sh -c 'until {% for r in bootstrap_routes %}ip route replace {{ r }} via {{ bootstrap_route_gateway }} && {% endfor %}true; do sleep 2; done'
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,91 @@
+---
+# ===========================================================================
+# El estilo de las etiquetas del DATACENTER (pve_tag_style) — por la API.
+#
+# Por qué no es una llamada de módulo: PVE no tiene módulo para las opciones
+# del cluster, y esto NO es propiedad de ningún invitado — es una sola opción
+# del datacenter que decide de qué color se ve cada etiqueta en el árbol.
+#
+# Se declara porque el esquema forma parte del contrato del laboratorio: el
+# ROJO significa "gestionado por este repositorio". Y se comprueba releyendo,
+# no dando por bueno el 200: la verdad es lo que quedó escrito.
+#
+# Lo que NO puede hacer este fichero: crear una etiqueta nueva en la lista
+# `allowed-tags` del datacenter. Si un día se añade un tag al vocabulario, hay
+# que añadirlo también allí o PVE lo rechazará al asignarlo.
+# ===========================================================================
+- name: Read the datacenter options
+  ansible.builtin.uri:
+    url: "{{ pve_api }}/cluster/options"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
+    validate_certs: true
+    ca_path: "{{ pve_api_ca_path }}"
+    status_code: 200
+    return_content: true
+  register: dc_options
+  no_log: true
+
+- name: Converge the declared tag style (the colour scheme)
+  ansible.builtin.uri:
+    url: "{{ pve_api }}/cluster/options"
+    method: PUT
+    headers:
+      Authorization: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
+    body_format: form-urlencoded
+    body:
+      tag-style: "color-map={{ pve_tag_style.colors }},shape={{ pve_tag_style.shape }}"
+    validate_certs: true
+    ca_path: "{{ pve_api_ca_path }}"
+    status_code: 200
+  register: dc_written
+  # `uri` da ok por cualquier 200, hiciera lo que hiciera: sin esto, un PUT que
+  # no cambió nada contaría como cambio y la relectura siguiente no probaría.
+  changed_when: true
+  no_log: true
+  when: dc_live != dc_declared
+  vars:
+    dc_live: "{{ dc_options.json.data['tag-style'] | default({}) }}"
+    dc_declared:
+      color-map: "{{ pve_tag_style.colors }}"
+      shape: "{{ pve_tag_style.shape }}"
+
+- name: Read the datacenter options again
+  ansible.builtin.uri:
+    url: "{{ pve_api }}/cluster/options"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
+    validate_certs: true
+    ca_path: "{{ pve_api_ca_path }}"
+    status_code: 200
+    return_content: true
+  register: dc_after
+  no_log: true
+
+# Se compara por partes y sin distinguir mayúsculas: PVE guarda la cadena tal
+# cual, pero no hay por qué apostar el verbo a que no la normalice nunca.
+- name: Verify the tag style is what the declaration says
+  ansible.builtin.assert:
+    that:
+      - (live_colors | sort) == (declared_colors | sort)
+      - (live_shape | lower) == (declared_shape | lower)
+    fail_msg: >-
+      El esquema de color declarado (pve_tag_style) no es el que tiene el
+      datacenter. Esperado: forma={{ declared_shape }} y
+      {{ declared_colors | length }} color(es). Encontrado: forma={{ live_shape }}
+      y {{ live_colors | length }} color(es). Diferencia: {{ diferencias | join(', ') }}.
+    success_msg: >-
+      El esquema de color del datacenter es el declarado: forma {{ live_shape }},
+      {{ live_colors | length }} etiquetas con color (el rojo es "gestionado por
+      este repositorio").
+  vars:
+    live_style: "{{ dc_after.json.data['tag-style'] | default({}) }}"
+    live_shape: "{{ live_style.get('shape', '') }}"
+    live_colors: "{{ (live_style.get('color-map', '') | default('', true)).split(';') | map('lower') | select() | list }}"
+    declared_shape: "{{ pve_tag_style.shape }}"
+    declared_colors: "{{ pve_tag_style.colors.split(';') | map('lower') | select() | list }}"
+    diferencias:
+      - "faltan {{ declared_colors | reject('in', live_colors) | list }}"
+      - "sobran {{ live_colors | reject('in', declared_colors) | list }}"
