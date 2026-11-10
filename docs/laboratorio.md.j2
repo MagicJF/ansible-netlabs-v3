@@ -234,24 +234,37 @@ Un laboratorio **desde cero** necesita este orden, y cada paso existe por una
 razón física:
 
 ```bash
-# 1. la forma: segmentos, workstations y equipos de red. Arranca por escalones
-#    (bootstrap -> equipos de red -> workstations).
+# 1. la forma: los 21 invitados, y la energía del bootstrap (orden 1) y de los
+#    equipos de red (orden 2). Las estaciones NO se encienden todavía: su router
+#    aún no sirve DHCP, y una workstation no reintenta — encenderla ahora la
+#    dejaría sin dirección hasta reiniciarla a mano. El verbo lo dice, nombra lo
+#    que aplaza y termina en rojo POR ESO, no por un desajuste.
 ansible-playbook playbooks/apply.yml
 
-# 2. la configuración de los equipos de red (equipos de red PRIMERO: el DHCP de
-#    una LAN lo sirve su router, así que las estaciones dependen de ellos).
-ansible-playbook configure/site.yml
+# 2. el bootstrap sirve: es quien da la PRIMERA dirección a los equipos de red
+#    (un CHR reintenta su primer DHCP, así que la coge en cuanto sirve).
+ansible-playbook configure/site.yml --limit localhost,infra-bootstrap
 
-# 3. reiniciar las estaciones: se crearon antes de que su router sirviera DHCP,
-#    así que su cliente se rindió. Con el router ya repartiendo, vuelven a pedir
-#    su dirección y la obtienen.
+# 3. los equipos de red, y con ellos el DHCP de cada sede. Se limita a ellos a
+#    propósito: las estaciones todavía no pueden estar en pie, y exigirles
+#    alcance ahora sería exigir algo que este mismo orden impide.
+ansible-playbook configure/site.yml --limit localhost,infra-bootstrap,pve_api_targets
 
-# 4. ya con las estaciones alcanzables, se configura su interior
-ansible-playbook configure/site.yml
-
-# 5. y se cierra con la verificación de capa 1
+# 4. ya con el DHCP de las sedes en pie, apply enciende las estaciones: piden su
+#    dirección y la obtienen a la primera. Y verifica la capa 1 completa, que
+#    ahora sí está completa.
 ansible-playbook playbooks/apply.yml
+
+# 5. con las estaciones alcanzables, se configura su interior
+ansible-playbook configure/site.yml
 ```
+
+**Por qué el paso 1 no puede terminar en verde.** `apply.yml` converge el estado
+declarado o falla, y el estado declarado pide los 21 invitados en pie. Un arranque
+en frío que deja 8 estaciones sin encender no ha convergido, así que el verbo
+**falla** — pero falla nombrando lo aplazado y el paso que falta, en vez de esperar
+300 s a un DHCP que sabe que aún no sirve. Ese rojo es la respuesta correcta a un
+paso que todavía no puede completarse.
 
 En un laboratorio ya montado, `configure/site.yml` o `apply.yml` sobre un estado
 convergido **no cambian nada** (`changed=0`), y esa es la garantía central del
