@@ -11,8 +11,8 @@ el hipervisor.
 ## El laboratorio: una empresa de tres sedes
 
 Lo que este repositorio despliega es un laboratorio de red que simula **una
-empresa con una central y dos delegaciones**: ocho workstations, **once equipos
-de red** MikroTik (RouterOS) —cuatro switches, tres routers y cuatro firewalls— y
+empresa con una central y dos delegaciones**: 8 workstations, **12 equipos
+de red** MikroTik (RouterOS) —5 switches, 3 routers y 4 firewalls— y
 los cables que los unen, todo declarado en un solo fichero y gobernado
 **exclusivamente por la API**.
 
@@ -33,7 +33,7 @@ los cables que los unen, todo declarado en un solo fichero y gobernado
                                         ╰── WAN 1 ──╯  ╰───── WAN 2 ─────╯
 ```
 
-En una frase: **cuatro switches, tres routers y cuatro firewalls** RouterOS, y el
+En una frase: **5 switches, 3 routers y 4 firewalls** RouterOS, y el
 camino de un paquete dentro de una sede es **`pc → sw → rt → fw → WAN`**. Los
 switches lo son por su configuración (patas de datos en un puente sin dirección,
 lo que los distingue de un router). **El router es la puerta y el servidor DHCP de
@@ -41,9 +41,17 @@ su LAN**, no el switch ni el firewall: el DHCP es una difusión de capa 2 y no
 cruza un router, así que quien reparte tiene que estar en el mismo segmento que
 sus clientes (o un `ip helper-address` desde él, si el servidor está en otro
 sitio). Los firewalls **filtran el perímetro** y sólo el de borde hace **NAT**.
-Las **ocho workstations no tienen ninguna vía de gestión** (una sola interfaz,
+Las **8 workstations no tienen ninguna vía de gestión** (una sola interfaz,
 dirección por DHCP, como un PC de verdad), y la red se verifica **desde dentro de
 los propios equipos**, que es como lo haría un ingeniero.
+
+Hay además un **segundo segmento de gestión** (`10.20.20.0/24`, en
+`vmbr22`) con su propio switch (`sw-mgmt-01`) y su pata del
+bootstrap. **No es del dominio de producción**: en un montaje físico una red de gestión
+es una isla que se toca desde el lado del operador, no desde una workstation. Así que las
+estaciones no lo prueban como destino —comprueban que **no** llegan—, el operador sí lo
+comprueba (por el túnel, con `ansible.builtin.uri`), y el **borde** lo cierra con una
+regla de filtrado que corta el intento.
 
 **Guía completa, en castellano: [`EL-LABORATORIO.md`](EL-LABORATORIO.md)** — la
 topología explicada, el direccionamiento, por dónde va un paquete, las dos capas
@@ -68,6 +76,8 @@ playbooks/pve_engine.j2                # motor: análisis declarado-vs-vivo, com
 playbooks/tasks/                       # motor: pasos compartidos (segmentos, importación de discos, energía, tags)
 playbooks/tools/pve_read.py            # motor: lee todos los invitados + datos de plataforma en UN proceso
 playbooks/tools/framework_check.py     # el test del propio marco: convergente, y ve el drift
+playbooks/tools/documentos.py          # renderiza los documentos del repo desde la declaración
+docs/*.md.j2                           # las plantillas de esos documentos (prosa + valores del manifiesto)
 playbooks/tools/pve_notas.py           # motor: genera la nota HTML y las etiquetas, desde la declaración
 playbooks/tools/logs_prune.py          # motor: retención de logs/, la aplica cada verbo
 playbooks/tools/esfuerzo.py            # genera ESFUERZO.md desde los registros reales
@@ -77,7 +87,7 @@ playbooks/tools/pve_start_batch.py     # arranque por escalones contra la API
 playbooks/tools/routeros_wait.py       # espera a que un equipo RouterOS termine de arrancar
 playbooks/tools/segment_comments.py    # vuelca en los bridges del host la descripción de su cable
 playbooks/tools/wg_endpoint_setup.sh   # capa 2: bootstrap del extremo del túnel, una vez en el host PVE
-playbooks/tracing/sitecustomize.py     # motor: registra cada llamada HTTP a PVE
+playbooks/tracing/sitecustomize.py     # motor: registra cada llamada HTTP a las DOS APIs (Proxmox y RouterOS)
 filter_plugins/pve.py                  # motor: filtros de canonicalización que usan las macros
 filter_plugins/state.py                # motor: comprobaciones de referencias cruzadas del estado declarado
 configure/audit.yml                    # capa 2: inspección de sólo lectura de un invitado
@@ -304,7 +314,7 @@ Está deliberadamente fuera del fichero, no olvidado:
 - claves crudas `lxc.*` (límites de cgroup, bind mounts) — el módulo de la colección no las expone.
 - `cpus` (límite de CPU) — el módulo lo mapea a `cpuunits` al crear pero a `cpulimit` al actualizar, así que no puede tener un solo significado; declara `cpuunits`.
 
-## VMs QEMU: los once equipos RouterOS
+## VMs QEMU: los 12 equipos RouterOS
 
 `pve_vm_defaults` + `pve_chr_defaults` + `pve_vms` declaran las VMs con una
 diferencia estructural: **`proxmox_kvm` se niega a actualizar `net`, `scsi`,
@@ -317,7 +327,7 @@ esa VM con un mensaje explícito en vez de converger.
 Se convergen en sitio: `cores`, `sockets`, `memory`, `cpu`, `vga`, `boot`,
 `onboot`, `description`, `tags` y el estado de energía.
 
-**Qué hace que un CHR sea un CHR** (`pve_chr_defaults`, heredado por los once):
+**Qué hace que un CHR sea un CHR** (`pve_chr_defaults`, heredado por los 12):
 
 | Clave | Valor | Por qué |
 | --- | --- | --- |
@@ -575,14 +585,14 @@ SEDE 1 (central)                     SEDE 2                SEDE 3
    fw-wan-edge ──▶ internet (NAT)
 ```
 
-**Once invitados RouterOS y ocho PCs**, todo en `labs/netlab-v2/inventory/group_vars/all.yml`:
+**12 invitados RouterOS y 8 PCs**, todo en `labs/netlab-v2/inventory/group_vars/all.yml`:
 
-- **Cuatro switches, y son L2 puros.** Meten sus patas de datos en un bridge de
+- **Los 5 switches, y son L2 puros.** Meten sus patas de datos en un bridge de
   RouterOS y **no ponen ninguna dirección en él**. Eso es lo que los hace switches
   y no routers: su dirección vive sólo en su pata de gestión (`ether1` → `vmbr1`).
   Un switch con dirección en su bridge empieza a enrutar, y la topología deja de
   ser la del diagrama sin que nadie se entere.
-- **Tres routers** que enrutan *y* sirven: la LAN de su sede en una pata —donde
+- **3 routers** que enrutan *y* sirven: la LAN de su sede en una pata —donde
   corren el **servidor DHCP** y sus reservas— y la WAN en otra. Son la puerta de la
   LAN, no el firewall, porque el DHCP es una difusión de capa 2 y no cruza un
   router: su servidor tiene que estar (o tener un relay) en el mismo segmento que
@@ -590,7 +600,7 @@ SEDE 1 (central)                     SEDE 2                SEDE 3
   router de la central conoce las dos redes remotas y los de las delegaciones
   llevan una ruta por defecto a su firewall— así que añadir una cuarta sede es una
   entrada y una ruta, no una malla de ellas.
-- **Cuatro firewalls** que filtran el perímetro y no enrutan nada entre sedes. El
+- **4 firewalls** que filtran el perímetro y no enrutan nada entre sedes. El
   filtrado es **posicional** (el ORDEN de las reglas decide), así que la
   verificación lee la tabla de vuelta y comprueba el orden, no sólo el conjunto. El
   NAT vive sólo en `fw-wan-edge`: dentro de la empresa las direcciones son reales,
@@ -598,7 +608,7 @@ SEDE 1 (central)                     SEDE 2                SEDE 3
   Y un firewall de sede debe permitir que sus patas **exteriores** hablen entre sí —
   así es como una delegación alcanza el borde, y omitirlo mete el tráfico saliente
   de la delegación directamente en el `drop`.
-- **Ocho workstations, cada una un PC**: una sola NIC, **sin interfaz de gestión y
+- **8 workstations, cada una un PC**: una sola NIC, **sin interfaz de gestión y
   sin bloque `config:` en absoluto**, así que la capa 2 nunca entra en ellas. Así se
   hace en una empresa: un escritorio tiene una interfaz, toma su dirección por DHCP,
   y la gestión de flota es un agente que llama HACIA FUERA, nunca una conexión
@@ -613,14 +623,13 @@ SEDE 1 (central)                     SEDE 2                SEDE 3
   vía de gestión dentro del invitado. Se usaron las dos, y coinciden.
 
 El direccionamiento, para que un lector pueda seguir los pings: gestión
-`10.10.10.0/24` **en bloques por función** (`.11-.14` switches, `.21-.23` routers,
-`.31-.34` firewalls, `.41` el bootstrap — la regla de la v1 "el último octeto es el
+`10.10.10.0/24` **en bloques por función** (`.11-.14` switches, `.21-.23` routers, `.31-.34` firewalls, `.41` el bootstrap — la regla de la v1 "el último octeto es el
 vmid" no cabe en cuatro dígitos). La dirección **concreta** de cada equipo no está en
 su ficha: está en la tabla de sedes (`mgmt:`) y en `lab_mgmt_otros`, y las fichas la
-citan. Las sedes `10.11/10.12/10.13.0.0/24`, el tránsito
-`router↔firewall` de cada sede como un `/30` (`10.21`, `10.22`, `10.23.0.0/30`), los
-enlaces entre firewalls de sede como `/30`s (`10.99.1.0/30`, `10.99.2.0/30`) y el
-tránsito de borde `10.29.0.0/30`. **Dieciocho bridges sin puertos** (`vmbr4`…`vmbr21`),
+citan. Las sedes `10.11.0.0/24`, `10.12.0.0/24`, `10.13.0.0/24`, el tránsito
+`router↔firewall` de cada sede como un `/30` (`10.21.0.0/30`, `10.22.0.0/30`, `10.23.0.0/30`), los
+enlaces entre firewalls de sede como `/30`s (10.99.1.0/30 y 10.99.2.0/30) y el
+tránsito de borde `10.29.0.0/30`. **19 bridges sin puertos** (`vmbr4`…`vmbr22`),
 **uno por cable** — el nombre del bridge aparece literalmente en sus dos extremos, y
 el validador de estado se niega ante un nombre citado pero nunca declarado, así que
 una errata no puede producir un cable de un solo extremo.
@@ -675,7 +684,7 @@ ningún paso manual:
 - **Las VMs** no tienen equivalente, así que la misma clave viaja por cloud-init:
   `ciuser` más `sshkeys` y una unidad cloud-init (`<storage>:cloudinit`). Está
   activo por defecto (`pve_vm_defaults.cloudinit: true`) y se apaga por invitado para
-  una imagen que no ejecute cloud-init. **Los once CHR lo apagan**
+  una imagen que no ejecute cloud-init. **Los 12 CHR lo apagan**
   (`pve_chr_defaults.cloudinit: false`): RouterOS no ejecuta cloud-init y su acceso
   es por la API REST, no por SSH.
 
@@ -755,7 +764,7 @@ Dos trampas de medición, ambas pisadas de verdad al construir esto:
 
 ## Comprobar el propio marco
 
-Existen **seis** comprobaciones, y cada una responde una pregunta que las otras no
+Existen varias comprobaciones, y cada una responde una pregunta que las otras no
 pueden.
 
 **El estado declarado tiene que tener sentido como un todo.** `filter_plugins/state.py`
@@ -795,7 +804,7 @@ sí.
 **¿El mapa del test coincide con la declaración?** `framework_check.py agree`
 comprueba que la lista de destinos que prueba la propia suite es exactamente la que
 declara el manifiesto: si alguien añade un invitado y no lo añade a la prueba (o al
-revés), falla. Una suite que prueba diecinueve de veinte sale verde y miente.
+revés), falla. Una suite que prueba uno menos de los que hay sale verde y miente.
 
 Ese mapa **no se escribe a mano**: `framework_check.py labmap` lo deriva del
 manifiesto y reescribe entre marcadores **tres** bloques de `lab-check.sh`. Con
@@ -833,13 +842,25 @@ correr, y es la razón por la que las reglas salen en orden.
 
 **¿La nota sigue diciendo la verdad?** `framework_check.py notas` tampoco necesita
 laboratorio. La nota en la interfaz de PVE es HTML y está *generada* desde la
-declaración (`pve_notas.py`), así que la comprobación lee las dos y exige que
-coincidan: una fila por pata declarada con su bridge y su MAC, el vecino real en cada
+declaración (`pve_notas.py`), así que la comprobación lee la nota y la declaración y
+exige que el CONTENIDO de la nota cuadre: una fila por pata declarada con su bridge y su MAC, el vecino real en cada
 cable punto a punto, el segmento de gestión compartido descrito como segmento
 compartido en vez de nombrar un vecino de doce, y exactamente las tres etiquetas (quién
 lo gestiona, qué es, dónde está). Nada más puede pillar esta clase de error: una nota
 que nombra el puerto equivocado sigue siendo HTML perfectamente válido, y sólo se lee
 el día que alguien se fía de ella.
+
+**¿La API se toca sólo por la puerta?** `framework_check.py api` denuncia cualquier
+fichero fuera de la capa (`playbooks/tools/` y `playbooks/tracing/`) que importe
+`requests`/`urllib`/`proxmoxer`, invoque `curl` o lleve el camino de la API (`:8006`,
+`/api2/json`, `/rest/…`). El framework habla con la API por `ansible.builtin.uri`;
+escaparse del framework sólo vale para una comprobación puntual de depuración, y lo que
+se repite se integra en la capa.
+
+**¿La documentación sigue siendo la declaración?** `framework_check.py docs` compara
+cada documento con su render desde las plantillas (`docs/*.md.j2`). Un documento escrito
+a mano es una segunda fuente de verdad, y la que nadie relee: aquí, si un documento
+difiere de su render, la comprobación falla en vez de dejar que envejezca.
 
 **`ansible-lint` sigue en verde.** `.ansible-lint` fuerza las reglas que importan y
 deja escrito por qué se saltan las demás. Un linter con hallazgos permanentes te enseña
@@ -854,6 +875,8 @@ python3 playbooks/tools/framework_check.py export
 python3 playbooks/tools/framework_check.py plan
 python3 playbooks/tools/framework_check.py notas
 python3 playbooks/tools/framework_check.py labmap --check
+python3 playbooks/tools/framework_check.py api
+python3 playbooks/tools/framework_check.py docs
 python3 playbooks/tools/framework_check.py invariant --verb configure/site.yml
 python3 playbooks/tools/framework_check.py drill
 ```
@@ -871,8 +894,8 @@ HERMES_LAB=labs/delegacion-4 python3 playbooks/tools/framework_check.py plan
 HERMES_LAB=labs/delegacion-4 python3 playbooks/tools/framework_check.py notas
 ```
 
-Se copia en vez de escribirse de cero porque un manifiesto de veinte invitados lleva
-dieciocho cables punto a punto, diecinueve bridges y un direccionamiento coherente
+Se copia en vez de escribirse de cero porque un manifiesto de 21 invitados lleva
+19 bridges y un direccionamiento coherente
 entre sedes. Copiar arrastra lo que de verdad cuesta acertar; lo que se edita después
 es la topología.
 
@@ -954,10 +977,11 @@ JSON queda en disco para depurar una comprobación fallida, y el log humano sigu
 legible.
 
 **`logs/pve-api.jsonl`** — el diario legible por máquina del tráfico que de verdad
-cruzó el cable, un objeto JSON por línea:
+cruzó el cable, un objeto JSON por línea. Es **uno solo para las dos APIs** (Proxmox y
+RouterOS) y cada línea lleva un campo `api` para poder separarlas:
 
 ```json
-{"ts": "...", "event": "api_call", "method": "PUT", "url": "https://…/nodes/Proxmox/lxc/1401/config",
+{"ts": "...", "event": "api_call", "api": "proxmox", "method": "PUT", "url": "https://…/nodes/Proxmox/lxc/1401/config",
  "request_body": {"cores": 1, "delete": "net0", "tags": "ansible-managed;workstation;central", "hostname": "pc-s1-01"},
  "status": 200, "response_body": "{\"data\":null}", "seconds": 0.186, "pid": 2457156}
 ```
@@ -977,9 +1001,13 @@ que un trazador que dejó de funcionar sin avisar no puede dejarte con logs vac�
 observabilidad funciona".
 
 Cómo se arma: los playbooks ponen `playbooks/tracing` en `PYTHONPATH` y definen
-`PVE_HTTP_TRACE`. CPython importa `sitecustomize` de ahí al arrancar el intérprete,
+`API_HTTP_TRACE`. CPython importa `sitecustomize` de ahí al arrancar el intérprete,
 así que el trazador está activo en cada proceso de módulo — los módulos no se tocan.
-El envoltorio se sienta en `requests.Session.request`, que es lo que usa proxmoxer.
+Engancha DOS transportes porque son dos: `requests` (el módulo `proxmox`/proxmoxer, por
+el puerto 8006) y `urllib` (lo que usa `ansible.builtin.uri`, o sea el rol RouterOS). Los
+dos plays que hablan con la API lo arman: `apply.yml` (capa 1) y el play de la capa 2 en
+`configure/site.yml`, que antes **no** lo hacía — por eso las llamadas del rol RouterOS no
+llegaban al diario y el framework registraba medio laboratorio.
 
 Lo que deliberadamente nunca registra: cabeceras de petición, así que el token de la
 API nunca llega al fichero; los campos del cuerpo cuya nombre parezca un secreto
@@ -989,6 +1017,9 @@ ocurrencias.
 Cómo leerlo:
 
 ```bash
+# sólo una de las dos APIs
+grep '"api": "routeros"' logs/pve-api.jsonl
+
 # todas las llamadas de una ejecución, en orden
 python3 -c "
 import json

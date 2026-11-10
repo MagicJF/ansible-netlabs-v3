@@ -214,6 +214,8 @@ def contexto(man):
         "n_equipos_red": len([e for e in invitados if e["tipo"] == "CHR"]),
         "n_workstations": len(de_rol("workstation")),
         "n_bridges": len(man["pve_bridges"]),
+        "bridges_rango": (lambda b: (b[0], b[-1]))(
+            sorted((x["iface"] for x in man["pve_bridges"]), key=lambda x: int(x[4:]))),
         "sitio_de": sitio_de,
     }
     return ctx
