@@ -171,21 +171,32 @@ ejecución. Lanza `preflight` cuando sospeches drift, no como paso rutinario —
 listas nunca se lee, se crea ni se modifica. Cualquier clave de `pve_defaults`
 puede sobrescribirse por invitado.
 
-El laboratorio v2 son **veinte invitados** — nueve contenedores y once VMs CHR —
+El laboratorio v2 son **21 invitados** — 9 contenedores y 12 VMs CHR —
 numerados `STNN` (sede, tipo, índice):
 
 | vmid | hostname | qué es |
 | --- | --- | --- |
-| 1401-1404 | `pc-s1-01`…`pc-s1-04` | las cuatro workstations de la central (LXC: 1 vCPU / 256 MiB / 4 GiB) |
-| 2401-2402 | `pc-s2-01`, `pc-s2-02` | las workstations de la delegación 2 |
-| 3401-3402 | `pc-s3-01`, `pc-s3-02` | las workstations de la delegación 3 |
+| 1401 | `pc-s1-01` | workstation de la central (LXC) |
+| 1402 | `pc-s1-02` | workstation de la central (LXC) |
+| 1403 | `pc-s1-03` | workstation de la central (LXC) |
+| 1404 | `pc-s1-04` | workstation de la central (LXC) |
+| 2401 | `pc-s2-01` | workstation de la delegación 2 (LXC) |
+| 2402 | `pc-s2-02` | workstation de la delegación 2 (LXC) |
+| 3401 | `pc-s3-01` | workstation de la delegación 3 (LXC) |
+| 3402 | `pc-s3-02` | workstation de la delegación 3 (LXC) |
+| 4401 | `sw-mgmt-01` | switch del segundo segmento de gestión (OOB) |
+| 1301 | `sw-s1-acc-01` | switch de acceso de la central |
+| 1302 | `sw-s1-acc-02` | switch de acceso de la central |
+| 2301 | `sw-s2-acc-01` | switch de acceso de la delegación 2 |
+| 3301 | `sw-s3-acc-01` | switch de acceso de la delegación 3 |
+| 1201 | `rt-s1-core` | router de la central: puerta de la LAN **y servidor DHCP** |
+| 2201 | `rt-s2-edge` | router de la delegación 2: puerta de la LAN **y servidor DHCP** |
+| 3201 | `rt-s3-edge` | router de la delegación 3: puerta de la LAN **y servidor DHCP** |
+| 1101 | `fw-s1-perim` | perímetro de la central: filtrado |
+| 2101 | `fw-s2-perim` | perímetro de la delegación 2: filtrado |
+| 3101 | `fw-s3-perim` | perímetro de la delegación 3: filtrado |
+| 9101 | `fw-wan-edge` | firewall de **borde**: filtrado **y NAT** (el único que sale a internet) |
 | 901 | `infra-bootstrap` | da a cada equipo de red su **primera** dirección, una vez |
-| 1301, 1302 | `sw-s1-acc-01`, `sw-s1-acc-02` | los dos switches de acceso de la central, unidos por un troncal |
-| 2301 | `sw-s2-acc-01` | el switch de la delegación 2 |
-| 3301 | `sw-s3-acc-01` | el switch de la delegación 3 |
-| 1201, 2201, 3201 | `rt-s1-core`, `rt-s2-edge`, `rt-s3-edge` | los routers: puerta de la LAN **y servidor DHCP** |
-| 1101, 2101, 3101 | `fw-s1-perim`, `fw-s2-perim`, `fw-s3-perim` | los perímetros de sede: filtrado |
-| 9101 | `fw-wan-edge` | el firewall de borde: filtrado **y NAT** |
 
 El manifiesto de la v1 llevaba una segunda lista, `pve_config_targets`: invitados
 cuya **forma** no gestionaba pero cuyo **interior** sí. **La v2 no la usa como
@@ -322,16 +333,23 @@ Se convergen en sitio: `cores`, `sockets`, `memory`, `cpu`, `vga`, `boot`,
 
 | VM | vmid | qué es |
 | --- | --- | --- |
-| `sw-s1-acc-01`, `sw-s1-acc-02` | 1301, 1302 | switches de acceso de la central |
-| `sw-s2-acc-01`, `sw-s3-acc-01` | 2301, 3301 | switches de acceso de cada delegación |
-| `rt-s1-core`, `rt-s2-edge`, `rt-s3-edge` | 1201, 2201, 3201 | routers: puerta de la LAN y servidor DHCP |
-| `fw-s1-perim`, `fw-s2-perim`, `fw-s3-perim` | 1101, 2101, 3101 | firewalls de perímetro |
-| `fw-wan-edge` | 9101 | firewall de borde con NAT |
+| `sw-mgmt-01` | 4401 | switch del segundo segmento de gestión (OOB) |
+| `sw-s1-acc-01` | 1301 | switch de acceso de la central |
+| `sw-s1-acc-02` | 1302 | switch de acceso de la central |
+| `sw-s2-acc-01` | 2301 | switch de acceso de la delegación 2 |
+| `sw-s3-acc-01` | 3301 | switch de acceso de la delegación 3 |
+| `rt-s1-core` | 1201 | router de la central: puerta de la LAN **y servidor DHCP** |
+| `rt-s2-edge` | 2201 | router de la delegación 2: puerta de la LAN **y servidor DHCP** |
+| `rt-s3-edge` | 3201 | router de la delegación 3: puerta de la LAN **y servidor DHCP** |
+| `fw-s1-perim` | 1101 | perímetro de la central: filtrado |
+| `fw-s2-perim` | 2101 | perímetro de la delegación 2: filtrado |
+| `fw-s3-perim` | 3101 | perímetro de la delegación 3: filtrado |
+| `fw-wan-edge` | 9101 | firewall de **borde**: filtrado **y NAT** (el único que sale a internet) |
 
-Ojo con el bridge: `vmbr1` es la LAN interna (`10.10.10.0/24`) compartida con todos
-los invitados del laboratorio, mientras que `vmbr0` es el bridge **público**
-(`54.36.168.83/24` sobre `eno3`). Poner un invitado del laboratorio en `vmbr0` lo
-expone a internet.
+Ojo con el bridge: el de gestión (`vmbr1`) es la LAN interna
+(`10.10.10.0/24`) compartida con todos los invitados del laboratorio,
+mientras que `vmbr0` es el bridge **público** del nodo (su uplink
+real). Poner un invitado del laboratorio ahí lo expone a internet.
 
 `preflight.yml` comprueba además que toda ISO que una VM declare esté realmente en
 el nodo antes de crear nada. Una VM que **importa una imagen de fabricante** en vez

@@ -151,6 +151,32 @@ def contexto(man):
             return "—"
         return ".%d" % d[0] if len(d) == 1 else ".%d-.%d" % (d[0], d[-1])
 
+    corto = {s["id"]: s["etiqueta"].split(" (")[0] for s in sedes}
+
+    def funcion(e):
+        """Qué es un invitado, en una frase, derivado de su rol y su posición.
+
+        La prosa del «qué es» es criterio, pero el SUJETO de la frase (qué rol,
+        de qué sede, de qué tipo) es dato: se deriva para que añadir un invitado
+        no deje una fila sin escribir.
+        """
+        if e["n"] == "fw-wan-edge":
+            return "firewall de **borde**: filtrado **y NAT** (el único que sale a internet)"
+        if e["rol"] == "bootstrap":
+            return "da a cada equipo de red su **primera** dirección, una vez"
+        if e["n"].startswith("sw-mgmt"):
+            return "switch del segundo segmento de gestión (OOB)"
+        donde = corto[e["sede"]] if e["sede"] else "la red de gestión"
+        if e["rol"] == "workstation":
+            return "workstation de %s%s" % (donde, " (LXC)" if e["tipo"] == "LXC" else "")
+        if e["rol"] == "switch":
+            return "switch de acceso de %s" % donde
+        if e["rol"] == "router":
+            return "router de %s: puerta de la LAN **y servidor DHCP**" % donde
+        if e["rol"] == "firewall":
+            return "perímetro de %s: filtrado" % donde
+        return e["rol"]
+
     # --- el camino de una sede hasta internet (nombres, no direcciones)
     def camino(sid):
         pc = next((x["n"] for x in de_sede(sid) if x["rol"] == "workstation"), None)
@@ -169,7 +195,8 @@ def contexto(man):
         "man_rel": os.path.relpath(os.path.realpath(MANIFIESTO), REPO),
         # El nombre corto de una sede, para las frases compuestas: la etiqueta
         # llevaba «(sede N)» pegado y dentro de una tabla se lee mal.
-        "corto": {s["id"]: s["etiqueta"].split(" (")[0] for s in sedes},
+        "corto": corto,
+        "funcion": funcion,
         "bloque_txt": bloque_txt,
         "sedes": sedes, "hub": hub, "hub_sede": hub_sede,
         "sede_por_id": por_id,
@@ -178,6 +205,8 @@ def contexto(man):
         "chrs": de_rol("switch") + de_rol("router") + de_rol("firewall"),
         "equipos_red": [e for e in invitados if e["tipo"] == "CHR"],
         "bootstrap": de_rol("bootstrap"),
+        "primer_pc": next((x for x in invitados
+                           if x["rol"] == "workstation" and x["sede"] == hub), None),
         "lxc": [e for e in invitados if e["tipo"] == "LXC"],
         "de_rol": de_rol, "de_sede": de_sede, "nombre": nombre,
         "camino": camino, "bloque": bloque,

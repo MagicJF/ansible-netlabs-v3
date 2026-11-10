@@ -73,6 +73,9 @@ pve_node: Proxmox
 # ---------------------------------------------------------------------------
 lab_mgmt_network: "10.10.10.0/24"
 lab_mgmt_gateway: "10.10.10.1"
+# El bridge del nodo donde vive la red de gestión. Se declara porque los
+# documentos y las notas lo citan, y citarlo a mano es como se quedan viejos.
+lab_mgmt_bridge: "vmbr1"
 
 # ---------------------------------------------------------------------------
 # LAS SEDES. Una sede es UNA ENTRADA: su LAN, su tránsito hacia el firewall y su
