@@ -87,6 +87,7 @@ playbooks/tools/lab-check.sh           # verificación end-to-end de la red, des
 playbooks/tools/lab-check.yml          # la misma prueba, orquestada como playbook
 playbooks/tools/pve_start_batch.py     # arranque por escalones contra la API
 playbooks/tools/routeros_wait.py       # espera a que un equipo RouterOS termine de arrancar
+playbooks/tools/routeros_ready.py      # si el DHCP de cada sede está en pie Y con su reserva: la puerta que decide si las estaciones pueden encenderse
 playbooks/tools/segment_comments.py    # vuelca en los bridges del host la descripción de su cable
 playbooks/tools/wg_endpoint_setup.sh   # capa 2: bootstrap del extremo del túnel, una vez en el host PVE
 playbooks/tracing/sitecustomize.py     # motor: registra cada llamada HTTP a las DOS APIs (Proxmox y RouterOS)
