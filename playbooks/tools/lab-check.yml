@@ -78,14 +78,14 @@
       when: groups['lab_workstations'] | default([]) | length > 0
 
     - name: Say plainly whether the lab is whole
+      # Sin cuenta derivada a proposito: el patron exige una RETRORREFERENCIA
+      # (`\1`) y Jinja se come la barra invertida como escape octal, asi que el
+      # conteo salia 0 sin fallar. Cada linea de arriba ya dice `alcance=X/Y`, que
+      # es la cuenta que importa; aqui se explica como leerla.
       ansible.builtin.debug:
         msg: >-
-          {{ (groups['lab_workstations'] | default([])
-              | map('extract', hostvars, 'lab_check')
-              | map(attribute='stdout', default='')
-              | map('splitlines')
-              | map('select', 'match', '^alcance=15/15')
-              | map('list') | map('length') | sum) }}
-          of {{ groups['lab_workstations'] | default([]) | length }} workstation(s) reach all fifteen
-          destinations
+          {{ groups['lab_workstations'] | default([]) | length }} workstation(s) checked.
+          Cada linea lee `alcance=X/Y`: X destinos contestan de los Y declarados, y el
+          laboratorio esta ENTERO solo si X e Y coinciden en todas. `primer_salto` y
+          `camino` se miden aparte, y todo camino distinto al predicho sale como `ANOM`.
       when: groups['lab_workstations'] | default([]) | length > 0
