@@ -13,16 +13,29 @@
 # (`bootstrap_interface` + `bootstrap_hosts`). Se normaliza aquí para que el resto
 # del rol tenga un solo caso que entender.
 - name: Normalize the declared segments (one segment is a list of one)
+  # La lista de hosts es ÚNICA y plana: la genera el manifiesto a partir de los
+  # CHR declarados. Cada segmento dice qué interfaz sirve y qué red tiene; aquí
+  # se reparten los hosts por segmento según su dirección. Así una entrada nueva
+  # en `segments` no obliga a repetir la lista de máquinas, y una máquina nueva
+  # cae en el segmento que le toca sin tocar el rol.
   ansible.builtin.set_fact:
+    l2_bootstrap_hosts: "{{ bootstrap_hosts | default([]) }}"
     l2_bootstrap_segments: >-
-      {{ (bootstrap_segments | default([]))
-         if (bootstrap_segments | default([]) | length) > 0
-         else [{'interface': bootstrap_interface | default(''),
-                'hosts': bootstrap_hosts | default([])}] }}
-    l2_bootstrap_hosts: >-
-      {{ (bootstrap_segments | default([]) | map(attribute='hosts') | flatten)
-         if (bootstrap_segments | default([]) | length) > 0
-         else (bootstrap_hosts | default([])) }}
+      {%- set _salida = [] -%}
+      {%- set _segmentos = bootstrap_segments | default([]) -%}
+      {%- if _segmentos | length == 0 -%}
+      {%-   set _ = _salida.append({'interface': bootstrap_interface | default(''),
+                                     'hosts': bootstrap_hosts | default([])}) -%}
+      {%- else -%}
+      {%-   for _s in _segmentos -%}
+      {%-     set _red = _s.red | default('') -%}
+      {%-     set _prefijo = _red.split('/')[0].split('.')[0:3] | join('.') -%}
+      {%-     set _hosts = (bootstrap_hosts | default([]))
+                            | selectattr('address', 'match', '^' ~ _prefijo ~ '\.') | list -%}
+      {%-     set _ = _salida.append(_s | combine({'hosts': _hosts})) -%}
+      {%-   endfor -%}
+      {%- endif -%}
+      {{ _salida }}
 
 - name: Refuse a bootstrap declaration without an interface and a list of hosts
   ansible.builtin.assert:
@@ -77,11 +90,40 @@
   register: bootstrap_offload_unit_file
 
 - name: Apply the offload setting now, and on every boot
+  # `restarted` cuando el fichero cambió, no `started`: al generalizar el rol a
+  # varios segmentos, el fichero pasa a llevar una línea por interfaz. Con
+  # `started` el cambio NO se aplica (systemd considera la unidad ya en marcha).
   ansible.builtin.systemd_service:
     name: "{{ bootstrap_offload_unit }}"
     enabled: true
-    state: started
+    state: "{{ 'restarted' if bootstrap_offload_unit_file.changed else 'started' }}"
     daemon_reload: true
+
+# La unidad cubre el arranque, pero su reinicio depende de que el fichero cambie:
+# una convergencia en la que la interfaz nueva se declara DESPUÉS de la última
+# escritura del fichero deja esa interfaz con el offload puesto y la unidad no se
+# entera. Por eso el ajuste se converge también aquí, explícitamente, con un
+# informe que dice la verdad (cambia sólo si de verdad estaba puesto).
+- name: Read the offload settings before converging them
+  ansible.builtin.command:
+    cmd: "ethtool -k {{ item.interface }}"
+  loop: "{{ l2_bootstrap_segments }}"
+  loop_control:
+    label: "{{ item.interface }}"
+  register: bootstrap_offload_before
+  changed_when: false
+
+- name: Turn TX checksumming off on every segment's interface, now
+  ansible.builtin.command:
+    cmd: "ethtool -K {{ item.interface }} tx off gso off tso off"
+  loop: "{{ l2_bootstrap_segments }}"
+  loop_control:
+    label: "{{ item.interface }}"
+    index_var: bootstrap_offload_index
+  register: bootstrap_offload_apply
+  changed_when: >-
+    'tx-checksumming: on'
+    in bootstrap_offload_before.results[bootstrap_offload_index].stdout
 
 - name: Install the DHCP configuration
   ansible.builtin.template:

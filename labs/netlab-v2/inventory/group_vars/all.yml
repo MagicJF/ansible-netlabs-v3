@@ -206,6 +206,7 @@ pve_tunnel:
     - "10.11.0.0/24"    # SEDE 1 (central)
     - "10.12.0.0/24"    # SEDE 2
     - "10.13.0.0/24"    # SEDE 3
+    - "10.20.20.0/24"   # segundo segmento de gestión (OOB), en vmbr22
   # Rutas que el ENDPOINT (el host) necesita para entregar el tráfico del túnel
   # a cada LAN de sede. Se llega a la red de una sede por la pata de gestión de
   # su ROUTER (el que tiene esa LAN conectada), que es como se llega en la vida
@@ -408,7 +409,11 @@ pve_containers:
       </ul>
     netif:
       net0: "name=eth0,bridge=vmbr1,gw=10.10.10.1,ip={{ lab_mgmt_otros.infra }}/24"
-      net1: "name=eth1,bridge=vmbr22,ip={{ lab_mgmt2.bootstrap }}/24,gw={{ lab_mgmt2.puerta }}"
+      # Sin `gw=` en la pata 2: una segunda interfaz con puerta por defecto le
+      # roba la ruta por defecto a la pata 1, que es la que si esta NAT-eada en el
+      # host. El contenedor conserva su salida por eth0 y sigue sirviendo DHCP en
+      # las dos patas.
+      net1: "name=eth1,bridge=vmbr22,ip={{ lab_mgmt2.bootstrap }}/24"
     manage: true
     config:
       bootstrap:
@@ -416,7 +421,7 @@ pve_containers:
         segments:
           - interface: eth0
             bridge: vmbr1
-            red: "{{ lab_control_network }}"
+            red: "10.10.10.0/24"   # LAN de gestión (no la red del túnel)
             gateway: "{{ lab_mgmt_gateway }}"
             pool: "{{ lab_mgmt_otros.infra }}"
           - interface: eth1
