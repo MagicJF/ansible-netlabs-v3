@@ -199,12 +199,25 @@ def duracion(v):
 
 
 # ------------------------------------------------------------- el journal ----
+def _api_de(d, u):
+    """Qué API recibió la llamada. El diario es UNO para las DOS, así que hay que
+    separarlas aquí: sin esto, las tablas de Proxmox contarían también las de
+    RouterOS y el «total de llamadas» las sumaría dos veces (el lado RouterOS se
+    cuenta aparte, del log de Ansible). Las líneas anteriores a la unificación no
+    traen `api`; se clasifican por el puerto, la misma señal que usa el trazador."""
+    a = d.get("api")
+    if a in ("proxmox", "routeros"):
+        return a
+    return "proxmox" if ":8006" in u else "routeros"
+
+
 def leer_journal(nom, ip, verbos):
+    """Las llamadas al API de Proxmox, leídas del trazador (sólo ese lado)."""
     pve, pve_s = collections.Counter(), collections.Counter()
     nod, nod_s = collections.Counter(), collections.Counter()
-    ros, ros_s = collections.Counter(), collections.Counter()
     metodos, estados = collections.Counter(), collections.Counter()
     total, total_s = 0, 0.0
+    ros_j, ros_j_s = 0, 0.0
     tramos = [(tst(v["ini"]), tst(v["fin"]), i) for i, v in enumerate(verbos)]
     por_verbo, seg_verbo = collections.Counter(), collections.Counter()
 
@@ -219,7 +232,14 @@ def leer_journal(nom, ip, verbos):
         if d.get("event") != "api_call":
             continue
         u = d.get("url", "")
-        met, s = (d.get("method") or "").upper(), float(d.get("seconds") or 0)
+        s = float(d.get("seconds") or 0)
+        if _api_de(d, u) != "proxmox":
+            # El lado RouterOS del diario se cuenta aparte y no entra en las
+            # tablas de Proxmox, que es lo que este informe mide aquí.
+            ros_j += 1
+            ros_j_s += s
+            continue
+        met = (d.get("method") or "").upper()
         total += 1
         total_s += s
         metodos[met] += 1
@@ -231,29 +251,20 @@ def leer_journal(nom, ip, verbos):
                     por_verbo[i] += 1
                     seg_verbo[i] += s
                     break
-        if ":8006" in u:
-            mm = re.match(r"/api2/json/nodes/[^/]+/(?:lxc|qemu)/(\d+)/(.*)", u.split(":8006", 1)[1])
-            if mm:
-                ep = mm.group(2)
-                ep = "tasks/<tipo>" if ep.startswith("tasks/UPID") else ep
-                g = nom.get(int(mm.group(1)), mm.group(1))
-                pve[(g, ep)] += 1
-                pve_s[(g, ep)] += s
-            else:
-                ep = re.sub(r"UPID:[^\s\"]+", "UPID:<id>", u.split(":8006", 1)[1])
-                nod[ep] += 1
-                nod_s[ep] += s
+        mm = re.match(r"/api2/json/nodes/[^/]+/(?:lxc|qemu)/(\d+)/(.*)", u.split(":8006", 1)[1])
+        if mm:
+            ep = mm.group(2)
+            ep = "tasks/<tipo>" if ep.startswith("tasks/UPID") else ep
+            g = nom.get(int(mm.group(1)), mm.group(1))
+            pve[(g, ep)] += 1
+            pve_s[(g, ep)] += s
         else:
-            mip = re.search(r"//([\d.]+)", u)
-            if not mip:
-                continue
-            g = ip.get(mip.group(1), mip.group(1))
-            p = re.sub(r"//[\d.]+", "", u).replace("http:/", "").replace("https:/", "")
-            p = re.sub(r"/rest/(ip/firewall/(?:filter|nat))/[^/]+.*", r"/rest/\1", p)
-            ros[(g, p)] += 1
-            ros_s[(g, p)] += s
-    return dict(pve=pve, pve_s=pve_s, nod=nod, nod_s=nod_s, ros=ros, ros_s=ros_s,
+            ep = re.sub(r"UPID:[^\s\"]+", "UPID:<id>", u.split(":8006", 1)[1])
+            nod[ep] += 1
+            nod_s[ep] += s
+    return dict(pve=pve, pve_s=pve_s, nod=nod, nod_s=nod_s,
                 metodos=metodos, estados=estados, total=total, total_s=total_s,
+                ros_journal=ros_j, ros_journal_s=ros_j_s,
                 por_verbo=por_verbo, seg_verbo=seg_verbo)
 
 
@@ -334,15 +345,16 @@ def main():
     A("")
     A("| Registro | Qué guarda | Para qué sirve aquí |")
     A("| --- | --- | --- |")
-    A("| `logs/pve-api.jsonl` | cada llamada HTTP que pasa por `requests`, con método, ruta, estado y **segundos** | **Proxmox**: la capa 1 va por proxmoxer y queda entera |")
+    A("| `logs/pve-api.jsonl` | cada llamada HTTP de las **dos** APIs, con un campo `api` para separarlas, y método, ruta, estado y **segundos** | **Proxmox**: la capa 1 va por proxmoxer, y aquí se leen SOLO esas |")
     A("| `logs/ansible.log` | cada resultado de tarea, por anfitrión, con marca de tiempo | **RouterOS** y **trabajo**: el rol imprime su plan y sus lecturas |")
     A("")
-    A("**Por qué no sale todo del trazador.** El trazador se engancha a")
-    A("`requests.Session.request`, y el rol RouterOS habla por `ansible.builtin.uri`,")
-    A("que va por `urllib`. Así que el diario tiene **toda** la capa 1 y **ninguna**")
-    A("llamada del rol. No es un fallo del rol: es el alcance de la herramienta, y por")
-    A("eso el lado RouterOS se cuenta del log, donde el rol imprime cada llamada que")
-    A("hace (`Report the plan, call by call`) y cada tabla que lee.")
+    A("**Por qué dos fuentes.** El diario es uno para las dos APIs: el trazador engancha")
+    A("`requests` (el módulo de Proxmox) **y** `urllib` (lo que usa `ansible.builtin.uri`,")
+    A("o sea el rol RouterOS). Así que trae las dos, y aquí se separan por el campo `api`")
+    A("—sin eso, las tablas de Proxmox contarían también las de RouterOS—. Las tablas de")
+    A("Proxmox salen del diario. El lado RouterOS se cuenta del log de Ansible porque da")
+    A("lo que el diario no da: el desglose por equipo × endpoint (el rol imprime")
+    A("`Report the plan, call by call` y cada tabla que lee).")
     A("")
     A("## Resumen")
     A("")
@@ -355,6 +367,9 @@ def main():
     A("- **%s llamadas al API de RouterOS** contadas en el log: %s de lectura y %s de"
       % (miles(tot_ros), miles(sum(ros_lec.values())), miles(sum(ros_esc.values()))))
     A("  escritura. Los once equipos se gobiernan por REST, sin SSH.")
+    A("- El trazador anotó además **%s llamadas del lado RouterOS con sus segundos**"
+      % miles(j["ros_journal"]))
+    A("  (no son sólo convergencia: incluyen las pruebas de `lab-check`).")
     A("- **%d convergencias completas** del laboratorio, más los verbos de capa 1."
       % len(convergencias))
     A("- Tiempo de reloj de todos los verbos: **%.1f minutos**." % (dur_total / 60))
