@@ -997,7 +997,7 @@ pve_chr_defaults:
   tags: [netlab, routeros, red, ansible-managed]
 
 pve_vms:
-  - vmid: 3401
+  - vmid: 4401
     name: sw-mgmt-01
     chr: true
     tags: [ansible-managed, switch, infra]
@@ -1020,9 +1020,6 @@ pve_vms:
         addresses:
           - address: "{{ lab_mgmt2.reserva }}/24"
             interface: ether1
-        bridges:
-          - name: lan
-            ports: [ether2, ether3]
         dhcp_client: false
         routes:
           - dst_address: "0.0.0.0/0"
