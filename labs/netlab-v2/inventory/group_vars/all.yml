@@ -27,10 +27,12 @@
 #
 #      El orden de un paquete es:  pc -> sw -> rt -> fw -> WAN
 #
-#      Y no es una preferencia de estilo: el DHCP es un broadcast de CAPA 2, así
-#      que quien reparte las direcciones tiene que estar en el MISMO segmento que
-#      sus clientes. Un firewall de capa 3 en medio rompería el DHCP; por eso la
-#      LAN cuelga del router y el firewall se pone DESPUÉS, de cara a la WAN.
+#      Y no es una preferencia de estilo, pero tampoco una ley física: el DHCP es
+#      un broadcast de CAPA 2 y NO cruza un router, así que quien reparte tiene
+#      que estar en el MISMO segmento que sus clientes (o un relay,
+#      `ip helper-address`, desde él, si el servidor vive en otro sitio). Aquí se
+#      elige que puerta y servidor sean el mismo equipo —modelo de rama pequeña—,
+#      y por eso la LAN cuelga del router y el firewall se pone DESPUÉS.
 #
 #   3. SALIDA A INTERNET. La v1 era una red cerrada a propósito. Aquí el firewall
 #      de borde (`fw-wan-edge`) sale por la red de gestión hacia el host Proxmox
@@ -82,7 +84,8 @@ lab_mgmt_gateway: "10.10.10.1"
 #             declarado a su sede (1 central, 2 y 3 delegaciones).
 #   red/puerta/pool   la LAN de la sede. La puerta es su ROUTER, que es también
 #             quien reparte el DHCP: el DHCP es una difusión de capa 2, así que
-#             el servidor TIENE que estar en el mismo segmento que sus clientes.
+#             quien reparte tiene que estar en el mismo segmento que sus clientes
+#             (o un relay desde él). Aquí puerta y servidor son el mismo equipo.
 #   transito  el /30 router<->firewall de la sede: el cable que separa la LAN del
 #             equipo que la filtra (el router ve su LAN por dentro, el firewall
 #             la empresa por fuera).
@@ -360,7 +363,7 @@ pve_containers:
       <b>CÓMO ESTÁ DIRIGIDA</b>
       <table>
        <tr><td>Dirección</td><td>None — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
-       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): es su puerta, así que está en su mismo segmento, que es donde tiene que estar quien reparte el DHCP</td></tr>
        <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
        <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
       </table>
@@ -374,7 +377,7 @@ pve_containers:
       
       <b>POR QUÉ ASÍ</b>
       <ul>
-      <li><b>Hace un solo trabajo y por eso existe.</b> La primera dirección de un CHR llega por una difusión que no cruza un enlace de capa 3, así que tiene que haber algo en su mismo segmento que se la dé. Después no vuelve a intervenir.</li>
+      <li><b>Hace un solo trabajo y por eso existe.</b> La primera dirección de un CHR llega por una difusión, y el túnel de gestión es un enlace de capa 3, así que tiene que haber algo EN su segmento que se la dé. No sirve el servidor DHCP del host, que está ahí mismo: su oferta llega con el checksum de UDP sin resolver y el kernel del CHR la descarta. Después no vuelve a intervenir.</li>
       </ul>
     netif:
       net0: "name=eth0,bridge=vmbr1,gw=10.10.10.1,ip={{ lab_mgmt_otros.infra }}/24"
@@ -455,7 +458,7 @@ pve_containers:
       <b>CÓMO ESTÁ DIRIGIDA</b>
       <table>
        <tr><td>Dirección</td><td>10.11.0.11 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
-       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): es su puerta, así que está en su mismo segmento, que es donde tiene que estar quien reparte el DHCP</td></tr>
        <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
        <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
       </table>
@@ -512,7 +515,7 @@ pve_containers:
       <b>CÓMO ESTÁ DIRIGIDA</b>
       <table>
        <tr><td>Dirección</td><td>10.11.0.12 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
-       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): es su puerta, así que está en su mismo segmento, que es donde tiene que estar quien reparte el DHCP</td></tr>
        <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
        <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
       </table>
@@ -569,7 +572,7 @@ pve_containers:
       <b>CÓMO ESTÁ DIRIGIDA</b>
       <table>
        <tr><td>Dirección</td><td>10.11.0.13 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
-       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): es su puerta, así que está en su mismo segmento, que es donde tiene que estar quien reparte el DHCP</td></tr>
        <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
        <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
       </table>
@@ -626,7 +629,7 @@ pve_containers:
       <b>CÓMO ESTÁ DIRIGIDA</b>
       <table>
        <tr><td>Dirección</td><td>10.11.0.14 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
-       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): es su puerta, así que está en su mismo segmento, que es donde tiene que estar quien reparte el DHCP</td></tr>
        <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
        <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
       </table>
@@ -683,7 +686,7 @@ pve_containers:
       <b>CÓMO ESTÁ DIRIGIDA</b>
       <table>
        <tr><td>Dirección</td><td>10.12.0.11 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
-       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): es su puerta, así que está en su mismo segmento, que es donde tiene que estar quien reparte el DHCP</td></tr>
        <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
        <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
       </table>
@@ -740,7 +743,7 @@ pve_containers:
       <b>CÓMO ESTÁ DIRIGIDA</b>
       <table>
        <tr><td>Dirección</td><td>10.12.0.12 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
-       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): es su puerta, así que está en su mismo segmento, que es donde tiene que estar quien reparte el DHCP</td></tr>
        <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
        <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
       </table>
@@ -797,7 +800,7 @@ pve_containers:
       <b>CÓMO ESTÁ DIRIGIDA</b>
       <table>
        <tr><td>Dirección</td><td>10.13.0.11 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
-       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): es su puerta, así que está en su mismo segmento, que es donde tiene que estar quien reparte el DHCP</td></tr>
        <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
        <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
       </table>
@@ -854,7 +857,7 @@ pve_containers:
       <b>CÓMO ESTÁ DIRIGIDA</b>
       <table>
        <tr><td>Dirección</td><td>10.13.0.12 — <b>por DHCP</b>, reserva atada a su MAC</td></tr>
-       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): el DHCP es una difusión de capa 2 y el servidor tiene que estar en su mismo segmento</td></tr>
+       <tr><td>Se la da</td><td>el <b>router de su sede</b> (no el switch ni el firewall): es su puerta, así que está en su mismo segmento, que es donde tiene que estar quien reparte el DHCP</td></tr>
        <tr><td>Puerta de enlace</td><td>la del router de su sede (.1 de su red)</td></tr>
        <tr><td>Vía de gestión</td><td><b>ninguna.</b> Un PC de una empresa no se administra por una conexión entrante</td></tr>
       </table>
@@ -1322,7 +1325,7 @@ pve_vms:
       
       <b>POR QUÉ ASÍ</b>
       <ul>
-      <li><b>Da el DHCP de su LAN porque tiene que estar en su segmento.</b> El DHCP es una difusión de capa 2: un firewall de capa 3 en medio lo rompería. Por eso la LAN cuelga de él y el firewall se pone después, de cara a la WAN.</li>
+      <li><b>Da el DHCP de su LAN porque es su puerta, y quien reparte tiene que estar en el segmento de sus clientes:</b> el DHCP es una difusión de capa 2 y no cruza un router. Un <i>relay</i> (<code>ip helper-address</code>) valdría igual y dejaría el servidor en otro sitio —también es real, pero es el modelo de empresa; este es el de rama pequeña, donde puerta y servidor son el mismo equipo—. Por eso la LAN cuelga de él y el firewall se pone después, de cara a la WAN.</li>
       <li><b>El reparto es jerárquico:</b> la central conoce las dos redes remotas y las delegaciones salen por su firewall. Añadir una sede es una entrada y una ruta.</li>
       </ul>
     net:
@@ -1434,7 +1437,7 @@ pve_vms:
       
       <b>POR QUÉ ASÍ</b>
       <ul>
-      <li><b>Da el DHCP de su LAN porque tiene que estar en su segmento.</b> El DHCP es una difusión de capa 2: un firewall de capa 3 en medio lo rompería. Por eso la LAN cuelga de él y el firewall se pone después, de cara a la WAN.</li>
+      <li><b>Da el DHCP de su LAN porque es su puerta, y quien reparte tiene que estar en el segmento de sus clientes:</b> el DHCP es una difusión de capa 2 y no cruza un router. Un <i>relay</i> (<code>ip helper-address</code>) valdría igual y dejaría el servidor en otro sitio —también es real, pero es el modelo de empresa; este es el de rama pequeña, donde puerta y servidor son el mismo equipo—. Por eso la LAN cuelga de él y el firewall se pone después, de cara a la WAN.</li>
       <li><b>El reparto es jerárquico:</b> la central conoce las dos redes remotas y las delegaciones salen por su firewall. Añadir una sede es una entrada y una ruta.</li>
       </ul>
     net:
@@ -1535,7 +1538,7 @@ pve_vms:
       
       <b>POR QUÉ ASÍ</b>
       <ul>
-      <li><b>Da el DHCP de su LAN porque tiene que estar en su segmento.</b> El DHCP es una difusión de capa 2: un firewall de capa 3 en medio lo rompería. Por eso la LAN cuelga de él y el firewall se pone después, de cara a la WAN.</li>
+      <li><b>Da el DHCP de su LAN porque es su puerta, y quien reparte tiene que estar en el segmento de sus clientes:</b> el DHCP es una difusión de capa 2 y no cruza un router. Un <i>relay</i> (<code>ip helper-address</code>) valdría igual y dejaría el servidor en otro sitio —también es real, pero es el modelo de empresa; este es el de rama pequeña, donde puerta y servidor son el mismo equipo—. Por eso la LAN cuelga de él y el firewall se pone después, de cara a la WAN.</li>
       <li><b>El reparto es jerárquico:</b> la central conoce las dos redes remotas y las delegaciones salen por su firewall. Añadir una sede es una entrada y una ruta.</li>
       </ul>
     net:

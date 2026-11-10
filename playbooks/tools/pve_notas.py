@@ -314,9 +314,9 @@ def html(e):
     if e["tipo"] == "LXC":
         A("<b>CÓMO ESTÁ DIRIGIDA</b>")
         L += tabla([["Dirección", "%s — <b>por DHCP</b>, reserva atada a su MAC" % g.get("address")],
-                    ["Se la da", "el <b>router de su sede</b> (no el switch ni el firewall): "
-                                 "el DHCP es una difusión de capa 2 y el servidor tiene que "
-                                 "estar en su mismo segmento"],
+                    ["Se la da", "el <b>router de su sede</b> (no el switch ni el firewall): es "
+                                 "su puerta, así que está en su mismo segmento, que es donde "
+                                 "tiene que estar quien reparte el DHCP"],
                     ["Puerta de enlace", "la del router de su sede (.1 de su red)"],
                     ["Vía de gestión", "<b>ninguna.</b> Un PC de una empresa no se administra "
                                        "por una conexión entrante"]])
@@ -386,9 +386,12 @@ def html(e):
         A("</ul>")
     elif rol(n) == "router":
         A("<ul>")
-        A("<li><b>Da el DHCP de su LAN porque tiene que estar en su segmento.</b> El DHCP "
-          "es una difusión de capa 2: un firewall de capa 3 en medio lo rompería. Por eso "
-          "la LAN cuelga de él y el firewall se pone después, de cara a la WAN.</li>")
+        A("<li><b>Da el DHCP de su LAN porque es su puerta, y quien reparte tiene que estar "
+          "en el segmento de sus clientes:</b> el DHCP es una difusión de capa 2 y no cruza un "
+          "router. Un <i>relay</i> (<code>ip helper-address</code>) valdría igual y dejaría el "
+          "servidor en otro sitio —también es real, pero es el modelo de empresa; este es el de "
+          "rama pequeña, donde puerta y servidor son el mismo equipo—. Por eso la LAN cuelga de "
+          "él y el firewall se pone después, de cara a la WAN.</li>")
         A("<li><b>El reparto es jerárquico:</b> la central conoce las dos redes remotas y las "
           "delegaciones salen por su firewall. Añadir una sede es una entrada y una ruta.</li>")
         A("</ul>")
@@ -409,8 +412,10 @@ def html(e):
     else:
         A("<ul>")
         A("<li><b>Hace un solo trabajo y por eso existe.</b> La primera dirección de un CHR "
-          "llega por una difusión que no cruza un enlace de capa 3, así que tiene que haber "
-          "algo en su mismo segmento que se la dé. Después no vuelve a intervenir.</li>")
+          "llega por una difusión, y el túnel de gestión es un enlace de capa 3, así que tiene "
+          "que haber algo EN su segmento que se la dé. No sirve el servidor DHCP del host, que "
+          "está ahí mismo: su oferta llega con el checksum de UDP sin resolver y el kernel del "
+          "CHR la descarta. Después no vuelve a intervenir.</li>")
         A("</ul>")
 
     return "\n".join(L)

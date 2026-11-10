@@ -35,9 +35,10 @@ En una frase: **cuatro switches, tres routers y cuatro firewalls** RouterOS, y e
 camino de un paquete dentro de una sede es **`pc → sw → rt → fw → WAN`**. Los
 switches lo son por su configuración (patas de datos en un puente sin dirección,
 lo que los distingue de un router). **El router es la puerta y el servidor DHCP de
-su LAN**, no el switch ni el firewall: el DHCP es una difusión de capa 2, así que
-quien reparte las direcciones tiene que estar en el mismo segmento que sus
-clientes. Los firewalls **filtran el perímetro** y sólo el de borde hace **NAT**.
+su LAN**, no el switch ni el firewall: el DHCP es una difusión de capa 2 y no
+cruza un router, así que quien reparte tiene que estar en el mismo segmento que
+sus clientes (o un `ip helper-address` desde él, si el servidor está en otro
+sitio). Los firewalls **filtran el perímetro** y sólo el de borde hace **NAT**.
 Las **ocho workstations no tienen ninguna vía de gestión** (una sola interfaz,
 dirección por DHCP, como un PC de verdad), y la red se verifica **desde dentro de
 los propios equipos**, que es como lo haría un ingeniero.
@@ -563,8 +564,9 @@ SEDE 1 (central)                     SEDE 2                SEDE 3
   ser la del diagrama sin que nadie se entere.
 - **Tres routers** que enrutan *y* sirven: la LAN de su sede en una pata —donde
   corren el **servidor DHCP** y sus reservas— y la WAN en otra. Son la puerta de la
-  LAN, no el firewall, porque el DHCP es una difusión de capa 2 y su servidor tiene
-  que estar en el mismo segmento que sus clientes. El diseño es **jerárquico** —el
+  LAN, no el firewall, porque el DHCP es una difusión de capa 2 y no cruza un
+  router: su servidor tiene que estar (o tener un relay) en el mismo segmento que
+  sus clientes. El diseño es **jerárquico** —el
   router de la central conoce las dos redes remotas y los de las delegaciones
   llevan una ruta por defecto a su firewall— así que añadir una cuarta sede es una
   entrada y una ruta, no una malla de ellas.

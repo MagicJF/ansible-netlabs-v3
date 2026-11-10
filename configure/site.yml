@@ -100,9 +100,10 @@
 # ---------------------------------------------------------------------------
 # ORDEN DE LOS PLAYS: los equipos de red PRIMERO.
 #
-# No es una preferencia. En este laboratorio el DHCP de la LAN de cada sede lo
-# sirve su ROUTER (tiene que estar en el mismo segmento de capa 2 que sus
-# clientes: el DHCP es broadcast y no cruza un router). Eso hace que las
+# Es una dependencia declarada, no una preferencia. El DHCP de la LAN de cada
+# sede lo sirve su ROUTER, que es su puerta y por eso esta en el mismo segmento de
+# capa 2 que sus clientes: el DHCP es broadcast y no cruza un router (un relay sí
+# lo cruzaría, pero aquí puerta y servidor son el mismo equipo). Eso hace que las
 # estaciones DEPENDAN de los equipos de red: si se converge primero el
 # contenedor, la estación todavía no tiene dirección, el verbo se para en la
 # primera y los routers no llegan a configurarse nunca.

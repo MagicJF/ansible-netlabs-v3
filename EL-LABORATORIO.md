@@ -69,12 +69,17 @@ tenga una responsabilidad que se puede leer en su nombre.
 | **Enrutar** dentro de la empresa | los routers (`rt-s*`) | no filtra |
 | **Filtrar** el perímetro | los firewalls (`fw-*`) | no enruta entre sedes |
 
-Y hay una razón **física** para que el DHCP lo sirva el router y no el firewall:
-el DHCP es un **broadcast de capa 2**, así que quien reparte las direcciones tiene
-que estar **en el mismo segmento** que sus clientes. Un firewall de capa 3 en
-medio rompería el DHCP. Por eso la LAN de cada sede cuelga de su router y el
-firewall se pone **después**, de cara a la WAN. (La v1 tenía el firewall entre el
-switch y el router y el DHCP en el firewall; se corrigió por esto.)
+Y hay una razón para que el DHCP lo sirva el router y no el firewall, aunque no es
+una ley física sino la consecuencia de **una elección**: el DHCP es un **broadcast
+de capa 2** y no cruza un router, así que quien reparte tiene que estar **en el
+mismo segmento** que sus clientes —o, si el servidor vive en otro sitio, un
+**relay** (`ip helper-address`) que lo reenvíe desde ese segmento—. Este
+laboratorio elige el modelo de **rama pequeña**: la puerta de enlace y el servidor
+son el mismo equipo, así que la LAN cuelga de su router y el firewall se pone
+**después**, de cara a la WAN. Con un servidor central y un relay el firewall
+podría ir en medio; también es real, sólo que no es éste. (La v1 tenía el firewall
+entre el switch y el router y el DHCP en el firewall: era válido, con el router de
+relay. Se cambió por **elegir este modelo**, no porque aquél no pudiera funcionar.)
 
 ---
 
