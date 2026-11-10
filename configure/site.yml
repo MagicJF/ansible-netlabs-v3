@@ -112,6 +112,16 @@
   hosts: pve_api_targets
   gather_facts: false
   serial: 1
+  vars:
+    pve_log_dir: "{{ playbook_dir }}/../logs"
+  # El diario de la API es UNO para las dos APIs. Hasta ahora este play no armaba
+  # el trazador, así que las llamadas del rol RouterOS no llegaban al diario y el
+  # framework registraba medio laboratorio. sitecustomize.py engancha `requests`
+  # (PVE) y urllib (lo que usa `ansible.builtin.uri`), así que armar aquí cubre
+  # RouterOS: cada llamada queda con su `api: routeros` y se puede filtrar.
+  environment:
+    PYTHONPATH: "{{ playbook_dir }}/../playbooks/tracing"
+    API_HTTP_TRACE: "{{ pve_log_dir }}/pve-api.jsonl"
   tasks:
     - name: Converge the declared RouterOS state
       ansible.builtin.include_role:

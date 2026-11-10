@@ -1015,6 +1015,84 @@ def nuevo_lab(nombre, desde=None, activar=False):
     return 0
 
 
+# ── La puerta única de la API ────────────────────────────────────────────────
+# El framework tiene UNA forma de hablar con Proxmox y RouterOS: `ansible.builtin.uri`
+# dentro de un rol/play. Ese transporte queda anotado y entra en el diario. Escaparse
+# del framework (requests/urllib/curl desde un script suelto) se permite sólo para
+# comprobaciones rápidas en depuración: no puede ser la vía normal, porque entonces
+# nadie sabe qué se tocó ni queda registro. Cuando un patrón se repite, se integra.
+_HTTP_LIBS = re.compile(
+    r"^\s*(?:import|from)\s+"
+    r"(requests|urllib|urllib2|urllib3|http\.client|httplib|proxmoxer|librouteros)\b",
+    re.MULTILINE)
+# `curl` en un script es la otra forma de saltarse el framework sin que se vea.
+_CURL = re.compile(r"(?<![\w.-])curl\b")
+# Y tocar a pelo la dirección/el camino de las APIs delata la intención directa.
+_API_SIGNS = re.compile(r":8006\b|/api2/json|/rest/ip\b|/rest/system\b")
+_ESCANEO = (".py", ".sh", ".yml", ".yaml", ".j2")
+
+
+def _puertas_api():
+    """Los únicos sitios con permiso para hablar HTTP con las APIs.
+
+    La puerta ES la metodología: lo que no está aquí pasa por `ansible.builtin.uri`,
+    que es transporte anotado y registrado en `logs/pve-api.jsonl`. Una llamada
+    fuera de aquí se ve; luego se decide si se mueve dentro o si está justificada.
+    """
+    return (
+        os.path.join(REPO, "playbooks", "tools"),    # la capa por lotes (Python)
+        os.path.join(REPO, "playbooks", "tracing"),  # el trazador (sitecustomize)
+    )
+
+
+def api_check():
+    """Comprueba que sólo la capa habla HTTP con las APIs.
+
+    Recorre el repo y denuncia cualquier fichero fuera de la puerta que importe una
+    biblioteca HTTP, invoque `curl` o contenga el camino de las APIs. Los textos de
+    documentación no cuentan: sólo código ejecutable. Es la ley que hace cumplir la
+    regla del framework: la API se toca por la puerta, o no se toca.
+    """
+    puertas = tuple(os.path.abspath(p) for p in _puertas_api())
+    saltar = {".git", "logs", "__pycache__", "labs", "node_modules", ".venv", "venv"}
+    offenders = []
+    for raiz, dirs, ficheros in os.walk(REPO):
+        dirs[:] = [d for d in dirs if d not in saltar]
+        if "reports" in raiz or raiz.endswith("docs"):
+            continue
+        for nombre in ficheros:
+            if not nombre.endswith(_ESCANEO):
+                continue
+            ruta = os.path.abspath(os.path.join(raiz, nombre))
+            if ruta.startswith(puertas):
+                continue
+            try:
+                texto = open(ruta, encoding="utf-8", errors="ignore").read()
+            except OSError:
+                continue
+            motivos = []
+            if nombre.endswith((".py", ".sh")) and _HTTP_LIBS.search(texto):
+                motivos.append("importa una biblioteca HTTP")
+            if nombre.endswith((".sh",)) and _CURL.search(texto):
+                motivos.append("usa curl")
+            # El camino de la API sólo delata cuando está en un script ejecutable:
+            # un .yml que declara `api_port: 8006` es el framework configurándose,
+            # no un atajo. Ahí el endpoint es la declaración, no una llamada suelta.
+            if nombre.endswith((".py", ".sh")) and _API_SIGNS.search(texto):
+                motivos.append("lleva el camino de la API")
+            if motivos:
+                offenders.append((os.path.relpath(ruta, REPO), motivos))
+
+    if offenders:
+        for ruta, motivos in offenders:
+            say(f"  {ruta}: {', '.join(motivos)}")
+        fail(
+            f"{len(offenders)} fichero(s) hablan con la API fuera de la puerta "
+            f"({os.path.relpath(puertas[0], REPO)}/*). Múevelo dentro del framework "
+            "(ansible.builtin.uri) o justifícalo; la API no se toca a mano.")
+    say(f"PASS: la API sólo se toca por la puerta; {len(_puertas_api())} puertas, 0 fugas")
+
+
 def main():
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     sub = parser.add_subparsers(dest="mode")
@@ -1035,6 +1113,7 @@ def main():
     lm = sub.add_parser("labmap", help="regenerar el mapa de destinos incrustado en lab-check.sh")
     lm.add_argument("--check", action="store_true",
                     help="solo verificar que el mapa coincide con la declaración")
+    sub.add_parser("api", help="la API sólo se toca por la puerta (tools/ + uri), no a mano")
     args = parser.parse_args()
 
     if args.mode == "invariant":
@@ -1053,6 +1132,8 @@ def main():
         return labmap(args.check)
     if args.mode == "nuevo-lab":
         return nuevo_lab(args.nombre, args.desde, args.activar)
+    if args.mode == "api":
+        return api_check()
     parser.print_help()
     return 2
 

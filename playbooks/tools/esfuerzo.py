@@ -3,17 +3,18 @@
 
 Dos registros, dos alcances distintos, y conviene saber por que:
 
-  logs/pve-api.jsonl  el trazador. Registra cada llamada HTTP que pasa por
-                      `requests`: eso es TODA la capa 1 (Proxmox, via proxmoxer)
-                      y las herramientas sueltas. NO registra al rol RouterOS,
-                      porque `ansible.builtin.uri` va por urllib, no por
-                      requests. De aqui salen las tablas de Proxmox.
+  logs/pve-api.jsonl  el trazador. Registra cada llamada HTTP de las DOS APIs,
+                      con un campo `api` para filtrar. Engancha `requests` (el
+                      modulo `proxmox`/proxmoxer) y urllib (lo que usa
+                      `ansible.builtin.uri`, o sea el rol RouterOS). De aqui
+                      salen las tablas de Proxmox y el detalle de las llamadas
+                      RouterOS con sus segundos.
 
   logs/ansible.log    el log humano de Ansible, con marca de tiempo en cada
                       linea y el resultado de cada tarea. El rol RouterOS
                       imprime su plan **call by call**, y sus lecturas salen una
-                      linea por tabla, asi que de aqui salen las tablas de
-                      RouterOS y todas las de trabajo (tareas por anfitrion).
+                      linea por tabla, asi que de aqui siguen saliendo las tablas
+                      de trabajo (tareas por anfitrion).
 
 Uso:
     python3 playbooks/tools/esfuerzo.py            # escribe ESFUERZO.md

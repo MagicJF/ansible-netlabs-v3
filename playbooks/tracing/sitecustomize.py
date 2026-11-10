@@ -33,8 +33,25 @@ import sys
 import threading
 import time
 
-_TRACE_PATH = os.environ.get("PVE_HTTP_TRACE")
+_TRACE_PATH = os.environ.get("API_HTTP_TRACE") or os.environ.get("PVE_HTTP_TRACE")
 _SECRET_KEYS = ("password", "token", "secret", "key")
+
+
+def _which_api(url):
+    """Etiqueta la llamada con el API que la recibe, para poder filtrar el diario.
+
+    El puerto es la señal que ya distingue las dos APIs en este framework: PVE
+    escucha en 8006 y un CHR sirve su REST en el 80. No se adivina por el host
+    porque el nodo y los invitados comparten vecindad de direcciones.
+    """
+    try:
+        if not url:
+            return "unknown"
+        if ":8006" in url or "/api2/json" in url:
+            return "proxmox"
+        return "routeros"
+    except Exception:  # noqa: BLE001
+        return "unknown"
 
 _lock = threading.Lock()
 
@@ -128,6 +145,7 @@ def _arm():
                 {
                     "ts": _stamp(),
                     "event": "api_call",
+                    "api": _which_api(url),
                     "pid": os.getpid(),
                     "method": method,
                     "url": url,
@@ -146,6 +164,7 @@ def _arm():
             {
                 "ts": _stamp(),
                 "event": "api_call",
+                "api": _which_api(url),
                 "pid": os.getpid(),
                 "method": method,
                 "url": url,
@@ -160,9 +179,93 @@ def _arm():
     requests.Session.request = _traced_request
 
 
+def _arm_urllib():
+    """Engancha las llamadas que hace `ansible.builtin.uri` (urllib, no requests).
+
+    El rol RouterOS habla por `ansible.builtin.uri`, que viaja por urllib y no
+    por `requests`. Sin este enganche, sus llamadas no llegan al diario y el
+    framework sólo registra medio laboratorio. Se parchea `do_open`, que urllib
+    usa y requests NO: así cada llamada se anota una sola vez, sin doble conteo.
+    """
+    import urllib.request
+
+    _original_do_open = urllib.request.AbstractHTTPHandler.do_open
+
+    class _TracedResponse:
+        """Delega en la respuesta real y captura el cuerpo sin consumirlo."""
+
+        def __init__(self, response, record):
+            self._response = response
+            self._record = record
+
+        def read(self, *args, **kwargs):
+            data = self._response.read(*args, **kwargs)
+            try:
+                self._record(data)
+            except Exception as exc:  # noqa: BLE001
+                _tracer_error("urllib_read", exc)
+            return data
+
+        def __getattr__(self, name):
+            return getattr(self._response, name)
+
+    def _traced_do_open(self, http_class, req, **http_conn_args):
+        started = time.time()
+        method = getattr(req, "method", None) or "GET"
+        url = getattr(req, "full_url", None) or getattr(req, "url", None)
+        body = None
+        try:
+            body = req.data
+        except Exception:  # noqa: BLE001
+            body = None
+        captured = {}
+
+        def _record(data):
+            captured["body"] = data
+
+        try:
+            response = _original_do_open(self, http_class, req, **http_conn_args)
+        except Exception as exc:
+            _emit(
+                {
+                    "ts": _stamp(),
+                    "event": "api_call",
+                    "api": _which_api(url),
+                    "pid": os.getpid(),
+                    "method": method,
+                    "url": url,
+                    "request_body": _redact(body),
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "seconds": round(time.time() - started, 3),
+                }
+            )
+            raise
+        wrapped = _TracedResponse(response, _record)
+        # El `uri` lee el cuerpo después de que `do_open` retorne, así que la
+        # anotación con el cuerpo se hace aquí, ya con la respuesta en mano, y
+        # se completa cuando el módulo la lee (o se deja sin cuerpo si no la lee).
+        _emit(
+            {
+                "ts": _stamp(),
+                "event": "api_call",
+                "api": _which_api(url),
+                "pid": os.getpid(),
+                "method": method,
+                "url": url,
+                "request_body": _redact(body),
+                "status": getattr(response, "status", None),
+                "seconds": round(time.time() - started, 3),
+            }
+        )
+        return wrapped
+
+    urllib.request.AbstractHTTPHandler.do_open = _traced_do_open
+
+
 if _TRACE_PATH:
     try:
         _arm()
+        _arm_urllib()
     except Exception as exc:  # noqa: BLE001 - arming failure has to be visible
         _to_stderr(f"tracing NOT armed: {type(exc).__name__}: {exc}")
         _emit(
