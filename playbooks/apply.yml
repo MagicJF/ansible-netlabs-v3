@@ -28,9 +28,11 @@
     pve_api_token_id: "{{ lookup('env', 'PROXMOX_TOKEN_ID') }}"
     pve_api_token_secret: "{{ lookup('env', 'PROXMOX_TOKEN_SECRET') }}"
     pve_api_ca_path: "{{ lookup('env', 'PROXMOX_CA_PATH') }}"
+    # El puerto de la API: del entorno de la máquina, o su variable de respaldo.
+    pve_api_port: "{{ lookup('env', 'PROXMOX_PORT') | default(8006, true) }}"
     pve_auth: &pve_auth
       api_host: "{{ pve_api_host }}"
-      api_port: 8006
+      api_port: "{{ pve_api_port }}"
       # El modulo proxmox quiere el USUARIO y el NOMBRE del token por separado,
       # pero el token se declara entero (`usuario@realm!nombre`), que es como lo
       # espera el API en la cabecera. Se parte aqui: darle el id entero devuelve
@@ -75,7 +77,10 @@
     pve_notas: >-
       {{ (pve_containers | to_json | from_json)
          | notas_map(pve_vms | to_json | from_json, lab_sites | to_json | from_json, lab_hub) }}
-    pve_secrets: "{{ playbook_dir }}/vars/secrets.yml"
+    # El entorno de ESTA máquina. La plantilla y el verificador viven en
+    # tools/entorno.py: es el mismo fichero (y la misma precedencia) que usan las
+    # herramientas, para que no haya dos verdades.
+    pve_entorno: "{{ playbook_dir }}/vars/entorno.yml"
     # The API base for the two things no module covers: node networking
     # (pve_bridges) and growing an imported disk.
     pve_api: "https://{{ pve_api_host }}:8006/api2/json"
@@ -87,15 +92,15 @@
     REQUESTS_CA_BUNDLE: "{{ pve_api_ca_path }}"
     API_HTTP_TRACE: "{{ pve_log_dir }}/pve-api.jsonl"
   pre_tasks:
-    - name: Look for the local credentials file
+    - name: Look for the machine environment file
       ansible.builtin.stat:
-        path: "{{ pve_secrets }}"
-      register: pve_secrets_file
+        path: "{{ pve_entorno }}"
+      register: pve_entorno_file
 
-    - name: Load the hardcoded local credentials when present (gitignored)
+    - name: Load the machine environment when present (gitignored)
       ansible.builtin.include_vars:
-        file: vars/secrets.yml
-      when: pve_secrets_file.stat.exists
+        file: vars/entorno.yml
+      when: pve_entorno_file.stat.exists
 
     - name: Refuse an inaccurate dry-run
       ansible.builtin.fail:
@@ -115,7 +120,7 @@
         cmd: >-
           python3 {{ pve_tool }}
           --manifest {{ pve_manifest }}
-          --secrets {{ pve_secrets }}
+          --entorno {{ pve_entorno }}
           --journal {{ pve_journal }}
           --playbook '{{ ansible_play_name }}'
           --phase read
@@ -695,7 +700,7 @@
         cmd: >-
           python3 {{ pve_tool }}
           --manifest {{ pve_manifest }}
-          --secrets {{ pve_secrets }}
+          --entorno {{ pve_entorno }}
           --journal {{ pve_journal }}
           --playbook '{{ ansible_play_name }}'
           --phase verify

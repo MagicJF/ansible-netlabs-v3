@@ -1,0 +1,75 @@
+---
+# ===========================================================================
+# EL ENTORNO DE ESTA MÁQUINA DE CONTROL — plantilla
+#
+# Todo lo que cambia de una máquina a otra vive AQUÍ y en ningún otro sitio:
+# credenciales, puerto, rutas de claves y dónde vive el `config` de ssh. La
+# topología —los invitados, las redes, los cables— vive en el manifiesto del
+# laboratorio: esto es del FRAMEWORK, y por eso sirve a todos los laboratorios
+# que corran en este nodo.
+#
+# Puesta en marcha en una máquina nueva (una vez por nodo):
+#
+#     cp playbooks/vars/entorno.example.yml playbooks/vars/entorno.yml
+#     $EDITOR playbooks/vars/entorno.yml
+#     python3 playbooks/tools/entorno.py verificar
+#
+# Si la máquina ya traía credenciales —en variables de entorno, o en el antiguo
+# `playbooks/vars/secrets.yml`— se migra sin transcribir nada a mano:
+#
+#     python3 playbooks/tools/entorno.py crear --desde-secrets
+#
+# `entorno.yml` está IGNORADO POR GIT a propósito: el token de Proxmox equivale
+# a root y no caduca, y este repositorio es público. La herramienta lo escribe
+# con permisos 0600 y comprueba que git no lo tenga en el índice.
+#
+# PRECEDENCIA DE FUENTES: lo que declare `entorno.yml` GANA. Las variables de
+# entorno `PROXMOX_*` son el respaldo, para cuando no se puede dejar un fichero
+# en disco (una integración continua, por ejemplo). El orden lo resuelve
+# `playbooks/tools/entorno.py`, así que es el mismo para los playbooks y para
+# todas las herramientas.
+# Convención: lo que hay que rellenar va entre <>, y `verificar` lo denuncia
+# mientras siga así. Lo que no lleva <> es un valor por defecto legítimo.
+# ===========================================================================
+
+# --- la API de Proxmox -----------------------------------------------------
+# `host` tiene que ser un nombre o una IP presentes en el SAN del certificado,
+# no cualquier dirección por la que se llegue a la máquina.
+pve_api_host: <nombre o IP que esté en el SAN del certificado>
+pve_api_port: 8006
+# El token se declara ENTERO (`usuario@realm!nombre-del-token`), que es como lo
+# espera la cabecera del API. El módulo Proxmox lo parte por su cuenta.
+pve_api_token_id: <usuario@realm!nombre-del-token>
+pve_api_token_secret: <secreto del token>
+# El certificado o CA de confianza con el que se valida la API. Ruta ABSOLUTA:
+# las herramientas no adivinan desde dónde se las llama.
+pve_api_ca_path: <ruta absoluta al ca.pem>
+
+# --- el acceso SSH a los invitados ----------------------------------------
+pve_ssh_user: root
+# La clave privada de automatización. Su `.pub` NO se declara: se DERIVA de esta
+# ruta (la misma más `.pub`), así que no hay dos sitios que puedan desfasarse.
+pve_ssh_key_path: <ruta absoluta a la clave privada>
+
+# --- la clave del túnel de gestión ----------------------------------------
+# Sólo hace falta si el laboratorio declara túnel (`pve_tunnel`). Su `.pub`
+# también se deriva.
+pve_tunnel_key_path: <ruta absoluta a la clave del túnel>
+
+# --- el entorno de ejecución de Ansible en esta máquina -------------------
+# Dónde deja Ansible sus ficheros de trabajo. Vacío = su sitio habitual
+# (~/.ansible/tmp). Se declara cuando el home no se puede escribir o cuando se
+# quiere que todo lo temporal viva en un sitio concreto. Lo exporta bin/lab.
+control_tmp_dir: ""
+
+# --- esta máquina de control ----------------------------------------------
+# Dónde escribe la capa 2 el camino SSH hacia los invitados que están detrás de
+# un router. Es un fichero DEL USUARIO que ejecuta el framework, no del
+# repositorio (por eso `~` vale, y se expande al usarlo).
+pve_ssh_config_path: "~/.ssh/config"
+
+# --- credenciales de los equipos del laboratorio --------------------------
+# La contraseña de administración de RouterOS. VACÍA es un valor legítimo: los
+# CHR nacen con la contraseña de fábrica (ninguna), que es como los usa el
+# framework. Sólo hace falta si se le puso una.
+pve_routeros_password: ""

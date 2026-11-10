@@ -17,7 +17,7 @@
 # relanza; uno que aún está arrancando se espera. Relanzar a quien ya está
 # arrancando es como se provoca un error de bloqueo del fichero de configuración.
 #
-#   pve_start_batch.py --manifest M --secrets S --timeout 180 --label "order=2" 160 161 ...
+#   pve_start_batch.py --manifest M --entorno E --timeout 180 --label "order=2" 160 161 ...
 #
 # Sale 0 si todo acabó en marcha, 1 diciendo qué no, 2 si se usa mal.
 # ===========================================================================
@@ -36,31 +36,22 @@ try:
 except ImportError:  # pragma: no cover
     sys.exit("pve_start_batch.py: the requests library is required")
 
-CRED_ALIASES = {
-    "host": ("PROXMOX_HOST", "host", "pve_api_host"),
-    "token_id": ("PROXMOX_TOKEN_ID", "token_id", "pve_api_token_id"),
-    "token_secret": ("PROXMOX_TOKEN_SECRET", "token_secret", "pve_api_token_secret"),
-    "ca_path": ("PROXMOX_CA_PATH", "ca_path", "pve_api_ca_path"),
-}
-
 # Los estados que NO son «parado» y por los que no se reintenta: el invitado está
 # en marcha o en camino, y volver a pedirlo es como se choca con su propio bloqueo.
+# El entorno de la máquina (credenciales, puerto, rutas de claves) lo resuelve
+# `entorno.py`, que es el único sitio que sabe dónde vive y con qué nombres se
+# acepta. Aquí no se repite esa lógica: repetirla es cómo el fichero acaba
+# pareciendo estar en uso sin estarlo.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import entorno  # noqa: E402
+
 EN_CAMINO = {"running", "prelaunch", "paused", "suspended"}
 
 
 def credenciales(args):
-    creds = {k: os.environ.get(nombres[0], "") for k, nombres in CRED_ALIASES.items()}
-    if args.secrets and os.path.exists(args.secrets):
-        datos = yaml.safe_load(open(args.secrets)) or {}
-        for clave, nombres in CRED_ALIASES.items():
-            for nombre in nombres:
-                if datos.get(nombre):
-                    creds[clave] = str(datos[nombre])
-                    break
-    faltan = [k for k, v in creds.items() if not v and k != "ca_path"]
-    if faltan:
-        sys.exit(f"pve_start_batch.py: faltan credenciales: {', '.join(faltan)}")
-    return creds
+    """Las credenciales, resueltas por el único sitio que sabe hacerlo
+    (`tools/entorno.py`): fichero > entorno, con un error que dice qué falta."""
+    return entorno.api(args.entorno)
 
 
 def tipos(manifest):
@@ -88,7 +79,7 @@ def estado(sesion, base, tipo, vmid):
 def main():
     ap = argparse.ArgumentParser(description="Arranca un lote y asegura que levanta.")
     ap.add_argument("--manifest", required=True)
-    ap.add_argument("--secrets", help="YAML con las credenciales")
+    ap.add_argument("--entorno", help="el entorno de la máquina (playbooks/vars/entorno.yml)")
     ap.add_argument("--timeout", type=int, default=180, help="segundos de margen total")
     ap.add_argument("--label", default="", help="nombre del escalón, para el mensaje")
     ap.add_argument("--espera", type=int, default=8, help="segundos entre comprobaciones")
@@ -112,7 +103,7 @@ def main():
     sesion.headers.update({
         "Authorization": f"PVEAPIToken={creds['token_id']}={creds['token_secret']}"})
     sesion.verify = creds["ca_path"] or True
-    base = f"https://{creds['host']}:8006/api2/json/nodes/{nodo}"
+    base = f"https://{creds['host']}:{creds['port']}/api2/json/nodes/{nodo}"
     etiqueta = f" [{args.label}]" if args.label else ""
 
     arranque = time.time()

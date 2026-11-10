@@ -45,7 +45,7 @@ import yaml
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(os.path.dirname(AQUI))
 POR_DEFECTO = os.path.join(RAIZ, "labs/active/inventory/group_vars/all.yml")
-SECRETS = os.path.join(RAIZ, "playbooks/vars/secrets.yml")
+ENTORNO = os.path.join(RAIZ, "playbooks/vars/entorno.yml")
 ROUTEROS_DEFAULTS = os.path.join(RAIZ, "configure/roles/routeros/defaults/main.yml")
 
 sys.path.insert(0, AQUI)
@@ -56,8 +56,8 @@ def credenciales():
     """Las mismas que usa el rol RouterOS: una sola fuente para las dos puertas."""
     valores = yaml.safe_load(open(ROUTEROS_DEFAULTS)) or {}
     clave = ""
-    if os.path.exists(SECRETS):
-        clave = (yaml.safe_load(open(SECRETS)) or {}).get("pve_routeros_password", "")
+    if os.path.exists(ENTORNO):
+        clave = (yaml.safe_load(open(ENTORNO)) or {}).get("pve_routeros_password", "")
     return (valores.get("routeros_user", "admin"), clave,
             valores.get("routeros_scheme", "http"), valores.get("routeros_port", 80))
 

@@ -14,7 +14,15 @@ __pycache__/
 logs/*
 !logs/.gitkeep
 
-# Hardcoded local credentials (playbooks/vars/secrets.yml). The playbooks load it
-# when it exists, but it must never be committed: the PVE token is
-# root-equivalent and this repository is public.
+# El entorno de ESTA máquina de control (playbooks/vars/entorno.yml): credenciales,
+# puerto y rutas de claves. Lo cargan los playbooks y lo leen las herramientas, pero
+# nunca se commitea: el token de PVE equivale a root, no caduca, y el repositorio es
+# público. La plantilla versionada es entorno.example.yml.
+playbooks/vars/entorno.yml
+
+# El nombre antiguo del mismo fichero, para que uno que quedara por ahí no se cuele.
 playbooks/vars/secrets.yml
+
+# Lo que Ansible se deja en el repositorio (colecciones, temporales).
+.ansible/collections/
+.ansible/tmp/

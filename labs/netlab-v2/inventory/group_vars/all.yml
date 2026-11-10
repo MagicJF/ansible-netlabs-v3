@@ -190,9 +190,14 @@ lab_control_network: "10.99.99.0/24"
 lab_control_via: "10.10.10.1"
 
 # ---------------------------------------------------------------------------
-# CLAVE DE AUTOMATIZACIÓN (fuera del repositorio; aquí sólo su RUTA)
+# CLAVE DE AUTOMATIZACIÓN
+#
+# Aquí NO va su ruta: la clave es del framework y vive con él, no con la
+# topología. Se declara UNA vez, en el entorno de la máquina de control
+# (`playbooks/vars/entorno.yml`, plantilla `entorno.example.yml`), en
+# `pve_ssh_key_path`; y su `.pub` se DERIVA de esa ruta (la misma más `.pub`),
+# así que no hay dos sitios que puedan desfasarse. Ver `tools/entorno.py`.
 # ---------------------------------------------------------------------------
-pve_ssh_pubkey_path: "/home/hermes/.hermes/profiles/hermione/secrets/pve-automation_ed25519.pub"
 
 # ---------------------------------------------------------------------------
 # TÚNEL DE GESTIÓN (WireGuard)
@@ -226,7 +231,6 @@ pve_tunnel:
       via: "{{ lab_sede[2].mgmt.rt }}"   # rt-s2-edge
     - to: "{{ lab_sede[3].red }}"
       via: "{{ lab_sede[3].mgmt.rt }}"   # rt-s3-edge
-  private_key_path: "/home/hermes/.hermes/profiles/hermione/secrets/wg-lab-client"
   keepalive: 25
 
 # ---------------------------------------------------------------------------
@@ -349,7 +353,7 @@ pve_defaults:
   mount_devices: []
 
   # ---- the key at birth ----------------------------------------------------
-  pubkey: "{{ lookup('file', pve_ssh_pubkey_path, errors='ignore') | default('', true) | trim }}"
+  pubkey: "{{ lookup('file', pve_ssh_key_path ~ '.pub', errors='ignore') | default('', true) | trim }}"
 
 # The containers this repository manages — and nothing else. A container absent
 # from this list is never read, created or modified.

@@ -62,7 +62,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 # lo que hace posible validar un laboratorio nuevo ANTES de activarlo.
 LAB = os.environ.get("HERMES_LAB", "labs/active")
 MANIFEST = os.path.join(REPO, LAB, "inventory/group_vars/all.yml")
-SECRETS = os.path.join(REPO, "playbooks/vars/secrets.yml")
+ENTORNO = os.path.join(REPO, "playbooks/vars/entorno.yml")
 # La declaración de RouterOS vive en los valores por defecto del rol: la lista de
 # menús que el framework reclama como suyos es lo que da contra qué comparar.
 ROUTEROS_DEFAULTS = os.path.join(REPO, "configure/roles/routeros/defaults/main.yml")
@@ -232,13 +232,16 @@ def invariant(verb):
 
 
 def _api():
-    creds = yaml.safe_load(open(SECRETS)) or {}
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import entorno as _entorno
+
+    creds = _entorno.api()
     session = requests.Session()
-    session.verify = creds.get("pve_api_ca_path", True)
+    session.verify = creds["ca_path"] or True
     session.headers["Authorization"] = (
-        f"PVEAPIToken={creds['pve_api_token_id']}={creds['pve_api_token_secret']}"
+        f"PVEAPIToken={creds['token_id']}={creds['token_secret']}"
     )
-    return session, f"https://{creds['pve_api_host']}:8006/api2/json"
+    return session, f"https://{creds['host']}:{creds['port']}/api2/json"
 
 
 def drill(verb, preflight):
@@ -543,10 +546,11 @@ def routeros_export():
     say("== export: qué hay en los equipos de red que la declaración no menciona ==")
     manifest = manifiesto()
     defaults = yaml.safe_load(open(ROUTEROS_DEFAULTS)) or {}
-    creds = yaml.safe_load(open(SECRETS)) or {}
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import entorno as _entorno
 
     user = defaults.get("routeros_user", "admin")
-    password = creds.get("pve_routeros_password", "")
+    password = _entorno.maquina().get("pve_routeros_password", "")
     scheme = defaults.get("routeros_scheme", "http")
     port = defaults.get("routeros_port", 80)
     declared = {t["path"] for t in (defaults.get("routeros_tables") or [])}
@@ -1190,7 +1194,10 @@ def api_check():
     regla del framework: la API se toca por la puerta, o no se toca.
     """
     puertas = tuple(os.path.abspath(p) for p in _puertas_api())
-    saltar = {".git", "logs", "__pycache__", "labs", "node_modules", ".venv", "venv"}
+    # `.ansible/` guarda las colecciones que este marco usa, instaladas DENTRO del
+    # repositorio para que un clon nuevo no dependa del home. Su código no es
+    # nuestro código: que hable HTTP es su trabajo, no una puerta que nos saltemos.
+    saltar = {".git", "logs", "__pycache__", "labs", "node_modules", ".venv", "venv", ".ansible"}
     offenders = []
     for raiz, dirs, ficheros in os.walk(REPO):
         dirs[:] = [d for d in dirs if d not in saltar]

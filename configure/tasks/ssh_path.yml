@@ -25,7 +25,7 @@
 
 - name: Give the control node its path to the guests behind a router
   ansible.builtin.blockinfile:
-    path: "{{ l2_ssh_config_path }}"
+    path: "{{ pve_ssh_config_path | expanduser }}"
     create: true
     mode: "0600"
     marker: "# {mark} lab layer 2 path (managed: edits here are overwritten)"
@@ -52,7 +52,7 @@
 - name: Report the path layer 2 will actually take
   ansible.builtin.debug:
     msg: >-
-      Layer 2 path written to {{ l2_ssh_config_path }}:
+      Layer 2 path written to {{ pve_ssh_config_path | expanduser }}:
       {{ l2_jumped | length }} guest(s) reached through {{ l2_jumped | map(attribute='jump') | unique | join(', ') | default('nobody', true) }}
       {{ '-> ' ~ (l2_jumped | map(attribute='hostname') | join(', ')) if l2_jumped | length > 0 else '(every target answers directly)' }}
   when: l2_jumped | length > 0

@@ -65,7 +65,8 @@ del despliegue, el orden de montaje y cómo se verifica.
 labs/active -> netlab-v2               # symlink: la topología VIVA. Cambiar de laboratorio = repuntarlo
 labs/netlab-v2/inventory/hosts.yml     #   los hosts, y el grupo pve_config_targets que llena la capa 2
 labs/netlab-v2/inventory/group_vars/all.yml  # EL estado deseado — el único fichero que cambia por petición
-playbooks/vars/secrets.yml             # las credenciales del NODO de Proxmox: son del framework, no del lab
+playbooks/vars/entorno.example.yml    # LA PLANTILLA del entorno de la máquina: credenciales, puerto, rutas de claves
+bin/lab                                # el ÚNICO punto de entrada: verbos fijos, con ansible.cfg y el entorno resueltos
 ansible.cfg                            # pipelining, reutilización SSH, forks, rutas de plugins y log
 .ansible-lint                          # las reglas de lint que se exigen, y por qué no las demás
 playbooks/preflight.yml                # sólo lectura: comprobaciones de plataforma + declarado frente a vivo
@@ -78,6 +79,7 @@ playbooks/tools/pve_read.py            # motor: lee todos los invitados + datos 
 playbooks/tools/framework_check.py     # el test del propio marco: convergente, y ve el drift
 playbooks/tools/documentos.py          # renderiza los documentos del repo desde la declaración
 playbooks/tools/declaracion.py         # motor: resuelve la declaración (el render de Ansible) para las herramientas
+playbooks/tools/entorno.py             # motor: escribe, comprueba y resuelve el entorno de la máquina (una sola verdad)
 docs/*.md.j2                           # las plantillas de esos documentos (prosa + valores del manifiesto)
 playbooks/tools/pve_notas.py           # motor: compone la nota HTML y las etiquetas (no las guarda)
 filter_plugins/notas.py                # motor: deriva nota y etiquetas al construir la especificación de cada invitado
@@ -122,54 +124,99 @@ llamada `all` y rompe todas las referencias.
 ## Requisitos
 
 - Ansible Core 2.17 o superior.
-- La colección `community.proxmox` 2.1.0 (`ansible-galaxy collection install -r requirements.yml`).
-- Las dependencias Python de la colección: `proxmoxer >= 2.3` y `requests` (`python3 -m pip install -r requirements.txt`).
-- Un token de la API de Proxmox, disponible sólo en el entorno local o en Ansible Vault; nunca en el repositorio.
-- Un certificado/CA de confianza para la API de PVE. Se apunta `PROXMOX_CA_PATH` a ese fichero local y `PROXMOX_HOST` a un nombre o IP presente en el SAN del certificado.
+- Las dependencias Python de la colección: `proxmoxer >= 2.3` y `requests`
+  (`python3 -m pip install -r requirements.txt`).
+- La colección `community.proxmox` 2.1.0, instalada DENTRO del repositorio, para que
+  un clon no dependa del home de nadie:
 
-## Credenciales
+  ```bash
+  ansible-galaxy collection install -r requirements.yml -p .ansible/collections
+  ```
 
-Dos fuentes, en este orden de precedencia:
+  `bin/lab` pone esa carpeta por delante de las de siempre, así que seguir
+  instalando en el home también vale.
+- Un token de la API de Proxmox y un certificado/CA de confianza para esa API. Van
+  en el fichero del entorno (abajo), nunca en el repositorio.
 
-1. **`playbooks/vars/secrets.yml`** — valores escritos directamente. Los dos playbooks lo cargan en `pre_tasks` cuando el fichero existe, así que no hace falta preparar el entorno. **Está ignorado por git a propósito**: el repositorio es público y el token de PVE equivale a root y no caduca. El fichero se crea con permisos `0600`. No lo commitees ni copies su contenido a un fichero versionado, una issue o un mensaje de commit.
-2. **Variables de entorno `PROXMOX_*`** — el respaldo, usado cuando el fichero no está. Es la vía preferible en cuanto se retire el hardcode temporal.
+## El entorno de la máquina
 
-Para volver a credenciales sólo por entorno, borra `playbooks/vars/secrets.yml`; no hay que cambiar nada más.
+Todo lo que cambia de una máquina a otra —las credenciales, el puerto de la API,
+las rutas de las claves y dónde vive el `config` de ssh— se declara UNA vez, en
+`playbooks/vars/entorno.yml`. La plantilla versionada es
+`playbooks/vars/entorno.example.yml`, y quien lo escribe, lo comprueba y sabe con
+qué nombres alternativos se acepta cada valor es `playbooks/tools/entorno.py`.
 
-**Un clon nuevo no trae `secrets.yml`**, porque está ignorado por git. Es lo primero que
-hay que crear al copiar el repositorio: sin él, `apply` e `invariant` fallan con
-`exited 2` y el error real es `missing credentials: host, token_id, token_secret,
-ca_path`. Ese `exit 2` es la señal de que falta el fichero, no de que la topología esté
-mal. Las credenciales son del **framework**, no de la topología: se declaran una vez por
-nodo y sirven a todos los laboratorios que viven en él.
+```bash
+cp playbooks/vars/entorno.example.yml playbooks/vars/entorno.yml   # y edítalo
+bin/lab entorno verificar      # ¿está completo, con rutas que existen, 0600, fuera de git?
+bin/lab entorno mostrar        # revísalo con los secretos tapados
+bin/lab entorno crear --desde-secrets   # si vienes del antiguo playbooks/vars/secrets.yml
+```
 
-Nunca commitees estos valores. Si el token llega a un fichero versionado o al remoto, rótalo de inmediato (el motor lee lo que haya en `secrets.yml`, así que rotar es editar una línea).
+**Está ignorado por git a propósito**: el repositorio es público y el token de PVE
+equivale a root y no caduca. Pero eso no se deja a una convención escrita aquí:
+`entorno.py verificar` lo comprueba —los permisos (0600), que git no lo tenga en el
+índice, que las rutas que nombra existan y que su clave pública, que se DERIVA de la
+privada, esté donde tiene que estar—. Un clon nuevo que se salte el fichero no falla
+a medias: `bin/lab` para antes de empezar y dice qué crear y dónde.
 
-### Variables de entorno (vía de respaldo)
+Dos cosas que ya no hay que declarar dos veces: la clave `.pub` se deriva de la ruta
+de la privada (`pve_ssh_key_path`), y las rutas de las claves NO viven en el
+manifiesto del laboratorio — la topología declara la red y los equipos; las claves son
+del framework, y son de la máquina.
+
+**Precedencia de fuentes: el fichero gana.** Las variables de entorno son el respaldo,
+para donde no se puede dejar un fichero en disco. Ese orden lo resuelve `entorno.py`
+una sola vez y lo usan igual los playbooks y todas las herramientas:
 
 ```text
 PROXMOX_HOST=<nombre o IP del SAN de la API de PVE>
+PROXMOX_PORT=<puerto de la API; 8006 por defecto>
 PROXMOX_TOKEN_ID=<usuario@realm!nombre-del-token>
 PROXMOX_TOKEN_SECRET=<secreto del token>
 PROXMOX_CA_PATH=<ruta al certificado/CA de confianza de PVE>
 ```
 
-En este laboratorio el certificado incluye la IP pública de PVE como SAN; la
-dirección de LAN `10.10.10.1` no está en ese certificado, así que usa un nombre o
-IP que coincida con el SAN, o sustituye el certificado por uno que cubra el nombre
-de la LAN.
+En este laboratorio el certificado incluye la IP pública de PVE como SAN; la dirección
+de LAN `10.10.10.1` no está en ese certificado, así que usa un nombre o IP que coincida
+con el SAN, o sustituye el certificado por uno que cubra el nombre de la LAN.
+
+Nunca commitees estos valores. Si el token llega a un fichero versionado o al remoto,
+rótalo de inmediato (el motor lee lo que haya en `entorno.yml`, así que rotar es editar
+una línea).
 
 ## Cómo se ejecuta
 
 ```bash
 python3 -m pip install -r requirements.txt
-ansible-galaxy collection install -r requirements.yml
-ansible-playbook --syntax-check playbooks/preflight.yml
-ansible-playbook --syntax-check playbooks/apply.yml
-ansible-playbook playbooks/preflight.yml   # sólo lectura: comprobaciones + qué cambiaría
-ansible-playbook playbooks/apply.yml       # converge + verifica
-ansible-playbook playbooks/connect.yml     # converge el camino que la capa 2 necesita (normalmente automático)
+ansible-galaxy collection install -r requirements.yml -p .ansible/collections
+bin/lab preflight     # sólo lectura: comprobaciones + qué cambiaría
+bin/lab apply         # converge + verifica
+bin/lab connect       # el camino que la capa 2 necesita (normalmente automático)
 ```
+
+`bin/lab` es el único punto de entrada. Existe por tres razones concretas, no por
+gusto de envolver cosas: `ansible.cfg` se busca en el DIRECTORIO ACTUAL, no junto al
+playbook — así que llamando a Ansible "a mano" desde otro sitio el marco corría sin su
+inventario, sin sus filtros y sin su registro, **en silencio**; el entorno de la máquina
+se comprueba ANTES de empezar cualquier verbo; y las variables que sí dependen de la
+máquina (temporales, colecciones) las declara `entorno.yml`. Los verbos son fijos:
+`entorno`, `preflight`, `apply`, `remove`, `connect`, `site`, `audit`, `check` y `marco`
+(el test del propio marco). Cualquier argumento extra se pasa tal cual:
+`bin/lab site --limit localhost,infra-bootstrap`.
+
+## Desde otra máquina
+
+Un clon nuevo, en una máquina nueva, en cuatro pasos:
+
+1. `python3 -m pip install -r requirements.txt`
+2. `ansible-galaxy collection install -r requirements.yml -p .ansible/collections`
+3. `cp playbooks/vars/entorno.example.yml playbooks/vars/entorno.yml` y rellenarlo —o
+   `bin/lab entorno crear --desde-secrets` si esa máquina ya tenía el fichero antiguo—
+4. `bin/lab entorno verificar` y, cuando esté verde, `bin/lab preflight`
+
+Lo único que NO viaja en el repositorio es el paso 3: el fichero del entorno. Todo lo
+demás —la topología, las plantillas, las herramientas, las colecciones— está en el clon.
 
 Para iterar de forma interactiva, el verbo es `apply`: lee el estado declarado,
 aplica lo que difiere y vuelve a leer para verificar por la API en la misma

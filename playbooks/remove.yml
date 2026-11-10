@@ -96,15 +96,15 @@
           {%- endfor -%}
           {{- out | to_json -}}
 
-    - name: Look for the local credentials file
+    - name: Look for the machine environment file
       ansible.builtin.stat:
-        path: "{{ playbook_dir }}/vars/secrets.yml"
-      register: rem_secrets_file
+        path: "{{ playbook_dir }}/vars/entorno.yml"
+      register: rem_entorno_file
 
-    - name: Load the hardcoded local credentials when present (gitignored)
+    - name: Load the machine environment when present (gitignored)
       ansible.builtin.include_vars:
-        file: vars/secrets.yml
-      when: rem_secrets_file.stat.exists
+        file: vars/entorno.yml
+      when: rem_entorno_file.stat.exists
 
     - name: Remember the journal size so this run can prove it was traced
       ansible.builtin.stat:

@@ -7,15 +7,25 @@
 # Runs as a task file inside a play on localhost.
 # ---------------------------------------------------------------------------
 
-- name: Look for the local secrets file
+- name: Look for the machine environment file
   ansible.builtin.stat:
-    path: "{{ playbook_dir }}/../playbooks/vars/secrets.yml"
-  register: l2_secrets
+    path: "{{ playbook_dir }}/../playbooks/vars/entorno.yml"
+  register: l2_entorno
 
-- name: Load the local secrets when present (gitignored)
+- name: Refuse to configure anything without the machine environment
+  ansible.builtin.assert:
+    that: l2_entorno.stat.exists
+    fail_msg: >-
+      No existe playbooks/vars/entorno.yml: es el entorno de ESTA máquina de control
+      (credenciales, rutas de claves, puerto) y aquí es donde se resuelve quién es
+      cada invitado. Cópialo de la plantilla y rellénalo —
+      `cp playbooks/vars/entorno.example.yml playbooks/vars/entorno.yml`— o migra lo
+      que ya tengas con `python3 playbooks/tools/entorno.py crear --desde-secrets`.
+      Compruébalo con `python3 playbooks/tools/entorno.py verificar`.
+
+- name: Load the machine environment (gitignored)
   ansible.builtin.include_vars:
-    file: ../playbooks/vars/secrets.yml
-  when: l2_secrets.stat.exists
+    file: ../playbooks/vars/entorno.yml
 
 - name: Assert the automation private key exists
   ansible.builtin.assert:
@@ -25,7 +35,7 @@
       No automation key at {{ pve_ssh_key_path }}. Create one with
       `ssh-keygen -t ed25519 -f {{ pve_ssh_key_path }} -N "" -C hermes-ansible-automation`,
       then have layer 1 inject it at birth (pubkey in pve_defaults) or grant it once
-      by hand, and point pve_ssh_key_path at it in playbooks/vars/secrets.yml.
+      by hand, and point pve_ssh_key_path at it in playbooks/vars/entorno.yml.
     success_msg: "Automation key found at {{ pve_ssh_key_path }}."
 
 # Targets come from three places, and each guest is declared in exactly one:

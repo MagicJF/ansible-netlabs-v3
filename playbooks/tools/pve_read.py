@@ -17,7 +17,7 @@
 # Credentials are resolved HERE and never pass through an Ansible argument or
 # environment value, so the token cannot leak into a log or a command line:
 #   1. PROXMOX_HOST / PROXMOX_TOKEN_ID / PROXMOX_TOKEN_SECRET / PROXMOX_CA_PATH
-#   2. the YAML pointed at by --secrets (same keys, uppercase or lowercase)
+#   2. the machine environment file (--entorno), the same one the playbooks load
 #
 # Output: one JSON object on stdout. Nothing else is printed, ever.
 # ===========================================================================
@@ -38,16 +38,15 @@ try:
 except ImportError:  # pragma: no cover
     sys.exit("pve_read.py: the requests library is required")
 
+# El entorno de la máquina (credenciales, puerto, rutas de claves) lo resuelve
+# `entorno.py`, que es el único sitio que sabe dónde vive y con qué nombres se
+# acepta. Aquí no se repite esa lógica: repetirla es cómo el fichero acaba
+# pareciendo estar en uso sin estarlo.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import entorno  # noqa: E402
+
 ISO_RE = re.compile(r"([^,:]+):iso/[^,]+")
 VOLID_RE = re.compile(r"^([^:]+):")
-
-# Every credential, under every name the two documented sources use.
-CRED_ALIASES = {
-    "host": ("PROXMOX_HOST", "host", "pve_api_host"),
-    "token_id": ("PROXMOX_TOKEN_ID", "token_id", "pve_api_token_id"),
-    "token_secret": ("PROXMOX_TOKEN_SECRET", "token_secret", "pve_api_token_secret"),
-    "ca_path": ("PROXMOX_CA_PATH", "ca_path", "pve_api_ca_path"),
-}
 
 
 class StrictLoader(yaml.SafeLoader):
@@ -87,39 +86,15 @@ StrictLoader.add_constructor(
 
 
 def load_credentials(args):
-    """Resolve credentials without ever echoing them.
+    """Las credenciales, resueltas por el ÚNICO sitio que sabe hacerlo.
 
-    Each credential is accepted under several names because the two documented
-    sources spell them differently: the environment uses PROXMOX_*, the secrets
-    file uses pve_api_*. Accepting only one spelling is how the file path can
-    look correct for months while the reader has never actually used it.
+    Antes cada herramienta aceptaba sus propios nombres y aplicaba su propio
+    orden; eso es justo lo que permitía que el lector llevara meses sin usar el
+    fichero que parecía estar usando. `tools/entorno.py` resuelve fichero >
+    entorno una vez para todo el framework, y su error dice qué falta y dónde se
+    declara en vez de devolver un 401.
     """
-    creds = {
-        "host": os.environ.get("PROXMOX_HOST", ""),
-        "token_id": os.environ.get("PROXMOX_TOKEN_ID", ""),
-        "token_secret": os.environ.get("PROXMOX_TOKEN_SECRET", ""),
-        "ca_path": os.environ.get("PROXMOX_CA_PATH", ""),
-    }
-    if args.secrets and os.path.exists(args.secrets):
-        try:
-            data = yaml.safe_load(open(args.secrets)) or {}
-        except Exception as exc:
-            sys.exit(f"pve_read.py: cannot parse {args.secrets}: {exc}")
-        for key, names in CRED_ALIASES.items():
-            for name in names:
-                value = data.get(name)
-                if value:
-                    creds[key] = str(value)  # the secrets file wins over the environment
-                    break
-    missing = [k for k, v in creds.items() if not v]
-    if missing:
-        accepted = "; ".join(f"{k} = {' | '.join(CRED_ALIASES[k])}" for k in missing)
-        sys.exit(
-            "pve_read.py: missing credentials: " + ", ".join(missing)
-            + f". Looked in the environment and in {args.secrets or '(no --secrets given)'}"
-            + f". Accepted names: {accepted}"
-        )
-    return creds
+    return entorno.api(args.entorno)
 
 
 def journal_append(path, event):
@@ -267,7 +242,7 @@ def platform_facts(session, base, node, data, guests):
 def main():
     ap = argparse.ArgumentParser(description="Read the declared state, every guest, and the platform facts.")
     ap.add_argument("--manifest", required=True, help="declared-state file (group_vars/all.yml)")
-    ap.add_argument("--secrets", help="YAML with the credentials (pve_api_host, pve_api_token_id, pve_api_token_secret, pve_api_ca_path, or the PROXMOX_* spellings)")
+    ap.add_argument("--entorno", help="el entorno de la máquina (playbooks/vars/entorno.yml)")
     ap.add_argument("--journal", help="append run_start/run_end markers here")
     ap.add_argument("--playbook", default="unknown")
     ap.add_argument("--phase", default="read", choices=["read", "verify"])
@@ -293,7 +268,7 @@ def main():
     })
     # Validate TLS with the provided CA, exactly like the Ansible modules do.
     session.verify = creds["ca_path"]
-    base = f"https://{creds['host']}:8006/api2/json/nodes/{node}"
+    base = f"https://{creds['host']}:{creds['port']}/api2/json/nodes/{node}"
 
     result, errors = {}, []
     for g in guests:

@@ -34,7 +34,7 @@
       - pve_tunnel.endpoint_public_key | default('') | length > 0
       - pve_tunnel.address | default('') | length > 0
       - pve_tunnel.guest_network | default('') | length > 0
-      - pve_tunnel.private_key_path | default('') | length > 0
+      - pve_tunnel_key_path | default('') | length > 0
     fail_msg: >-
       pve_tunnel in labs/netlab-v2/inventory/group_vars/all.yml is incomplete ({{ pve_tunnel | default({}) | to_json }}).
       Layer 2 reaches the guests through this tunnel; the framework will not invent an endpoint,
@@ -45,7 +45,7 @@
 
 - name: Look for this node's tunnel private key
   ansible.builtin.stat:
-    path: "{{ pve_tunnel.private_key_path }}"
+    path: "{{ pve_tunnel_key_path }}"
   register: tunnel_key_file
 
 - name: Generate the tunnel key pair when it does not exist yet
@@ -57,22 +57,22 @@
     cmd: |
       set -e
       umask 077
-      wg genkey > {{ pve_tunnel.private_key_path | quote }}
-      wg pubkey < {{ pve_tunnel.private_key_path | quote }} > {{ (pve_tunnel.private_key_path ~ '.pub') | quote }}
-    creates: "{{ pve_tunnel.private_key_path }}"
+      wg genkey > {{ pve_tunnel_key_path | quote }}
+      wg pubkey < {{ pve_tunnel_key_path | quote }} > {{ (pve_tunnel_key_path ~ '.pub') | quote }}
+    creates: "{{ pve_tunnel_key_path }}"
 
 - name: Read the tunnel private key
   # no_log: this is the one secret in this file. It is never printed and never
   # leaves the 0600 rendering below.
   ansible.builtin.slurp:
-    src: "{{ pve_tunnel.private_key_path }}"
+    src: "{{ pve_tunnel_key_path }}"
   register: tunnel_private
   no_log: true
 
 - name: Read this node's tunnel public key
   # Public keys are not secrets: this line is what the endpoint must allow, and
   # the failure message below prints it so the operator never has to hunt for it.
-  ansible.builtin.command: "cat {{ (pve_tunnel.private_key_path ~ '.pub') | quote }}"
+  ansible.builtin.command: "cat {{ (pve_tunnel_key_path ~ '.pub') | quote }}"
   register: tunnel_public
   changed_when: false
 

@@ -22,9 +22,6 @@
   hosts: localhost
   gather_facts: false
   vars:
-    pve_ssh_user: root
-    pve_ssh_key_path: "/home/hermes/.hermes/profiles/hermione/secrets/pve-automation_ed25519"
-    l2_ssh_config_path: "{{ lookup('env', 'HOME') }}/.ssh/config"
   tasks:
     - name: Build the configuration targets
       ansible.builtin.include_tasks: ../../configure/tasks/build_targets.yml

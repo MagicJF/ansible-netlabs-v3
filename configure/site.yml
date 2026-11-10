@@ -13,13 +13,12 @@
   hosts: localhost
   gather_facts: false
   vars:
-    # Overridden by playbooks/vars/secrets.yml (gitignored) when it exists.
-    pve_ssh_user: root
-    pve_ssh_key_path: "/home/hermes/.hermes/profiles/hermione/secrets/pve-automation_ed25519"
+    # El acceso SSH (usuario y clave) NO se declara aquí: es de la máquina que
+    # ejecuta, y viene del entorno (`playbooks/vars/entorno.yml`), que carga
+    # tasks/build_targets.yml al principio del play.
     # Where the control node's path into the guests behind a router is written.
     # Ansible's own ssh reads this file per connection, so the block written by
     # tasks/ssh_path.yml applies to the guest play later in the same run.
-    l2_ssh_config_path: "{{ lookup('env', 'HOME') }}/.ssh/config"
   tasks:
     - name: Keep logs/ bounded (the policy in the declared state)
       ansible.builtin.include_tasks: ../playbooks/tasks/prune_logs.yml

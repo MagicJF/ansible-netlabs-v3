@@ -25,17 +25,20 @@ import yaml
 # maquina donde se escribio.
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MANIFEST = os.path.join(REPO, "labs/active/inventory/group_vars/all.yml")
-SECRETS = os.path.join(REPO, "playbooks/vars/secrets.yml")
+ENTORNO = os.path.join(REPO, "playbooks/vars/entorno.yml")
 
 
 def session_and_node():
-    creds = yaml.safe_load(open(SECRETS))
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import entorno as _entorno
+
+    creds = _entorno.api()
     s = requests.Session()
     s.headers.update({"Authorization": "PVEAPIToken=%s=%s" % (
-        creds["pve_api_token_id"], creds["pve_api_token_secret"])})
-    s.verify = creds["pve_api_ca_path"]
+        creds["token_id"], creds["token_secret"])})
+    s.verify = creds["ca_path"]
     man = yaml.safe_load(open(MANIFEST))
-    return s, "https://%s:8006/api2/json" % creds["pve_api_host"], man["pve_node"], man
+    return s, "https://%s:%s/api2/json" % (creds["host"], creds["port"]), man["pve_node"], man
 
 
 def main():

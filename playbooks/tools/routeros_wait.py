@@ -31,7 +31,7 @@ import requests
 import yaml
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SECRETS = os.path.join(REPO, "playbooks/vars/secrets.yml")
+ENTORNO = os.path.join(REPO, "playbooks/vars/entorno.yml")
 ROUTEROS_DEFAULTS = os.path.join(REPO, "configure/roles/routeros/defaults/main.yml")
 
 # Menús que se consultan para saber si el equipo sirve para algo, en el orden en que
@@ -42,7 +42,7 @@ MENUS = ("interface/bridge", "interface/bridge/port", "interface/ethernet",
 
 
 def credenciales():
-    secretos = yaml.safe_load(open(SECRETS)) or {}
+    secretos = yaml.safe_load(open(ENTORNO)) or {}
     valores = yaml.safe_load(open(ROUTEROS_DEFAULTS)) or {}
     return (
         valores.get("routeros_user", "admin"),

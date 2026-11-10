@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# ===========================================================================
+# bin/lab — el único punto de entrada del framework.
+#
+# Existe por tres razones concretas, no por gusto de envolver cosas:
+#
+#   1. `ansible.cfg` se busca en el DIRECTORIO ACTUAL (o en `ANSIBLE_CONFIG`), no
+#      junto al playbook. Llamando a `ansible-playbook /ruta/apply.yml` desde otro
+#      sitio, el marco corría SIN su inventario, SIN sus filtros y SIN su registro
+#      — y en silencio. Aquí se fijan las dos cosas.
+#   2. El entorno de la máquina tiene que estar resuelto ANTES de empezar: sin
+#      credenciales, media ejecución falla a mitad en vez de no empezar.
+#   3. Las variables que sí dependen de la máquina (temporales, colecciones) las
+#      declara `playbooks/vars/entorno.yml` y las exporta este script: ninguna
+#      queda escrita aquí dentro.
+#
+# Verbos:
+#   entorno [args]   el fichero del entorno: crear, verificar, mostrar, api
+#   preflight        qué cambiaría, sin cambiar nada
+#   apply            converge y verifica
+#   remove           retira lo declarado, sin tocar lo ajeno
+#   connect          converge el camino que la capa 2 necesita
+#   site             capa 2: converge el interior de los invitados gestionados
+#   audit            capa 2: inspección de sólo lectura
+#   check            la prueba de la red, ejecutada desde las workstations
+#   marco [args]     el test del propio marco (framework_check.py)
+#
+# Cualquier argumento extra se pasa tal cual al verbo. Ejemplos:
+#   bin/lab apply --check
+#   bin/lab site --limit localhost,infra-bootstrap
+# ===========================================================================
+set -euo pipefail
+
+RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export ANSIBLE_CONFIG="$RAIZ/ansible.cfg"
+cd "$RAIZ"
+
+VERBO="${1:-}"
+if [ -z "$VERBO" ]; then
+    sed -n '/^# Verbos:/,/^# ===/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' | sed '/^===$/d'
+    exit 2
+fi
+shift
+
+# Las colecciones del repo PRIMERO: es lo que hace que un clon nuevo funcione sin
+# instalar nada en el home. No se puede declarar en ansible.cfg porque una ruta
+# relativa ahí se descarta sin avisar (ver el comentario en ansible.cfg).
+export ANSIBLE_COLLECTIONS_PATH="$RAIZ/.ansible/collections${HOME:+:$HOME/.ansible/collections}:/usr/share/ansible/collections"
+
+ENTORNO=playbooks/tools/entorno.py
+
+# Las variables de Ansible que declara el entorno de esta máquina. `eval` de
+# nuestra propia herramienta; si no declara ninguna, no imprime nada.
+while IFS= read -r linea; do eval "$linea"; done < <(python3 "$ENTORNO" env)
+
+# El entorno, comprobado UNA vez antes de empezar cualquier verbo que use la API.
+if [ "$VERBO" != "entorno" ]; then
+    if ! python3 "$ENTORNO" verificar; then
+        printf '\nEl entorno de esta máquina no está listo (arriba está el porqué).\n'
+        printf 'No se ejecuta nada más: `bin/lab entorno verificar` te dice qué arreglar.\n'
+        exit 2
+    fi
+fi
+
+case "$VERBO" in
+    entorno)   exec python3 "$ENTORNO" "$@" ;;
+    marco)     exec python3 playbooks/tools/framework_check.py "$@" ;;
+    preflight) exec ansible-playbook playbooks/preflight.yml "$@" ;;
+    apply)     exec ansible-playbook playbooks/apply.yml "$@" ;;
+    remove)    exec ansible-playbook playbooks/remove.yml "$@" ;;
+    connect)   exec ansible-playbook playbooks/connect.yml "$@" ;;
+    site)      exec ansible-playbook configure/site.yml "$@" ;;
+    audit)     exec ansible-playbook configure/audit.yml "$@" ;;
+    check)     exec ansible-playbook playbooks/tools/lab-check.yml "$@" ;;
+    *) printf 'Verbo desconocido: %s\nCorre `bin/lab` sin argumentos para ver los que hay.\n' "$VERBO" >&2; exit 2 ;;
+esac

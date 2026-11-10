@@ -23,7 +23,7 @@
   ansible.builtin.command:
     cmd: >-
       python3 {{ pve_start_batch }}
-      --manifest {{ pve_manifest }} --secrets {{ pve_secrets }}
+      --manifest {{ pve_manifest }} --entorno {{ pve_entorno }}
       --timeout {{ pve_power_start_timeout }} --label "order={{ paso.order }}"
       {{ paso.vmids | join(' ') }}
   register: paso_arranque
