@@ -27,42 +27,60 @@ hace (`Report the plan, call by call`) y cada tabla que lee.
 
 ## Resumen
 
-- **23 verbos** ejecutados, con **4.510 ejecuciones de tarea** repartidas entre
-  **21 anfitriones**.
-- **1.757 llamadas al API de Proxmox** medidas con el trazador, que suman
-  **10.7 minutos** de espera dentro de la API.
-- **1.578 llamadas al API de RouterOS** contadas en el log: 1.352 de lectura y 226 de
+- **41 verbos** ejecutados, con **2.967 ejecuciones de tarea** repartidas entre
+  **22 anfitriones**.
+- **622 llamadas al API de Proxmox** medidas con el trazador, que suman
+  **4.1 minutos** de espera dentro de la API.
+- **333 llamadas al API de RouterOS** contadas en el log: 326 de lectura y 7 de
   escritura. Los once equipos se gobiernan por REST, sin SSH.
-- **5 convergencias completas** del laboratorio, más los verbos de capa 1.
-- Tiempo de reloj de todos los verbos: **49.2 minutos**.
+- **9 convergencias completas** del laboratorio, más los verbos de capa 1.
+- Tiempo de reloj de todos los verbos: **38.7 minutos**.
 
 ## Los verbos, uno a uno
 
 | # | inicio | dur. | verbo | anfitriones | llamadas PVE | RouterOS | ok | chg | fail |
 | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 19:38:47 | 12 s | capa 1: preflight | 1 | 78 | 0 | 18 | 0 | 0 |
-| 2 | 19:39:02 | 88 s | capa 1: apply | 1 | 23 | 0 | 27 | 1 | 0 |
-| 3 | 20:15:12 | 12 s | capa 1: preflight | 1 | 533 | 0 | 18 | 0 | 0 |
-| 4 | 20:16:20 | 669 s | capa 1: apply | 1 | 14 | 0 | 30 | 5 | 1 |
-| 5 | 20:35:27 | 23 s | remove (baja deliberada) | 1 | 14 | 0 | 21 | 1 | 0 |
-| 6 | 20:35:51 | 23 s | remove (baja deliberada) | 1 | 14 | 0 | 21 | 1 | 0 |
-| 7 | 20:36:15 | 23 s | remove (baja deliberada) | 1 | 13 | 0 | 21 | 1 | 0 |
-| 8 | 20:36:38 | 22 s | remove (baja deliberada) | 1 | 6 | 0 | 21 | 1 | 0 |
-| 9 | 20:37:00 | 14 s | remove (baja deliberada) | 1 | 15 | 0 | 21 | 1 | 0 |
-| 10 | 20:37:15 | 24 s | remove (baja deliberada) | 1 | 0 | 0 | 21 | 1 | 0 |
-| 11 | 20:38:02 | 2 s | sin nombre | 1 | 36 | 0 | 21 | 1 | 0 |
-| 12 | 20:40:27 | 10 s | capa 1: apply | 1 | 0 | 0 | 10 | 0 | 1 |
-| 13 | 20:46:44 | 0 s | sin nombre | 1 | 0 | 0 | 23 | 3 | 1 |
-| 14 | 20:48:34 | 17 s | sin nombre | 2 | 0 | 0 | 39 | 8 | 1 |
-| 15 | 20:49:05 | 133 s | configure: converge contenedores | 3 | 0 | 0 | 44 | 2 | 1 |
-| 16 | 20:51:39 | 354 s | configure: converge RouterOS | 14 | 0 | 476 | 338 | 11 | 1 |
-| 17 | 21:07:10 | 192 s | configure: converge RouterOS | 9 | 0 | 212 | 215 | 1 | 1 |
-| 18 | 21:10:57 | 414 s | configure: converge RouterOS | 21 | 43 | 301 | 378 | 9 | 0 |
-| 19 | 21:18:26 | 12 s | capa 1: apply | 1 | 121 | 0 | 10 | 0 | 1 |
-| 20 | 21:19:29 | 48 s | capa 1: apply | 1 | 0 | 0 | 28 | 1 | 0 |
-| 21 | 21:29:09 | 428 s | configure: converge RouterOS | 21 | 0 | 303 | 378 | 1 | 0 |
-| 22 | 21:38:56 | 0 s | Layer 2 - build the target invento | 1 | 0 | 0 | 0 | 0 | 1 |
-| 23 | 21:39:35 | 430 s | configure: converge RouterOS | 21 | 0 | 286 | 376 | 0 | 0 |
+| 1 | 17:52:27 | 0 s | localhost | 1 | 0 | 0 | 0 | 0 | 1 |
+| 2 | 17:52:30 | 0 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 3 | 17:52:37 | 0 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 4 | 17:52:47 | 0 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 5 | 17:53:01 | 0 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 6 | 17:53:07 | 0 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 7 | 17:53:08 | 0 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 8 | 17:53:18 | 0 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 9 | 17:53:22 | 1 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 10 | 17:53:23 | 0 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 11 | 17:53:35 | 0 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 12 | 17:53:35 | 0 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 13 | 17:53:52 | 0 s | localhost | 1 | 0 | 0 | 0 | 0 | 1 |
+| 14 | 17:55:27 | 0 s | localhost | 1 | 0 | 0 | 0 | 0 | 1 |
+| 15 | 17:55:28 | 0 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 16 | 17:55:36 | 1 s | localhost | 1 | 0 | 0 | 0 | 0 | 1 |
+| 17 | 17:55:47 | 1 s | localhost | 1 | 0 | 0 | 1 | 0 | 0 |
+| 18 | 17:55:48 | 0 s | localhost | 1 | 44 | 0 | 1 | 0 | 0 |
+| 19 | 18:00:15 | 11 s | capa 1: apply | 1 | 44 | 0 | 7 | 0 | 1 |
+| 20 | 18:02:45 | 13 s | capa 1: apply | 1 | 44 | 0 | 13 | 0 | 1 |
+| 21 | 18:04:11 | 26 s | capa 1: apply | 1 | 53 | 0 | 22 | 2 | 1 |
+| 22 | 18:08:20 | 46 s | capa 1: apply | 1 | 170 | 0 | 19 | 0 | 1 |
+| 23 | 18:13:48 | 242 s | capa 1: apply | 1 | 0 | 0 | 31 | 4 | 1 |
+| 24 | 18:32:07 | 4 s | Converge the control node's path i | 1 | 0 | 0 | 19 | 3 | 0 |
+| 25 | 18:38:06 | 104 s | configure: converge RouterOS | 2 | 0 | 0 | 26 | 0 | 1 |
+| 26 | 18:40:04 | 0 s | localhost | 1 | 0 | 0 | 0 | 0 | 1 |
+| 27 | 18:40:23 | 0 s | localhost | 1 | 0 | 0 | 2 | 0 | 1 |
+| 28 | 18:40:43 | 2 s | localhost | 1 | 0 | 0 | 12 | 0 | 0 |
+| 29 | 18:42:24 | 2 s | localhost | 1 | 0 | 0 | 12 | 0 | 0 |
+| 30 | 18:52:05 | 165 s | configure: converge RouterOS | 2 | 0 | 0 | 28 | 0 | 1 |
+| 31 | 18:59:43 | 167 s | configure: converge RouterOS | 2 | 0 | 0 | 37 | 3 | 1 |
+| 32 | 19:04:19 | 152 s | configure: converge RouterOS | 2 | 0 | 0 | 37 | 0 | 1 |
+| 33 | 19:08:17 | 131 s | configure: converge RouterOS | 2 | 0 | 0 | 32 | 0 | 1 |
+| 34 | 19:12:10 | 196 s | configure: converge RouterOS | 2 | 0 | 0 | 43 | 0 | 0 |
+| 35 | 19:16:56 | 197 s | configure: converge RouterOS | 2 | 95 | 0 | 43 | 2 | 0 |
+| 36 | 19:22:33 | 41 s | capa 1: apply | 1 | 0 | 0 | 32 | 1 | 0 |
+| 37 | 19:25:50 | 352 s | configure: converge RouterOS | 2 | 0 | 21 | 37 | 1 | 1 |
+| 38 | 19:31:56 | 433 s | configure: converge RouterOS | 22 | 0 | 312 | 402 | 0 | 0 |
+| 39 | 19:41:25 | 12 s | lab-check - build the workstation  | 9 | 0 | 0 | 33 | 0 | 1 |
+| 40 | 19:41:56 | 12 s | lab-check - build the workstation  | 9 | 0 | 0 | 34 | 0 | 0 |
+| 41 | 19:42:51 | 12 s | lab-check - build the workstation  | 9 | 0 | 0 | 34 | 0 | 0 |
 
 ## API de Proxmox
 
@@ -70,75 +88,48 @@ hace (`Report the plan, call by call`) y cada tabla que lee.
 
 | invitado | tipo | llamadas | segundos |
 | --- | --- | ---: | ---: |
-| `fw-s1-perim` | CHR | 20 | 11.0 |
-| `fw-s2-perim` | CHR | 20 | 10.9 |
-| `fw-s3-perim` | CHR | 20 | 10.9 |
-| `fw-wan-edge` | CHR | 20 | 11.2 |
-| `rt-s2-edge` | CHR | 20 | 11.4 |
-| `rt-s3-edge` | CHR | 20 | 10.9 |
-| `sw-s1-acc-01` | CHR | 19 | 16.4 |
-| `sw-s2-acc-01` | CHR | 19 | 13.3 |
-| `sw-s3-acc-01` | CHR | 19 | 13.4 |
-| `rt-s1-core` | CHR | 19 | 14.0 |
-| `sw-s1-acc-02` | CHR | 17 | 10.3 |
-| `infra-bootstrap` | LXC | 14 | 15.1 |
-| `pc-s1-01` | LXC | 13 | 3.0 |
-| `pc-s1-02` | LXC | 13 | 3.0 |
-| `pc-s1-03` | LXC | 13 | 3.4 |
-| `pc-s1-04` | LXC | 13 | 3.0 |
-| `pc-s2-01` | LXC | 13 | 3.0 |
-| `pc-s2-02` | LXC | 13 | 3.1 |
-| `pc-s3-01` | LXC | 13 | 3.0 |
-| `pc-s3-02` | LXC | 13 | 3.0 |
-| `167` | - | 6 | 1.3 |
-| `131` | - | 6 | 1.3 |
-| `150` | - | 6 | 1.3 |
-| `151` | - | 6 | 1.3 |
-| `152` | - | 6 | 1.3 |
-| `153` | - | 6 | 1.3 |
-| `154` | - | 6 | 1.3 |
-| `155` | - | 6 | 1.3 |
-| `156` | - | 6 | 1.3 |
-| `157` | - | 6 | 1.3 |
-| `143` | - | 6 | 1.3 |
-| `160` | - | 6 | 1.1 |
-| `161` | - | 6 | 1.1 |
-| `162` | - | 6 | 1.1 |
-| `163` | - | 6 | 1.1 |
-| `164` | - | 6 | 1.1 |
-| `165` | - | 6 | 1.1 |
-| `166` | - | 6 | 1.1 |
-| **total** | | **439** | **195.2** |
+| `pc-s3-01` | LXC | 25 | 5.7 |
+| `infra-bootstrap` | LXC | 24 | 10.2 |
+| `pc-s1-01` | LXC | 24 | 5.5 |
+| `pc-s1-02` | LXC | 24 | 5.5 |
+| `pc-s1-03` | LXC | 24 | 5.5 |
+| `pc-s1-04` | LXC | 24 | 5.6 |
+| `pc-s2-01` | LXC | 24 | 5.5 |
+| `pc-s2-02` | LXC | 24 | 5.6 |
+| `pc-s3-02` | LXC | 24 | 5.5 |
+| `rt-s1-core` | CHR | 24 | 5.0 |
+| `rt-s2-edge` | CHR | 24 | 4.9 |
+| `rt-s3-edge` | CHR | 24 | 5.5 |
+| `sw-s1-acc-01` | CHR | 22 | 4.5 |
+| `sw-s1-acc-02` | CHR | 22 | 4.5 |
+| `sw-s2-acc-01` | CHR | 22 | 4.5 |
+| `sw-s3-acc-01` | CHR | 22 | 4.5 |
+| `fw-s1-perim` | CHR | 22 | 4.3 |
+| `fw-s2-perim` | CHR | 22 | 4.3 |
+| `fw-s3-perim` | CHR | 22 | 4.4 |
+| `fw-wan-edge` | CHR | 22 | 4.4 |
+| `sw-mgmt-01` | CHR | 12 | 5.9 |
+| **total** | | **477** | **111.4** |
 
 ### Por endpoint
 
 | endpoint | llamadas | segundos |
 | --- | ---: | ---: |
-| `config` | 243 | 53.4 |
-| `status/current` | 190 | 139.8 |
-| `status/shutdown` | 6 | 1.9 |
+| `config` | 254 | 59.4 |
+| `status/current` | 223 | 52.0 |
 
 ### Sin invitado: el motor y el nodo
 
 | endpoint | llamadas | segundos |
 | --- | ---: | ---: |
-| `/api2/json/nodes/Proxmox/tasks/UPID:<id>` | 355 | 85.4 |
-| `/api2/json/version` | 128 | 15.9 |
-| `/api2/json/nodes` | 39 | 4.1 |
-| `/api2/json/cluster/resources` | 34 | 2.6 |
-| `/api2/json/nodes/Proxmox/qemu` | 18 | 4.3 |
-| `/api2/json/nodes/Proxmox/storage` | 10 | 3.2 |
-| `/api2/json/nodes/Proxmox/storage/local/content?content=vztmpl` | 10 | 3.0 |
-| `/api2/json/nodes/Proxmox/storage/local/content` | 9 | 6.9 |
-| `/api2/json/nodes/Proxmox/lxc` | 9 | 3.1 |
-| `/api2/json/nodes/Proxmox/startall` | 5 | 1.7 |
-| `/api2/json/nodes/Proxmox/qemu/1101` | 1 | 0.3 |
-| `/api2/json/nodes/Proxmox/qemu/2101` | 1 | 0.3 |
-| `/api2/json/nodes/Proxmox/qemu/3101` | 1 | 0.3 |
-| `/api2/json/nodes/Proxmox/qemu/9101` | 1 | 0.3 |
-| `/api2/json/nodes/Proxmox/qemu/1201` | 1 | 0.3 |
-| `/api2/json/nodes/Proxmox/qemu/2201` | 1 | 0.3 |
-| `/api2/json/nodes/Proxmox/qemu/3201` | 1 | 0.3 |
+| `/api2/json/version` | 73 | 34.9 |
+| `/api2/json/nodes` | 16 | 2.6 |
+| `/api2/json/nodes/Proxmox/storage` | 11 | 3.4 |
+| `/api2/json/nodes/Proxmox/storage/local/content?content=vztmpl` | 11 | 3.2 |
+| `/api2/json/cluster/resources` | 10 | 0.8 |
+| `/api2/json/nodes/Proxmox/tasks/UPID:<id>` | 4 | 0.9 |
+| `/api2/json/nodes/Proxmox/qemu` | 1 | 0.2 |
+| `/api2/json/nodes/Proxmox/startall` | 1 | 0.3 |
 
 ## API de RouterOS
 
@@ -151,18 +142,19 @@ que es exactamente lo que debe pasar cuando el estado ya es el declarado.
 
 | equipo | lecturas | escrituras | total | tiempo en convergir | elementos declarados |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `fw-s1-perim` | 130 | 63 | 193 | 91 s | 27 |
-| `rt-s1-core` | 130 | 20 | 150 | 70 s | 8 |
-| `rt-s3-edge` | 130 | 16 | 146 | 67 s | 6 |
-| `rt-s2-edge` | 130 | 16 | 146 | 67 s | 6 |
-| `sw-s1-acc-01` | 130 | 13 | 143 | 67 s | 7 |
-| `sw-s2-acc-01` | 130 | 12 | 142 | 70 s | 6 |
-| `sw-s1-acc-02` | 130 | 12 | 142 | 66 s | 6 |
-| `sw-s3-acc-01` | 130 | 12 | 142 | 69 s | 6 |
-| `fw-s3-perim` | 104 | 21 | 125 | 61 s | 15 |
-| `fw-s2-perim` | 104 | 21 | 125 | 61 s | 15 |
-| `fw-wan-edge` | 104 | 20 | 124 | 60 s | 14 |
-| **total** | **1.352** | **226** | **1.578** | | |
+| `sw-mgmt-01` | 40 | 7 | 47 | 270 s | 2 |
+| `rt-s3-edge` | 26 | 0 | 26 | 11 s | 6 |
+| `sw-s1-acc-02` | 26 | 0 | 26 | 12 s | 6 |
+| `fw-s3-perim` | 26 | 0 | 26 | 11 s | 15 |
+| `fw-wan-edge` | 26 | 0 | 26 | 11 s | 14 |
+| `rt-s2-edge` | 26 | 0 | 26 | 12 s | 6 |
+| `sw-s3-acc-01` | 26 | 0 | 26 | 12 s | 6 |
+| `fw-s2-perim` | 26 | 0 | 26 | 12 s | 15 |
+| `sw-s2-acc-01` | 26 | 0 | 26 | 12 s | 6 |
+| `sw-s1-acc-01` | 26 | 0 | 26 | 12 s | 7 |
+| `rt-s1-core` | 26 | 0 | 26 | 12 s | 8 |
+| `fw-s1-perim` | 26 | 0 | 26 | 12 s | 27 |
+| **total** | **326** | **7** | **333** | | |
 
 La última columna es lo que el manifiesto declara para ese equipo: el techo de
 lo que una convergencia puede llegar a escribir si todo estuviera en deriva.
@@ -171,50 +163,30 @@ lo que una convergencia puede llegar a escribir si todo estuviera en deriva.
 
 | método | endpoint | llamadas |
 | --- | --- | ---: |
-| `GET` | `/system/identity` | 104 |
-| `GET` | `/ip/service` | 104 |
-| `GET` | `/interface/bridge` | 104 |
-| `GET` | `/interface/bridge/port` | 104 |
-| `GET` | `/ip/address` | 104 |
-| `GET` | `/ip/route` | 104 |
-| `GET` | `/ip/firewall/filter` | 104 |
-| `GET` | `/ip/firewall/nat` | 104 |
-| `GET` | `/ip/dhcp-client` | 104 |
-| `GET` | `/ip/pool` | 104 |
-| `GET` | `/ip/dhcp-server` | 104 |
-| `GET` | `/ip/dhcp-server/network` | 104 |
-| `GET` | `/ip/dhcp-server/lease` | 104 |
-| `PUT` | `/ip/firewall/filter` | 67 |
-| `PATCH` | `/ip/service/<id>` | 55 |
-| `POST` | `/ip/route/add` | 32 |
-| `PUT` | `/ip/address` | 15 |
-| `PUT` | `/interface/bridge/port` | 13 |
-| `POST` | `/system/identity/set` | 11 |
-| `POST` | `/execute` | 11 |
-| `PUT` | `/ip/dhcp-server/lease` | 8 |
-| `PUT` | `/interface/bridge` | 4 |
-| `PUT` | `/ip/pool` | 3 |
-| `PUT` | `/ip/dhcp-server/network` | 3 |
-| `PUT` | `/ip/dhcp-server` | 3 |
-| `PUT` | `/ip/firewall/nat` | 1 |
+| `GET` | `/ip/dhcp-server/lease` | 26 |
+| `GET` | `/system/identity` | 25 |
+| `GET` | `/ip/service` | 25 |
+| `GET` | `/interface/bridge` | 25 |
+| `GET` | `/interface/bridge/port` | 25 |
+| `GET` | `/ip/address` | 25 |
+| `GET` | `/ip/route` | 25 |
+| `GET` | `/ip/firewall/filter` | 25 |
+| `GET` | `/ip/firewall/nat` | 25 |
+| `GET` | `/ip/dhcp-client` | 25 |
+| `GET` | `/ip/pool` | 25 |
+| `GET` | `/ip/dhcp-server` | 25 |
+| `GET` | `/ip/dhcp-server/network` | 25 |
+| `PATCH` | `/ip/service/<id>` | 5 |
+| `POST` | `/system/identity/set` | 1 |
+| `POST` | `/execute` | 1 |
 
 ### Las escrituras, una a una
 
 | método | endpoint | llamadas | qué escribe |
 | --- | --- | ---: | --- |
-| `PUT` | `/ip/firewall/filter` | 67 | una regla de filtrado del perímetro |
-| `PATCH` | `/ip/service/<id>` | 55 | apagar un servicio que no debe escuchar (http, api, telnet…) |
-| `POST` | `/ip/route/add` | 32 | una ruta (la puerta de enlace o la ruta a otra sede) |
-| `PUT` | `/ip/address` | 15 | una dirección IP |
-| `PUT` | `/interface/bridge/port` | 13 | meter una pata en el puente (un puerto del switch) |
-| `POST` | `/system/identity/set` | 11 | el nombre del equipo |
-| `POST` | `/execute` | 11 | el export de comprobación del estado |
-| `PUT` | `/ip/dhcp-server/lease` | 8 | una reserva DHCP atada a una MAC |
-| `PUT` | `/interface/bridge` | 4 | el puente de un switch |
-| `PUT` | `/ip/pool` | 3 | el rango de direcciones que reparte un router |
-| `PUT` | `/ip/dhcp-server/network` | 3 | la red que anuncia el DHCP |
-| `PUT` | `/ip/dhcp-server` | 3 | el propio servidor DHCP de la sede |
-| `PUT` | `/ip/firewall/nat` | 1 | una regla de NAT (solo el firewall de borde) |
+| `PATCH` | `/ip/service/<id>` | 5 | apagar un servicio que no debe escuchar (http, api, telnet…) |
+| `POST` | `/system/identity/set` | 1 | el nombre del equipo |
+| `POST` | `/execute` | 1 | el export de comprobación del estado |
 
 ## Las estaciones de trabajo
 
@@ -223,77 +195,78 @@ eso lo que se cuenta son ejecuciones de tarea, que es la unidad real de trabajo.
 
 | anfitrión | ejecuciones | ok | changed | failed | skipped |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `pc-s1-01` | 29 | 32 | 1 | 2 | 42 |
-| `pc-s1-02` | 21 | 24 | 1 | 0 | 42 |
-| `pc-s1-03` | 21 | 24 | 1 | 0 | 42 |
-| `pc-s1-04` | 21 | 24 | 1 | 0 | 42 |
-| `pc-s2-01` | 21 | 24 | 1 | 0 | 42 |
-| `pc-s2-02` | 21 | 24 | 1 | 0 | 42 |
-| `pc-s3-01` | 21 | 24 | 1 | 0 | 42 |
-| `pc-s3-02` | 21 | 24 | 1 | 0 | 42 |
-| `localhost` | 1178 | 458 | 17 | 5 | 94 |
-| `fw-s1-perim` | 400 | 136 | 4 | 1 | 31 |
-| `rt-s1-core` | 305 | 122 | 1 | 0 | 48 |
-| `rt-s2-edge` | 277 | 122 | 1 | 0 | 48 |
-| `rt-s3-edge` | 277 | 122 | 1 | 0 | 48 |
-| `fw-s2-perim` | 254 | 106 | 1 | 0 | 30 |
-| `fw-s3-perim` | 254 | 106 | 1 | 0 | 30 |
-| `sw-s1-acc-01` | 251 | 122 | 1 | 0 | 48 |
-| `sw-s1-acc-02` | 249 | 122 | 1 | 0 | 48 |
-| `sw-s2-acc-01` | 249 | 122 | 1 | 0 | 48 |
-| `sw-s3-acc-01` | 249 | 122 | 1 | 0 | 48 |
-| `fw-wan-edge` | 248 | 106 | 1 | 0 | 30 |
-| `infra-bootstrap` | 143 | 113 | 10 | 1 | 52 |
+| `pc-s1-01` | 13 | 14 | 0 | 0 | 14 |
+| `pc-s1-02` | 13 | 14 | 0 | 0 | 14 |
+| `pc-s1-03` | 13 | 14 | 0 | 0 | 14 |
+| `pc-s1-04` | 13 | 14 | 0 | 0 | 14 |
+| `pc-s2-01` | 13 | 14 | 0 | 0 | 14 |
+| `pc-s2-02` | 13 | 14 | 0 | 0 | 14 |
+| `pc-s3-01` | 13 | 14 | 0 | 0 | 14 |
+| `pc-s3-02` | 13 | 14 | 0 | 0 | 14 |
+| `localhost` | 2064 | 425 | 10 | 12 | 75 |
+| `infra-bootstrap` | 161 | 121 | 5 | 5 | 62 |
+| `sw-mgmt-01` | 94 | 39 | 1 | 1 | 12 |
+| `fw-s1-perim` | 55 | 26 | 0 | 0 | 8 |
+| `rt-s1-core` | 53 | 24 | 0 | 0 | 10 |
+| `fw-s2-perim` | 53 | 26 | 0 | 0 | 8 |
+| `fw-s3-perim` | 53 | 26 | 0 | 0 | 8 |
+| `fw-wan-edge` | 52 | 26 | 0 | 0 | 8 |
+| `rt-s2-edge` | 49 | 24 | 0 | 0 | 10 |
+| `rt-s3-edge` | 49 | 24 | 0 | 0 | 10 |
+| `sw-s1-acc-01` | 45 | 24 | 0 | 0 | 10 |
+| `sw-s1-acc-02` | 45 | 24 | 0 | 0 | 10 |
+| `sw-s2-acc-01` | 45 | 24 | 0 | 0 | 10 |
+| `sw-s3-acc-01` | 45 | 24 | 0 | 0 | 10 |
 
 ## Tiempos totales
 
 | Qué | Cuánto |
 | --- | --- |
-| Verbos ejecutados | 23 |
-| Tiempo de reloj de los verbos | 49.2 min |
-| Llamadas al API de Proxmox | 1.757 |
-| Espera dentro del API de Proxmox | 10.7 min (640 s) |
-| Llamadas al API de RouterOS | 1.578 |
-| Ejecuciones de tarea | 4.510 |
-| Convergencias completas | 5 |
+| Verbos ejecutados | 41 |
+| Tiempo de reloj de los verbos | 38.7 min |
+| Llamadas al API de Proxmox | 622 |
+| Espera dentro del API de Proxmox | 4.1 min (248 s) |
+| Llamadas al API de RouterOS | 333 |
+| Ejecuciones de tarea | 2.967 |
+| Convergencias completas | 9 |
 
 | método HTTP al API de Proxmox | llamadas |
 | --- | ---: |
-| `GET` | 1701 |
-| `POST` | 38 |
-| `PUT` | 11 |
-| `DELETE` | 7 |
+| `GET` | 607 |
+| `PUT` | 13 |
+| `POST` | 2 |
 
 | estado | llamadas |
 | --- | ---: |
-| 200 | 1616 |
-| None | 78 |
-| 500 | 63 |
+| 200 | 590 |
+| None | 18 |
+| 401 | 9 |
+| 500 | 5 |
 
 ## Estimación del esfuerzo
 
 ### Lo que cuesta UNA convergencia completa
 
-La última (configure: converge RouterOS, del 21:39:35), que no cambió nada y por tanto es la lectura entera:
+La última (configure: converge RouterOS, del 19:31:56), que no cambió nada y por tanto es la lectura entera:
 
 | | llamadas |
 | --- | ---: |
-| Lecturas (cada tabla declarada, por equipo) | 286 |
+| Lecturas (cada tabla declarada, por equipo) | 312 |
 | Escrituras (solo lo que difería) | 0 |
-| **total** | **286** |
+| **total** | **312** |
 
 ### El total de la puesta en marcha
 
 | Vía | Llamadas medidas |
 | --- | ---: |
-| API de Proxmox (trazador, capa 1 completa) | 1.757 |
-| API de RouterOS (log, todos los verbos) | 1.578 |
-| **total de llamadas a APIs** | **3.335** |
-| Ejecuciones de tarea (capa 2, por SSH) | 4.510 |
-| **suma de operaciones contables** | **7.845** |
+| API de Proxmox (trazador, capa 1 completa) | 622 |
+| API de RouterOS (log, todos los verbos) | 333 |
+| **total de llamadas a APIs** | **955** |
+| Ejecuciones de tarea (capa 2, por SSH) | 2.967 |
+| **suma de operaciones contables** | **3.922** |
 
-Reparto del trabajo de RouterOS entre los 5 verbos que lo tocaron: una media
-de **316 llamadas por convergencia**, sobre once equipos.
+Reparto del trabajo de RouterOS entre los 9 verbos que lo tocaron: una media
+de **37 llamadas por convergencia**, sobre once equipos.
 
 ## Qué NO mide este documento
 
