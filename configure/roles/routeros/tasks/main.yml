@@ -185,22 +185,50 @@
   loop_control:
     label: "{{ item.address }} {{ item.interface }}"
 
+- name: Every declared address must be static, not a leftover of a retired client
+  ansible.builtin.assert:
+    that:
+      - (found | first).dynamic | default('false') | string | lower != 'true'
+    fail_msg: >-
+      {{ item.address }} on {{ item.interface }} exists only as a DYNAMIC entry that
+      a retired DHCP client left behind. RouterOS refuses to promote such an entry
+      and (measured) refuses to delete it when its owner is gone, so this cannot be
+      converged by the API: recreate the device. It matters because a dynamic
+      address is not saved, so the device would not come back with it after a
+      reboot, and it would be left with no address at all.
+    success_msg: "{{ item.address }} is a static address on {{ item.interface }}, as declared."
+  vars:
+    found: >-
+      {{ ros_after.addresses | default([]) | selectattr('address', 'equalto', item.address)
+         | selectattr('interface', 'equalto', item.interface) | list }}
+  loop: "{{ l2_config.routeros.addresses }}"
+  loop_control:
+    label: "{{ item.address }} {{ item.interface }}"
+
 - name: Every declared route must be on the router AND installed
   ansible.builtin.assert:
     that:
-      - found | length == 1
-      - (found | first).active | default('false') | string | lower == 'true'
+      - activas | length > 0
+      - estaticas | length <= 1
     fail_msg: >-
-      {{ item.dst_address }} via {{ item.gateway }} is not a single ACTIVE route on
-      the router. A route can be stored and still inactive — that is exactly what
-      happens when its gateway is not reachable — so this asserts the route is
-      INSTALLED, not merely present. The router reports:
+      {{ item.dst_address }} via {{ item.gateway }} is not an ACTIVE route on the
+      router, or it is stored twice as a static one. A route can be stored and
+      still inactive — that is exactly what happens when its gateway is not
+      reachable — so this asserts the route is INSTALLED, not merely present. A
+      dynamic twin is tolerated ON PURPOSE: RouterOS refuses to delete a dynamic
+      route whose owner (a retired DHCP client) is gone — measured — so the count
+      can be 2 while only one of them is ours. The router reports:
       {{ ros_after.routes | default([]) | map(attribute='dst-address') | join(', ') }}.
     success_msg: "{{ item.dst_address }} via {{ item.gateway }} is installed, as declared."
   vars:
-    found: >-
+    activas: >-
       {{ ros_after.routes | default([]) | selectattr('dst-address', 'equalto', item.dst_address)
-         | selectattr('gateway', 'equalto', item.gateway) | list }}
+         | selectattr('gateway', 'equalto', item.gateway)
+         | selectattr('active', 'defined') | selectattr('active', 'equalto', 'true') | list }}
+    estaticas: >-
+      {{ ros_after.routes | default([]) | selectattr('dst-address', 'equalto', item.dst_address)
+         | selectattr('gateway', 'equalto', item.gateway)
+         | selectattr('static', 'defined') | selectattr('static', 'equalto', 'true') | list }}
   loop: "{{ l2_config.routeros.routes | default([]) }}"
   loop_control:
     label: "{{ item.dst_address }} via {{ item.gateway }}"

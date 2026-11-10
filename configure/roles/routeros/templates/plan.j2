@@ -49,8 +49,27 @@
 {%- set decl_addresses = cfg.addresses | default([]) -%}
 {%- set client_ifaces = (ros.dhcp_clients | default([]) | map(attribute='interface') | list)
                         if (cfg.dhcp_client | default(true) is false) else [] -%}
-{%- set swap_addresses = decl_addresses | selectattr('interface', 'in', client_ifaces) | list -%}
-{%- set plain_addresses = decl_addresses | rejectattr('interface', 'in', client_ifaces) | list -%}
+{#- La SEGUNDA forma de la misma trampa: la entrada dinamica que un cliente YA
+    RETIRADO dejo atras. Sin cliente, `client_ifaces` esta vacio, y como la
+    comparacion de abajo es por VALOR, el plan daba la direccion por presente y no
+    la ponia nunca: el equipo se quedaba con una direccion dinamica, que RouterOS
+    no guarda, asi que no sobrevive a un reinicio. Medido en un router nacido con
+    reserva: direccion con dynamic=true y su ruta por defecto en pie. Se intenta el
+    MISMO intercambio (quitar la dinamica y poner la estatica en un solo guion) y
+    la asercion del rol impide que un residuo irreparable pase por bueno. -#}
+{%- set residue_addresses = [] -%}
+{%- for a in decl_addresses -%}
+{%-   set viva = ros.addresses | default([]) | selectattr('address', 'equalto', a.address)
+                 | selectattr('interface', 'equalto', a.interface) | list -%}
+{%-   if (viva | length > 0) and (viva | first).dynamic | default('false') | string | lower == 'true' -%}
+{%-     set _ = residue_addresses.append(a) -%}
+{%-   endif -%}
+{%- endfor -%}
+{%- set swap_addresses = (decl_addresses | selectattr('interface', 'in', client_ifaces) | list)
+                          + residue_addresses -%}
+{%- set plain_addresses = decl_addresses
+      | rejectattr('interface', 'in', client_ifaces)
+      | rejectattr('address', 'in', (residue_addresses | map(attribute='address') | list)) | list -%}
 {%- for a in plain_addresses -%}
 {%-   set found = ros.addresses | default([]) | selectattr('address', 'equalto', a.address)
                  | selectattr('interface', 'equalto', a.interface) | list -%}
@@ -325,6 +344,14 @@
 {%-   for i in client_ifaces -%}
 {%-     set _ = lines.append('/ip dhcp-client remove [find interface=' ~ i ~ ']') -%}
 {%-   endfor -%}
+{%-   for a in residue_addresses -%}
+{%-     set _ = lines.append('/ip address remove [find address=' ~ a.address ~ ' interface=' ~ a.interface ~ ' dynamic=yes]') -%}
+{%-   endfor -%}
+{%-   if residue_addresses | length > 0 -%}
+{#- Un respiro entre quitar y poner: el guion corre entero DENTRO del router, asi
+    que esto no abre ventana hacia fuera, solo le da tiempo a soltar la entrada. -#}
+{%-     set _ = lines.append(':delay 2s') -%}
+{%-   endif -%}
 {%-   for a in swap_addresses -%}
 {%-     set _ = lines.append('/ip address add address=' ~ a.address ~ ' interface=' ~ a.interface) -%}
 {%-   endfor -%}
