@@ -254,6 +254,9 @@
 {%-   if r.connection_state is defined -%}{%- set _ = b.update({'connection-state': r.connection_state}) -%}{%- endif -%}
 {%-   if r.in_interface is defined -%}{%- set _ = b.update({'in-interface': r.in_interface}) -%}{%- endif -%}
 {%-   if r.out_interface is defined -%}{%- set _ = b.update({'out-interface': r.out_interface}) -%}{%- endif -%}
+{%-   if r.src_address is defined -%}{%- set _ = b.update({'src-address': r.src_address}) -%}{%- endif -%}
+{%-   if r.dst_address is defined -%}{%- set _ = b.update({'dst-address': r.dst_address}) -%}{%- endif -%}
+{%-   if r.comment is defined -%}{%- set _ = b.update({'comment': r.comment}) -%}{%- endif -%}
 {{ b | to_json }}
 {%- endmacro -%}
 {%- macro same_rule(b, l) -%}
@@ -261,7 +264,10 @@
                   and ((l.action | default('') | string) == (b['action'] | default('') | string))
                   and ((l['connection-state'] | default('') | string) == (b['connection-state'] | default('') | string))
                   and ((l['in-interface'] | default('') | string) == (b['in-interface'] | default('') | string))
-                  and ((l['out-interface'] | default('') | string) == (b['out-interface'] | default('') | string)) -%}
+                  and ((l['out-interface'] | default('') | string) == (b['out-interface'] | default('') | string))
+                  and ((l['src-address'] | default('') | string) == (b['src-address'] | default('') | string))
+                  and ((l['dst-address'] | default('') | string) == (b['dst-address'] | default('') | string))
+                  and ((l['comment'] | default('') | string) == (b['comment'] | default('') | string)) -%}
 {{ '1' if equal else '0' }}
 {%- endmacro -%}
 {%- set decl_filter = (cfg.firewall | default({})).filter | default([]) -%}

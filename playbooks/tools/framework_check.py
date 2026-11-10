@@ -41,6 +41,7 @@ Run it from anywhere:  python3 playbooks/tools/framework_check.py invariant
 
 import argparse
 import difflib
+import ipaddress
 import json
 import os
 import re
@@ -357,6 +358,37 @@ def declared_addresses():
     return out
 
 
+def _red_operador():
+    """La red del segundo segmento de gestión (OOB), o None si no se declara.
+
+    Ese segmento NO es del dominio de producción. En un despliegue físico es una
+    isla aparte —su propio switch, su propio DHCP— que se alcanza desde el lado
+    del operador (consola, VPN), no desde una workstation. Por eso las estaciones
+    no lo prueban: lo prueba el operador, y lo que sí se prueba desde producción
+    es justo lo contrario, que NO lleguen.
+    """
+    m = manifiesto()
+    mgmt2 = m.get("lab_mgmt2")
+    red = mgmt2.get("red") if isinstance(mgmt2, dict) else None
+    if not red:
+        return None
+    try:
+        return ipaddress.ip_network(red, strict=False)
+    except ValueError:
+        return None
+
+
+def _vantage(ip):
+    """`operator` si la dirección es del segmento OOB; `stations` en cualquier otro caso."""
+    red = _red_operador()
+    if red is None:
+        return "stations"
+    try:
+        return "operator" if ipaddress.ip_address(ip) in red else "stations"
+    except ValueError:
+        return "stations"
+
+
 def declared_targets():
     """El mapa del lab derivado de la declaración: nombre, dirección, sede y tipo.
 
@@ -364,6 +396,10 @@ def declared_targets():
     escribirse a mano porque la lista es la ENTRADA del propio test: si se
     mantiene a mano, añadir un invitado deja el test ciego a él y nada lo nota.
     El tipo sale del nombre (pc/sw/rt/fw) y la sede del campo `site` declarado.
+
+    `vantage` separa los dos mundos: `stations` lo prueban las workstations en su
+    mapa; `operator` vive en el segmento de gestión OOB y NO entra en ese mapa —
+    las estaciones deben comprobar que no llegan, y el operador que sí.
     """
     m = manifiesto()
     out = []
@@ -374,13 +410,14 @@ def declared_targets():
             ip = re.search(r"\bip=([\d.]+)/", net0)
             if ip:
                 out.append({"name": c["hostname"], "ip": ip.group(1),
-                            "site": 0, "kind": "boot"})
+                            "site": 0, "kind": "boot", "vantage": "stations"})
         elif "site" in c and c.get("address"):
             # `site` se declara como "sede1"/"sede2"/"sede3"; el mapa usa el
             # DIGITO porque es el que ata la estación a su puerta y su tránsito.
             m_site = re.search(r"(\d+)", str(c["site"]))
             out.append({"name": c["hostname"], "ip": c["address"],
-                        "site": int(m_site.group(1)) if m_site else 0, "kind": "pc"})
+                        "site": int(m_site.group(1)) if m_site else 0, "kind": "pc",
+                        "vantage": _vantage(c["address"])})
     for v in m.get("pve_vms", []):
         if not v.get("chr"):
             continue
@@ -393,7 +430,8 @@ def declared_targets():
             continue
         nombre = v["name"]
         kind = "sw" if nombre.startswith("sw-") else "rt" if nombre.startswith("rt-") else "fw"
-        out.append({"name": nombre, "ip": ip, "site": 0, "kind": kind})
+        out.append({"name": nombre, "ip": ip, "site": 0, "kind": kind,
+                    "vantage": _vantage(ip)})
     return out
 
 
@@ -408,25 +446,64 @@ def mapped_addresses():
     return out
 
 
+def mapped_oob():
+    """Los destinos OOB incrustados, que las estaciones deben NO alcanzar."""
+    out = {}
+    for line in open(LABCHECK, encoding="utf-8"):
+        if "OOB=" not in line:
+            continue
+        for mm in re.finditer(r"([\w-]+) ([\d.]+)", line):
+            out[mm.group(1)] = mm.group(2)
+    return out
+
+
 def agree():
     say("== agree: el mapa del propio test contra la declaración ==")
     decl = declared_addresses()
     mapped = mapped_addresses()
-    say(f"  la declaración declara {len(decl)} direcciones; el mapa prueba {len(mapped)}")
+    oob = mapped_oob()
+    red = _red_operador()
 
-    by_addr = {a: n for n, a in decl.items()}
+    def es_op(a):
+        if red is None:
+            return False
+        try:
+            return ipaddress.ip_address(a) in red
+        except ValueError:
+            return False
+
+    op_decl = {n: a for n, a in decl.items() if es_op(a)}
+    est_decl = {n: a for n, a in decl.items() if not es_op(a)}
+    say(f"  la declaración declara {len(decl)} direcciones: {len(est_decl)} las prueban "
+        f"las estaciones, {len(op_decl)} el operador (segmento OOB)")
+
+    by_addr = {a: n for n, a in est_decl.items()}
     seen = {a: n for n, a in mapped.items()}
     missing = {a: n for a, n in by_addr.items() if a not in seen}
     extra = {a: n for a, n in seen.items() if a not in by_addr}
-
     for a, n in sorted(missing.items()):
         say(f"  FALTA en el mapa : {a:<15} ({n}) — declarado, y el script no lo prueba")
     for a, n in sorted(extra.items()):
         say(f"  SOBRA en el mapa : {a:<15} ({n}) — el script prueba algo que nadie declara")
 
-    if missing or extra:
+    # El lado del operador es un test NEGATIVO desde las estaciones: tienen que
+    # estar en el bloque OOB para vigilar que NO se llega, y fuera del mapa LAB.
+    oob_by_addr = {a: n for n, a in op_decl.items()}
+    oob_seen = {a: n for n, a in oob.items()}
+    oob_missing = {a: n for a, n in oob_by_addr.items() if a not in oob_seen}
+    oob_extra = {a: n for a, n in oob_seen.items() if a not in oob_by_addr}
+    for a, n in sorted(oob_missing.items()):
+        say(f"  FALTA en OOB     : {a:<15} ({n}) — es del operador y la estación no lo vigila")
+    for a, n in sorted(oob_extra.items()):
+        say(f"  SOBRA en OOB     : {a:<15} ({n}) — vigila algo que nadie declara")
+    dobles = [a for a in seen if a in oob_seen]
+    for a in sorted(dobles):
+        say(f"  EN LOS DOS MUNDOS: {a:<15} — no puede ser destino de estación Y de operador")
+
+    if missing or extra or oob_missing or oob_extra or dobles:
         fail("el mapa del test y la declaración no dicen lo mismo")
-    say("\nPASS: el test prueba exactamente lo que la declaración declara.")
+    say("\nPASS: el test prueba exactamente lo que la declaración declara — las\n"
+        "      estaciones su mundo (y que NO llegan al OOB), el operador el segmento OOB.")
     return 0
 
 
@@ -567,7 +644,8 @@ def routeros_export():
 # ---------------------------------------------------------------------------
 # plan: la lógica del plan del rol RouterOS, probada SIN tocar ningún equipo
 # ---------------------------------------------------------------------------
-_PLAN_CAMPOS = ("chain", "action", "in-interface", "out-interface", "connection-state")
+_PLAN_CAMPOS = ("chain", "action", "in-interface", "out-interface", "connection-state",
+                "src-address", "dst-address", "comment")
 
 
 def _plan_firma(regla):
@@ -665,7 +743,10 @@ def plan_check():
                         ".id": "*%s%d" % (clave[-1], i)}
                 for origen, destino in (("connection_state", "connection-state"),
                                         ("in_interface", "in-interface"),
-                                        ("out_interface", "out-interface")):
+                                        ("out_interface", "out-interface"),
+                                        ("src_address", "src-address"),
+                                        ("dst_address", "dst-address"),
+                                        ("comment", "comment")):
                     if origen in r:
                         fila[destino] = r[origen]
                 filas.append(fila)
@@ -901,6 +982,8 @@ def _topology_block():
 
 LABMAP_START = "# >>> LABMAP"
 LABMAP_END = "# <<< LABMAP"
+OOB_START = "# >>> OOB"
+OOB_END = "# <<< OOB"
 
 
 def _labmap_block():
@@ -908,10 +991,12 @@ def _labmap_block():
 
     Se agrupa por tipo y se ordena por nombre para que dos generaciones seguidas
     den el MISMO texto: si el orden bailara, el fichero pareceria cambiado sin
-    que nada haya cambiado de verdad.
+    que nada haya cambiado de verdad. SOLO van los destinos `stations`: el
+    segmento OOB no es de las estaciones y se vigila aparte (bloque OOB).
     """
     orden = {"pc": 0, "sw": 1, "rt": 2, "fw": 3, "boot": 4}
-    destinos = sorted(declared_targets(), key=lambda x: (orden.get(x["kind"], 9), x["name"]))
+    destinos = sorted((d for d in declared_targets() if d.get("vantage") != "operator"),
+                      key=lambda x: (orden.get(x["kind"], 9), x["name"]))
     lineas, primera = [], True
     for d in destinos:
         trozo = f"{d['name']} {d['ip']} {d['site']} {d['kind']}"
@@ -920,6 +1005,29 @@ def _labmap_block():
             primera = False
         else:
             lineas.append(f'LAB="$LAB;{trozo}"')
+    return "\n".join(lineas)
+
+
+def _oob_block():
+    """El bloque `OOB=` que lab-check.sh lleva incrustado: qué NO debe alcanzar.
+
+    Es la cara negativa del mismo mapa. Los destinos del segmento de gestión OOB
+    no son del dominio de producción: en un despliegue físico son una isla. Las
+    estaciones comprueban que NO llegan; el operador comprueba que sí. Se genera
+    igual que LAB, y por la misma razón: una lista a mano se queda ciega.
+    """
+    destinos = sorted((d for d in declared_targets() if d.get("vantage") == "operator"),
+                      key=lambda x: x["name"])
+    if not destinos:
+        return '# (la declaracion no tiene destinos en el segmento de gestion OOB)'
+    lineas, primera = [], True
+    for d in destinos:
+        trozo = f"{d['name']} {d['ip']}"
+        if primera:
+            lineas.append(f'OOB="{trozo}"')
+            primera = False
+        else:
+            lineas.append(f'OOB="$OOB;{trozo}"')
     return "\n".join(lineas)
 
 
@@ -935,16 +1043,19 @@ def _reescribe(texto, marca, nuevo):
 
 
 def labmap(check=False):
-    """Regenera (o con --check verifica) los dos bloques incrustados en lab-check.sh.
+    """Regenera (o con --check verifica) los bloques incrustados en lab-check.sh.
 
-    Son dos porque responden a preguntas distintas: LABMAP es QUIÉN hay (la lista
-    de destinos) y TOPOLOGY es POR DÓNDE se cruza (puertas, routers de gestión y
-    saltos predichos de cada par de sedes). Los dos se derivan del manifiesto.
+    Son tres porque responden a preguntas distintas: LABMAP es QUIÉN hay (la lista
+    de destinos de las estaciones), OOB es a QUIÉN NO deben llegar (el segmento de
+    gestión, isla aparte), y TOPOLOGY es POR DÓNDE se cruza (puertas, routers de
+    gestión y saltos predichos de cada par de sedes). Los tres se derivan del
+    manifiesto.
     """
-    say("== labmap: el mapa y la topología del test, derivados de la declaración ==")
+    say("== labmap: el mapa, el OOB y la topología del test, derivados de la declaración ==")
     texto = open(LABCHECK, encoding="utf-8").read()
     bloques = [
         ((LABMAP_START, LABMAP_END), _labmap_block(), "destinos"),
+        ((OOB_START, OOB_END), _oob_block(), "OOB"),
         ((TOPOLOGY_START, TOPOLOGY_END), _topology_block(), "saltos"),
     ]
     pendientes = []

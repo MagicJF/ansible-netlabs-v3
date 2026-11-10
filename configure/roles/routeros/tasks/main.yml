@@ -293,7 +293,8 @@
       {%-   for r in rules -%}
       {%-     set _ = out.append(menu ~ '|' ~ (r.chain | default('')) ~ '|' ~ (r.action | default(''))
                      ~ '|' ~ (r.connection_state | default('')) ~ '|' ~ (r.in_interface | default(''))
-                     ~ '|' ~ (r.out_interface | default(''))) -%}
+                     ~ '|' ~ (r.out_interface | default('')) ~ '|' ~ (r.src_address | default(''))
+                     ~ '|' ~ (r.dst_address | default('')) ~ '|' ~ (r.comment | default(''))) -%}
       {%-   endfor -%}
       {%- endfor -%}
       {{ out }}
@@ -304,7 +305,8 @@
                  if ((l.dynamic | default('false')) | string | lower) != 'true' -%}
       {%-     set _ = out.append(menu ~ '|' ~ (l.chain | default('')) ~ '|' ~ (l.action | default(''))
                      ~ '|' ~ (l['connection-state'] | default('')) ~ '|' ~ (l['in-interface'] | default(''))
-                     ~ '|' ~ (l['out-interface'] | default(''))) -%}
+                     ~ '|' ~ (l['out-interface'] | default('')) ~ '|' ~ (l['src-address'] | default(''))
+                     ~ '|' ~ (l['dst-address'] | default('')) ~ '|' ~ (l['comment'] | default(''))) -%}
       {%-   endfor -%}
       {%- endfor -%}
       {{ out }}

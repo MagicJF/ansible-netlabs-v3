@@ -2074,6 +2074,12 @@ pve_vms:
         firewall:
           filter:
             - {chain: forward, action: accept, connection_state: "established,related"}
+            # La red de gestion (OOB) NO es del dominio de produccion: en un
+            # montaje fisico es una isla. Aqui se corta en el borde el intento de
+            # una estacion de alcanzarla. Es de ida: una workstation no debe
+            # llegar; el operador la alcanza por su propio camino (el tunel).
+            - {chain: forward, action: drop, dst_address: "{{ lab_mgmt2.red }}",
+               comment: "OOB: la produccion no alcanza el segundo segmento de gestion"}
             - {chain: forward, action: accept, in_interface: ether2, out_interface: ether1}
             - {chain: forward, action: drop, connection_state: "new"}
             - {chain: input, action: accept, in_interface: ether1}

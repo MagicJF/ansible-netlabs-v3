@@ -71,7 +71,7 @@
       ansible.builtin.debug:
         msg: >-
           {{ item }} -> {{ (hostvars[item].lab_check.stdout | default('sin salida'))
-             .splitlines() | select('match', '^(alcance|pc|rt|sw|boot)=') | join('  ') }}
+             .splitlines() | select('match', '^(alcance|pc|rt|sw|boot|oob_aislado|OOB_FUGA)=') | join('  ') }}
       loop: "{{ groups['lab_workstations'] | default([]) | sort }}"
       loop_control:
         label: "{{ item }}"
@@ -88,4 +88,62 @@
           Cada linea lee `alcance=X/Y`: X destinos contestan de los Y declarados, y el
           laboratorio esta ENTERO solo si X e Y coinciden en todas. `primer_salto` y
           `camino` se miden aparte, y todo camino distinto al predicho sale como `ANOM`.
+          `oob_aislado=1/1` significa que la estacion NO alcanza el segmento de gestion —
+          que es lo que debe pasar; un `OOB_FUGA` es un fallo.
       when: groups['lab_workstations'] | default([]) | length > 0
+
+# ===========================================================================
+# El OTRO lado de la puerta: el OPERADOR. El segmento de gestion OOB no lo
+# prueban las estaciones —de hecho comprueban que NO llegan—: lo prueba quien
+# lo opera, que en este laboratorio es el nodo de control a traves del tunel
+# WireGuard. La llamada va por `ansible.builtin.uri`, asi que queda anotada en
+# el diario (logs/pve-api.jsonl) como cualquier otra del framework.
+# ===========================================================================
+- name: lab-check - el operador SI llega al segmento de gestion (OOB)
+  hosts: localhost
+  gather_facts: false
+  vars:
+    pve_log_dir: "{{ playbook_dir }}/../../logs"
+  environment:
+    PYTHONPATH: "{{ playbook_dir }}/../../playbooks/tracing"
+    API_HTTP_TRACE: "{{ pve_log_dir }}/pve-api.jsonl"
+  tasks:
+    - name: Los invitados que viven en el segundo segmento de gestion
+      ansible.builtin.set_fact:
+        oob_guests: >-
+          {%- set out = [] -%}
+          {%- for v in (pve_vms | default([])) -%}
+          {%-   set ros = (v.config | default({})).routeros | default({}) -%}
+          {%-   for a in (ros.addresses | default([])) -%}
+          {%-     set ip = a.address.split('/')[0] -%}
+          {%-     if a.interface == 'ether1' and (ip | ansible.utils.ipaddr(lab_mgmt2.red)) -%}
+          {%-       set _ = out.append({'name': v.name, 'ip': ip}) -%}
+          {%-     endif -%}
+          {%-   endfor -%}
+          {%- endfor -%}
+          {{ out }}
+
+    - name: Leer la identidad de cada uno por su API (uri, y queda en el diario)
+      ansible.builtin.uri:
+        url: "http://{{ item.ip }}/rest/system/identity"
+        method: GET
+        url_username: admin
+        url_password: "{{ pve_routeros_password | default('') }}"
+        force_basic_auth: true
+        status_code: 200
+        return_content: true
+      register: oob_check
+      loop: "{{ oob_guests }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.ip }})"
+
+    - name: El operador llega al segmento de gestion
+      ansible.builtin.assert:
+        that:
+          - oob_guests | length > 0
+        fail_msg: >-
+          La declaracion no tiene ningun invitado en el segmento de gestion
+          ({{ lab_mgmt2.red }}); no hay nada que el operador pueda comprobar.
+        success_msg: >-
+          El operador alcanza los {{ oob_guests | length }} invitado(s) del segmento
+          de gestion {{ lab_mgmt2.red }}: {{ oob_guests | map(attribute='name') | join(', ') }}.

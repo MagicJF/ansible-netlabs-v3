@@ -11,7 +11,10 @@
 #   2 PRIMER SALTO ¿el primer salto es MI puerta de enlace declarada?
 #   3 CAMINO       ¿los saltos intermedios son los que predice la topología?
 #
-# 1 y 2 son duros: un fallo ahí es un fallo real. El 3 es un HALLAZGO — si
+# Y una prueba que es al revés —se espera que FALLE:
+#   4 OOB          ¿NO llego al segmento de gestión? (la isla no se toca desde aquí)
+#
+# 1, 2 y 4 son duros: un fallo ahí es un fallo real. El 3 es un HALLAZGO — si
 # difiere, imprime esperado y obtenido para analizarlo, no para darlo por roto.
 # =============================================================================
 set -u
@@ -30,7 +33,6 @@ LAB="$LAB;pc-s2-01 10.12.0.11 2 pc"
 LAB="$LAB;pc-s2-02 10.12.0.12 2 pc"
 LAB="$LAB;pc-s3-01 10.13.0.11 3 pc"
 LAB="$LAB;pc-s3-02 10.13.0.12 3 pc"
-LAB="$LAB;sw-mgmt-01 10.20.20.11 0 sw"
 LAB="$LAB;sw-s1-acc-01 10.10.10.11 0 sw"
 LAB="$LAB;sw-s1-acc-02 10.10.10.12 0 sw"
 LAB="$LAB;sw-s2-acc-01 10.10.10.13 0 sw"
@@ -44,6 +46,18 @@ LAB="$LAB;fw-s3-perim 10.10.10.33 0 fw"
 LAB="$LAB;fw-wan-edge 10.10.10.34 0 fw"
 LAB="$LAB;infra-bootstrap 10.10.10.41 0 boot"
 # <<< LABMAP
+
+# --- el segmento de gestion OOB: a lo que NO se debe llegar ------------------
+# GENERADO desde la declaración, igual que LABMAP. No se edita a mano. Este
+# segmento (10.20.20.0/24, el switch de gestion OOB) NO es del dominio de
+# producción: en un despliegue físico es una isla —switch propio, DHCP propio—
+# que se alcanza desde el lado del operador, no desde una workstation. Aquí se
+# comprueba justo lo contrario: que una estación NO llega. La comprobación
+# positiva (que el operador sí llega) vive en playbooks/tools/lab-check.yml.
+# Se regenera con:  python3 playbooks/tools/framework_check.py labmap
+# >>> OOB
+OOB="sw-mgmt-01 10.20.20.11"
+# <<< OOB
 
 # --- la topología: quién es quién y por dónde se cruza -----------------------
 # GENERADO desde la declaración. No se edita a mano: las puertas, los routers de
@@ -171,6 +185,23 @@ while read -r name ip site kind; do
   por_tipo="${por_tipo}${kind} ${reach}"$'\n'
 done < <(echo "$LAB" | tr ';' '\n')
 
+# --- el OOB: la prueba es que NO se llega ------------------------------------
+# En un montaje fisico la red de gestion no es alcanzable desde produccion: es
+# una isla que se toca desde el lado del operador. Aqui se comprueba que sigue
+# siendolo. Si una estacion abre puerto, la isla esta mal aislada y ESO es el
+# fallo — no un detalle. (La comprobacion positiva, que el operador SI llega,
+# vive en playbooks/tools/lab-check.yml.)
+oob_leak=""; oob_ok=0; oob_total=0
+while read -r oname oip; do
+  [ -z "${oip:-}" ] && continue
+  oob_total=$((oob_total + 1))
+  if timeout 4 bash -c "exec 3<>/dev/tcp/$oip/80" 2>/dev/null; then
+    oob_leak="${oob_leak}${oname}(${oip}) "
+  else
+    oob_ok=$((oob_ok + 1))
+  fi
+done < <(echo "${OOB:-}" | tr ';' '\n')
+
 # --- resumen, y un bloque corto para pegar ----------------------------------
 exigidos=$((total - exempt))
 echo
@@ -178,6 +209,10 @@ echo "--- RESUMEN $ME ---"
 printf '  alcance      : %d/%d destinos contestan\n' "$ok_reach" "$total"
 printf '  primer salto : %d/%d por mi puerta (%d en mi propia sede exentos)\n' "$ok_first" "$exigidos" "$exempt"
 printf '  camino       : %d/%d de los que contestan\n' "$ok_path" "$ok_reach"
+printf '  OOB aislado  : %d/%d inalcanzables (la gestion no se toca desde produccion)\n' "$oob_ok" "$oob_total"
+if [ -n "$oob_leak" ]; then
+  echo "  FUGA OOB ---> $oob_leak una estacion NO debe llegar ahi"
+fi
 for k in pc rt fw sw boot; do
   case "$k" in pc) lbl="workstations";; rt) lbl="routers     ";; fw) lbl="firewalls   ";; sw) lbl="switches    ";; boot) lbl="bootstrap   ";; esac
   tot=$(printf '%s' "$por_tipo" | awk -v k="$k" '$1==k' | wc -l)
@@ -207,10 +242,14 @@ for k in pc rt fw sw boot; do
   oks=$(printf '%s' "$por_tipo" | awk -v k="$k" '$1==k && $2=="OK"' | wc -l)
   [ "$tot" -gt 0 ] && echo "$k=$oks/$tot"
 done
+echo "oob_aislado=$oob_ok/$oob_total"
+[ -n "$oob_leak" ] && echo "OOB_FUGA=$oob_leak"
 printf '%s' "$anomalias" | sed 's/^/ANOM /'
 echo "### FIN ###"
 
 # El código de salida sólo mira lo que DEBE funcionar: workstations, routers y
-# firewalls. Los switches y el bootstrap son la excepción conocida.
+# firewalls. Los switches y el bootstrap son la excepción conocida. Y una FUGA
+# hacia el OOB es un fallo duro: la red de gestión no debe ser alcanzable desde
+# producción, así que si una estación llega, el test cae.
 malos=$(printf '%s' "$por_tipo" | awk '$1=="pc"||$1=="rt"||$1=="fw"' | grep -c NO)
-[ "$malos" = "0" ] && [ "$ok_first" = "$exigidos" ] && exit 0 || exit 1
+[ "$malos" = "0" ] && [ "$ok_first" = "$exigidos" ] && [ -z "$oob_leak" ] && exit 0 || exit 1

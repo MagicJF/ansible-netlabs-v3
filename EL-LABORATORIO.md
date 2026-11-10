@@ -282,9 +282,17 @@ workstations** y comprueba contra todos los demás equipos del laboratorio:
 | **alcance** | ¿contesta? | dura |
 | **primer salto** | ¿el primer salto es la puerta de enlace que le toca? | dura |
 | **camino** | ¿los saltos intermedios son los que predice la topología? | hallazgo |
+| **OOB** | ¿**no** llega al segmento de gestión? (la isla no se toca desde aquí) | dura |
 
 El mismo fichero sirve para las ocho: mira su propia dirección, deduce en qué sede
 está y quién debe ser su puerta de enlace.
+
+La prueba **OOB** va al revés que las demás: se espera que **falle**. El segundo
+segmento de gestión (`10.20.20.0/24`, donde vive `sw-mgmt-01`) no es del dominio de
+producción —en un montaje físico es una isla con su propio switch y su propio DHCP—,
+así que una workstation no debe alcanzarlo. El test lo comprueba desde las estaciones
+(que **no** llegan) y desde el operador (que **sí** llega, por el túnel), que es lo
+fiel a lo que te encontrarías con hierro.
 
 ---
 
