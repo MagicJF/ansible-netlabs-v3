@@ -91,7 +91,18 @@ def contexto(man, env=None):
 
 
 def cargar(ruta):
-    """El manifiesto con sus referencias resueltas a VALORES."""
+    """El manifiesto con sus referencias resueltas a VALORES.
+
+    POR CAPAS, y no es un lujo: hay plantillas que LEEN otras plantillas. El
+    `segments` del bootstrap mira el `net0` de cada VM para saber en que bridge
+    tiene su gestion, y ese `net0` es a su vez una plantilla (`bridge={{ ... }}`).
+    Con una sola pasada el contexto le da la plantilla sin resolver, ninguna
+    reserva casa, y el resultado es una lista VACIA — que no revienta, que es lo
+    peligroso. Se renderiza, se mete lo renderizado en el contexto, y se repite.
+    """
     env = entorno()
-    man = crudo(ruta)
-    return _resolver(man, env, contexto(man, env))
+    raw = crudo(ruta)
+    ctx = dict(contexto(raw, env))
+    for _ in range(3):
+        ctx = {**ctx, **_resolver(raw, env, ctx)}
+    return _resolver(raw, env, ctx)

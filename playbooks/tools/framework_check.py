@@ -767,7 +767,10 @@ def notas_check():
       6. que ninguna nota se haya quedado con una referencia Jinja sin resolver
     """
     say("== notas: la nota de cada invitado contra la declaración ==")
-    man = yaml.safe_load(open(MANIFEST))
+    # La declaración RESUELTA: el `net0` de un invitado es una plantilla
+    # (`bridge={{ lab_mgmt2.bridge }}`) y la nota lleva el valor ya renderizado.
+    # Comparando contra el texto crudo, la nota y la declaración "discrepan" siempre.
+    man = manifiesto()
     invitados = ([(c, "LXC", c["hostname"]) for c in man["pve_containers"]]
                  + [(v, "CHR", v["name"]) for v in man["pve_vms"]])
 

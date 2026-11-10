@@ -38,6 +38,11 @@
       # No ports: that is what makes the segment isolated. A bridge with an
       # uplink port would let its guests bypass the router.
       bridge_ports: ""
+      # `address` es OPCIONAL y es lo que convierte un bridge en la PUERTA de un
+      # segmento: con direccion, el host enruta ese segmento y lo hace alcanzable
+      # desde el tunel sin anadirle ninguna ruta a mano. Los bridges aislados del
+      # laboratorio no la llevan a proposito.
+      address: "{{ item.address | default(omit) }}"
       comments: "{{ item.comments | default('managed by proxmox-ansible-lxc-test') }}"
     validate_certs: true
     ca_path: "{{ pve_api_ca_path }}"
