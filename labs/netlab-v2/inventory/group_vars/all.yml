@@ -176,6 +176,11 @@ lab_edge_fw: "10.29.0.2"
 lab_internet_gateway: "10.10.10.1"
 lab_internet_dns: "1.1.1.1"
 
+# El bridge del nodo con salida real (su uplink público). NINGÚN invitado del
+# laboratorio va aquí: la salida va por la red de gestión. Se declara para que la
+# documentación pueda citarlo sin escribirlo a mano.
+pve_public_bridge: "vmbr0"
+
 # Red del nodo de control (el túnel). No es una red de la empresa: es el camino
 # por el que ESTE nodo entra a gestionar.
 lab_control_network: "10.99.99.0/24"

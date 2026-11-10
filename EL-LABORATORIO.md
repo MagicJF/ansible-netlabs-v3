@@ -1,3 +1,5 @@
+<!-- GENERADO por playbooks/tools/documentos.py desde labs/netlab-v2/inventory/group_vars/all.yml.
+     No editar a mano: edita la plantilla docs/laboratorio.md.j2 y regenera. -->
 # El laboratorio: una empresa de tres sedes
 
 Este repositorio despliega un laboratorio de red que simula **una empresa
@@ -8,14 +10,14 @@ solo fichero.
 
 Todo se gobierna **exclusivamente por la API HTTPS de Proxmox**: ningún playbook
 entra por SSH en el hipervisor, y ningún equipo de red se toca por SSH ni por el
-puerto binario de RouterOS. Los once equipos de red se configuran por su **API
+puerto binario de RouterOS. Los 12 equipos de red se configuran por su **API
 REST**.
 
 ---
 
 ## La topología
 
-Veinte invitados. El camino de un paquete dentro de una sede es siempre el mismo:
+21 invitados. El camino de un paquete dentro de una sede es siempre el mismo:
 
 ```
    pc  ──▶  sw  ──▶  rt  ──▶  fw  ──▶  WAN
@@ -27,29 +29,40 @@ Veinte invitados. El camino de un paquete dentro de una sede es siempre el mismo
 ```
 
 ```
-        SEDE 1 — LA CENTRAL                    SEDE 2                 SEDE 3
-   ┌──────────────────────────────────┐   ┌───────────────┐    ┌───────────────┐
-   │  pc-s1-01..04  (cuatro PCs)      │   │  pc-s2-01/02  │    │  pc-s3-01/02  │
-   │       │      │                   │   │      │        │    │       │       │
-   │  sw-s1-acc-01 ═══ sw-s1-acc-02   │   │ sw-s2-acc-01  │    │ sw-s3-acc-01  │
-   │       │        (troncal)         │   │      │        │    │       │       │
-   │       └──────────┬───────────────│   │      │        │    │       │       │
-   │             rt-s1-core           │   │  rt-s2-edge   │    │  rt-s3-edge   │
-   │                  │               │   │      │        │    │       │       │
-   │             fw-s1-perim ─────────┼───┼─ fw-s2-perim  │    │  fw-s3-perim  │
-   │                  │               │   │               │    │       │       │
-   │             fw-wan-edge ────▶ internet                │    │       │       │
-   └──────────────────────────────────┘   └───────────────┘    └───────────────┘
-                                        ╰── WAN 1 ──╯  ╰───── WAN 2 ─────╯
+  LA CENTRAL
+    pc-s1-01        workstation vmid 1401 · gestión 10.11.0.11
+    pc-s1-02        workstation vmid 1402 · gestión 10.11.0.12
+    pc-s1-03        workstation vmid 1403 · gestión 10.11.0.13
+    pc-s1-04        workstation vmid 1404 · gestión 10.11.0.14
+    sw-s1-acc-01    switch      vmid 1301 · gestión 10.10.10.11
+    sw-s1-acc-02    switch      vmid 1302 · gestión 10.10.10.12
+    rt-s1-core      router      vmid 1201 · gestión 10.10.10.21
+    fw-s1-perim     firewall    vmid 1101 · gestión 10.10.10.31
+  LA DELEGACIÓN 2
+    pc-s2-01        workstation vmid 2401 · gestión 10.12.0.11
+    pc-s2-02        workstation vmid 2402 · gestión 10.12.0.12
+    sw-s2-acc-01    switch      vmid 2301 · gestión 10.10.10.13
+    rt-s2-edge      router      vmid 2201 · gestión 10.10.10.22
+    fw-s2-perim     firewall    vmid 2101 · gestión 10.10.10.32
+  LA DELEGACIÓN 3
+    pc-s3-01        workstation vmid 3401 · gestión 10.13.0.11
+    pc-s3-02        workstation vmid 3402 · gestión 10.13.0.12
+    sw-s3-acc-01    switch      vmid 3301 · gestión 10.10.10.14
+    rt-s3-edge      router      vmid 3201 · gestión 10.10.10.23
+    fw-s3-perim     firewall    vmid 3101 · gestión 10.10.10.33
+  SIN SEDE (la red de gestión, su segundo segmento OOB, el borde y la infraestructura)
+    sw-mgmt-01      switch      vmid 4401 · gestión 10.20.20.11
+    fw-wan-edge     firewall    vmid 9101 · gestión 10.10.10.34
+    infra-bootstrap bootstrap   vmid 901 · gestión 10.10.10.41
 ```
 
 Leído en palabras:
 
-- **En la central** hay dos switches de acceso unidos por un **troncal** (por eso
-  sus cuatro PCs comparten una sola red), un router que es la puerta de esa LAN y
-  conoce las tres sedes, y **dos firewalls**: el de su sede, que la separa de la
+- **En la central** hay 2 switches de acceso unidos por un **troncal** (por eso
+  sus 4 PCs comparten una sola red), un router que es la puerta de esa LAN y
+  conoce todas las sedes, y **2 firewalls**: el de su sede, que la separa de la
   WAN, y el de **borde**, que es el único que sale a internet.
-- **En cada delegación** hay un switch (sus dos PCs), un router (puerta y DHCP de
+- **En cada delegación** hay un switch (sus PCs), un router (puerta y DHCP de
   su LAN) y un firewall, que es la boca de la sede hacia fuera.
 - **Todo el tráfico entre sedes pasa por la central**, y el de una delegación
   hacia internet cruza su firewall, la WAN y el firewall de la central antes de
@@ -99,25 +112,32 @@ es la sede, `T` el tipo de equipo y `NN` el índice.
 Así `1301` es "sede 1, switch, el primero" y `1401` "sede 1, workstation, la
 primera". No hay que consultar nada para saber qué es una máquina y dónde está.
 
-| Máquina | VMID | Qué es | Gestión |
-|---|---|---|---|
-| `sw-s1-acc-01` / `-02` | 1301 / 1302 | los dos switches de acceso de la central (unidos por troncal) | `10.10.10.11` / `.12` |
-| `sw-s2-acc-01` | 2301 | switch de la delegación 2 | `10.10.10.13` |
-| `sw-s3-acc-01` | 3301 | switch de la delegación 3 | `10.10.10.14` |
-| `rt-s1-core` | 1201 | router de la central; conoce las tres sedes | `10.10.10.21` |
-| `rt-s2-edge` | 2201 | router de la delegación 2 | `10.10.10.22` |
-| `rt-s3-edge` | 3201 | router de la delegación 3 | `10.10.10.23` |
-| `fw-s1-perim` | 1101 | perímetro de la central (3 bocas: WAN 1, WAN 2, borde) | `10.10.10.31` |
-| `fw-s2-perim` | 2101 | perímetro de la delegación 2 | `10.10.10.32` |
-| `fw-s3-perim` | 3101 | perímetro de la delegación 3 | `10.10.10.33` |
-| `fw-wan-edge` | 9101 | **firewall de borde**: el único que sale a internet, y el único que hace NAT | `10.10.10.34` |
-| `pc-s1-01`…`04` | 1401-1404 | las cuatro workstations de la central | `10.11.0.11`…`.14` |
-| `pc-s2-01/02` | 2401 / 2402 | las dos de la delegación 2 | `10.12.0.11`, `.12` |
-| `pc-s3-01/02` | 3401 / 3402 | las dos de la delegación 3 | `10.13.0.11`, `.12` |
-| `infra-bootstrap` | 901 | herramienta de despliegue: da su primera dirección a los equipos de red | `10.10.10.41` |
+| Máquina | VMID | Tipo | Función | Dirección |
+|---|---|---|---|---|
+| `pc-s1-01` | 1401 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.11` |
+| `pc-s1-02` | 1402 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.12` |
+| `pc-s1-03` | 1403 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.13` |
+| `pc-s1-04` | 1404 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.14` |
+| `pc-s2-01` | 2401 | LXC | workstation de la delegación 2: PC de usuario, sin vía de gestión | `10.12.0.11` |
+| `pc-s2-02` | 2402 | LXC | workstation de la delegación 2: PC de usuario, sin vía de gestión | `10.12.0.12` |
+| `pc-s3-01` | 3401 | LXC | workstation de la delegación 3: PC de usuario, sin vía de gestión | `10.13.0.11` |
+| `pc-s3-02` | 3402 | LXC | workstation de la delegación 3: PC de usuario, sin vía de gestión | `10.13.0.12` |
+| `sw-mgmt-01` | 4401 | CHR | switch de la red de gestión | `10.20.20.11` |
+| `sw-s1-acc-01` | 1301 | CHR | switch de la central | `10.10.10.11` |
+| `sw-s1-acc-02` | 1302 | CHR | switch de la central | `10.10.10.12` |
+| `sw-s2-acc-01` | 2301 | CHR | switch de la delegación 2 | `10.10.10.13` |
+| `sw-s3-acc-01` | 3301 | CHR | switch de la delegación 3 | `10.10.10.14` |
+| `rt-s1-core` | 1201 | CHR | router de la central | `10.10.10.21` |
+| `rt-s2-edge` | 2201 | CHR | router de la delegación 2 | `10.10.10.22` |
+| `rt-s3-edge` | 3201 | CHR | router de la delegación 3 | `10.10.10.23` |
+| `fw-s1-perim` | 1101 | CHR | firewall de la central | `10.10.10.31` |
+| `fw-s2-perim` | 2101 | CHR | firewall de la delegación 2 | `10.10.10.32` |
+| `fw-s3-perim` | 3101 | CHR | firewall de la delegación 3 | `10.10.10.33` |
+| `fw-wan-edge` | 9101 | CHR | **firewall de borde**: el único que sale a internet y el único que hace NAT | `10.10.10.34` |
+| `infra-bootstrap` | 901 | LXC | bootstrap de la red de gestión | `10.10.10.41` |
 
-Los **once equipos de red** son **RouterOS CHR** (la versión virtual de RouterOS).
-Las **ocho workstations** y el bootstrap son **contenedores LXC** de Debian.
+Los **12 equipos de red** son **RouterOS CHR** (la versión virtual de RouterOS).
+Las **8 workstations** y el bootstrap son **contenedores LXC** de Debian.
 
 ---
 
@@ -126,19 +146,22 @@ Las **ocho workstations** y el bootstrap son **contenedores LXC** de Debian.
 | Qué | Red | Puerta de enlace |
 |---|---|---|
 | Red de gestión (patas de administración) | `10.10.10.0/24` | `10.10.10.1` (el host Proxmox) |
+| Segundo segmento de gestión (OOB) | `10.20.20.0/24` | `10.20.20.1` (el host Proxmox) |
 | LAN de la central | `10.11.0.0/24` | `10.11.0.1` (rt-s1-core) |
+| Tránsito router ↔ su firewall (la central) | `10.21.0.0/30` | router `10.21.0.2` ↔ firewall `10.21.0.1` |
 | LAN de la delegación 2 | `10.12.0.0/24` | `10.12.0.1` (rt-s2-edge) |
+| Tránsito router ↔ su firewall (la delegación 2) | `10.22.0.0/30` | router `10.22.0.2` ↔ firewall `10.22.0.1` |
 | LAN de la delegación 3 | `10.13.0.0/24` | `10.13.0.1` (rt-s3-edge) |
-| Tránsito router ↔ su firewall | `10.21/22/23.0.0/30` | router `.2` ↔ firewall `.1` |
-| Enlace WAN central ↔ delegación 2 | `10.99.1.0/30` | fw-s1 `.1` ↔ fw-s2 `.2` |
-| Enlace WAN central ↔ delegación 3 | `10.99.2.0/30` | fw-s1 `.1` ↔ fw-s3 `.2` |
-| Tránsito de borde | `10.29.0.0/30` | fw-s1 `.1` ↔ fw-wan-edge `.2` |
+| Tránsito router ↔ su firewall (la delegación 3) | `10.23.0.0/30` | router `10.23.0.2` ↔ firewall `10.23.0.1` |
+| Enlace WAN la central ↔ la delegación 2 | `10.99.1.0/30` | `fw-s1-perim` `10.99.1.1` ↔ `fw-s2-perim` `10.99.1.2` |
+| Enlace WAN la central ↔ la delegación 3 | `10.99.2.0/30` | `fw-s1-perim` `10.99.2.1` ↔ `fw-s3-perim` `10.99.2.2` |
+| Tránsito de borde | `10.29.0.0/30` | `fw-s1-perim` `10.29.0.1` ↔ `fw-wan-edge` `10.29.0.2` |
 
 Las direcciones de gestión se asignan **por bloques de función** dentro de
-`10.10.10.0/24`: `.11-.19` switches, `.21-.29` routers, `.31-.39` firewalls,
-`.41-.49` infraestructura. (La regla de la v1 —"el último octeto es el VMID"— no
-cabe con cuatro dígitos, y ese `/24` no se puede ampliar sin reconfigurar el
-host, que no se toca.)
+`10.10.10.0/24`, y el bloque de cada función sale de las direcciones
+que la declaración ya tiene: `.11-.14` switches, `.21-.23` routers, `.31-.34` firewalls, `.41` infraestructura.
+(La regla de la v1 —"el último octeto es el VMID"— no cabe con cuatro dígitos, y
+ese `/24` no se puede ampliar sin reconfigurar el host, que no se toca.)
 
 Las workstations **no tienen dirección fija**: se la da por DHCP el **router de su
 sede**, con una reserva atada a su MAC. La reserva no se escribe dos veces: el
@@ -162,8 +185,8 @@ magia:
   traducen: dentro de la empresa las direcciones son las reales, y por eso existen
   las rutas de vuelta y no hay traducciones anidadas.
 
-Medido, no supuesto: desde `fw-wan-edge` responden `1.1.1.1` y `8.8.8.8`; desde la
-LAN de la central y desde las dos delegaciones se llega a internet; y una
+Medido, no supuesto: desde `fw-wan-edge` responde `1.1.1.1`; desde la
+LAN de la central y desde las delegaciones se llega a internet; y una
 workstation resuelve DNS y abre TCP/443 hacia fuera.
 
 ---
@@ -173,14 +196,11 @@ workstation resuelve DNS y abre TCP/443 hacia fuera.
 Una workstation de la central hablando con una de la delegación 2:
 
 ```
-  pc-s1-01          rt-s1-core          fw-s1-perim        fw-s2-perim       pc-s2-01
-     │                  │                    │                 │                │
-     │── 10.11.0.1 ────▶│                    │                 │                │
-     │                  │── 10.21.0.1 ──────▶│                 │                │
-     │                  │                    │── 10.99.1.2 ───▶│                │
-     │                  │                    │                 │─ 10.12.0.11 ──▶│
-     │◀────────────────── la respuesta vuelve por donde vino ─────────────────────│
+  pc-s1-01 ──(10.11.0.1)──▶ rt-s1-core ──(10.21.0.1)──▶ fw-s1-perim ──(10.99.1.2)──▶ fw-s2-perim ──(10.12.0.11)──▶ pc-s2-01
+
+  La respuesta vuelve por donde vino.
 ```
+Destino: la delegación 2 (10.12.0.0/24), a través del enlace WAN `10.99.1.0/30`.
 
 Y entre las dos delegaciones, el paquete **pasa por la central**, que es lo que
 dice la topología. Ese detalle es una señal de que esto es hardware real: **el
@@ -215,16 +235,15 @@ no de una vía de gestión metida en las workstations.
 ## Las dos capas
 
 ```
-   CAPA 1 — LA FORMA                          CAPA 2 — LA CONFIGURACIÓN
-   (API HTTPS de Proxmox)                     (dentro de cada invitado)
+   CAPA 1 — LA FORMA (API HTTPS de Proxmox)         CAPA 2 — LA CONFIGURACIÓN (dentro de cada invitado)
 
-     los 18 segmentos (un cable cada uno)       RouterOS ← su API REST HTTP
-     las 8 workstations                                · puentes y puertos
-     los 11 equipos de red                             · direcciones IP
-     infra-bootstrap                                   · servidores DHCP por sede
-        │                                               · rutas entre sedes
-        │                                               · FIREWALL y NAT
-        └── declara la FORMA, nunca la toca ────────┘
+     los 19 segmentos (un cable cada uno)            RouterOS ← su API REST HTTP
+     las 8 workstations                              · puentes y puertos
+     los 12 equipos de red                           · direcciones IP
+     infra-bootstrap                                 · servidores DHCP por sede
+                                                     · rutas entre sedes
+                                                     · FIREWALL y NAT
+     └── declara la FORMA, nunca la toca ────────┘
 ```
 
 - **La capa 1** crea las máquinas y los cables. No entra en ninguna.
@@ -274,7 +293,7 @@ repositorio.
 
 ## Cómo se verifica
 
-`playbooks/tools/lab-check.sh` se ejecuta **dentro de cualquiera de las ocho
+`playbooks/tools/lab-check.sh` se ejecuta **dentro de cualquiera de las 8
 workstations** y comprueba contra todos los demás equipos del laboratorio:
 
 | | Qué comprueba | Dureza |
@@ -284,7 +303,7 @@ workstations** y comprueba contra todos los demás equipos del laboratorio:
 | **camino** | ¿los saltos intermedios son los que predice la topología? | hallazgo |
 | **OOB** | ¿**no** llega al segmento de gestión? (la isla no se toca desde aquí) | dura |
 
-El mismo fichero sirve para las ocho: mira su propia dirección, deduce en qué sede
+El mismo fichero sirve para todas: mira su propia dirección, deduce en qué sede
 está y quién debe ser su puerta de enlace.
 
 La prueba **OOB** va al revés que las demás: se espera que **falle**. El segundo

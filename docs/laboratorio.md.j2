@@ -1,0 +1,343 @@
+<!-- GENERADO por playbooks/tools/documentos.py desde {{ man_rel }}.
+     No editar a mano: edita la plantilla docs/laboratorio.md.j2 y regenera. -->
+# El laboratorio: una empresa de tres sedes
+
+Este repositorio despliega un laboratorio de red que simula **una empresa
+pequeña con una central y dos delegaciones**. No es un dibujo cómodo: está
+construido para comportarse como hardware de verdad, y todo lo que hay dentro
+—máquinas, cables, direcciones, rutas, reglas de firewall— vive declarado en un
+solo fichero.
+
+Todo se gobierna **exclusivamente por la API HTTPS de Proxmox**: ningún playbook
+entra por SSH en el hipervisor, y ningún equipo de red se toca por SSH ni por el
+puerto binario de RouterOS. Los {{ n_equipos_red }} equipos de red se configuran por su **API
+REST**.
+
+---
+
+## La topología
+
+{{ n_invitados }} invitados. El camino de un paquete dentro de una sede es siempre el mismo:
+
+```
+   pc  ──▶  sw  ──▶  rt  ──▶  fw  ──▶  WAN
+   │        │        │        │
+   │        │        │        └─ el firewall filtra el PERÍMETRO
+   │        │        └────────── el router es la PUERTA y el DHCP de su LAN
+   │        └─────────────────── el switch sólo conmuta
+   └──────────────────────────── el PC recibe su dirección por DHCP
+```
+
+```
+{% for s in sedes %}
+  {{ corto[s.id] | upper }}
+{% for e in de_sede(s.id) %}
+    {{ '%-16s' | format(e.n) }}{{ '%-12s' | format(e.rol) }}vmid {{ e.vmid }} · gestión {{ e.gestion or '—' }}
+{% endfor %}
+{% endfor %}
+  SIN SEDE (la red de gestión, su segundo segmento OOB, el borde y la infraestructura)
+{% for e in invitados if not e.sede %}
+    {{ '%-16s' | format(e.n) }}{{ '%-12s' | format(e.rol) }}vmid {{ e.vmid }} · gestión {{ e.gestion or '—' }}
+{% endfor %}
+```
+
+Leído en palabras:
+
+- **En {{ corto[hub] }}** hay {{ de_rol('switch') | selectattr('sede','equalto',hub) | list | length }} switches de acceso unidos por un **troncal** (por eso
+  sus {{ de_rol('workstation') | selectattr('sede','equalto',hub) | list | length }} PCs comparten una sola red), un router que es la puerta de esa LAN y
+  conoce todas las sedes, y **{{ de_rol('firewall') | selectattr('sede','equalto',hub) | list | length + 1 }} firewalls**: el de su sede, que la separa de la
+  WAN, y el de **borde**, que es el único que sale a internet.
+- **En cada delegación** hay un switch (sus PCs), un router (puerta y DHCP de
+  su LAN) y un firewall, que es la boca de la sede hacia fuera.
+- **Todo el tráfico entre sedes pasa por la central**, y el de una delegación
+  hacia internet cruza su firewall, la WAN y el firewall de la central antes de
+  llegar al de borde.
+
+---
+
+## Por qué cada función es una máquina distinta
+
+En la v1, cada sede tenía un router que lo hacía todo. Aquí **conmutar, enrutar y
+filtrar son tres equipos**, y no es un capricho: es lo que hace que cada máquina
+tenga una responsabilidad que se puede leer en su nombre.
+
+| Función | Quién la ejerce | Qué NO hace |
+|---|---|---|
+| **Conmutar** (capa 2) | los switches (`sw-s*`) | no enruta, no filtra, no da DHCP |
+| **Enrutar** dentro de la empresa | los routers (`rt-s*`) | no filtra |
+| **Filtrar** el perímetro | los firewalls (`fw-*`) | no enruta entre sedes |
+
+Y hay una razón para que el DHCP lo sirva el router y no el firewall, aunque no es
+una ley física sino la consecuencia de **una elección**: el DHCP es un **broadcast
+de capa 2** y no cruza un router, así que quien reparte tiene que estar **en el
+mismo segmento** que sus clientes —o, si el servidor vive en otro sitio, un
+**relay** (`ip helper-address`) que lo reenvíe desde ese segmento—. Este
+laboratorio elige el modelo de **rama pequeña**: la puerta de enlace y el servidor
+son el mismo equipo, así que la LAN cuelga de su router y el firewall se pone
+**después**, de cara a la WAN. Con un servidor central y un relay el firewall
+podría ir en medio; también es real, sólo que no es éste. (La v1 tenía el firewall
+entre el switch y el router y el DHCP en el firewall: era válido, con el router de
+relay. Se cambió por **elegir este modelo**, no porque aquél no pudiera funcionar.)
+
+---
+
+## Qué es cada pieza
+
+La numeración tiene cuatro dígitos y se lee de un vistazo: **`STNN`**, donde `S`
+es la sede, `T` el tipo de equipo y `NN` el índice.
+
+| | S = sede | | T = tipo |
+|---|---|---|---|
+| `0` | infraestructura | `1` | firewall |
+| `1` | central | `2` | router |
+| `2` | delegación 2 | `3` | switch |
+| `3` | delegación 3 | `4` | workstation |
+| `9` | borde | `9` | servicio |
+
+Así `1301` es "sede 1, switch, el primero" y `1401` "sede 1, workstation, la
+primera". No hay que consultar nada para saber qué es una máquina y dónde está.
+
+| Máquina | VMID | Tipo | Función | Dirección |
+|---|---|---|---|---|
+{% for e in invitados %}
+| `{{ e.n }}` | {{ e.vmid }} | {{ e.tipo }} | {% if e.sitio == 'borde' %}**firewall de borde**: el único que sale a internet y el único que hace NAT{% elif e.rol == 'workstation' %}workstation de {{ corto[e.sede] }}: PC de usuario, sin vía de gestión{% else %}{{ e.rol }} de {{ corto[e.sede] if e.sede else 'la red de gestión' }}{% endif %} | `{{ e.gestion or '—' }}` |
+{% endfor %}
+
+Los **{{ n_equipos_red }} equipos de red** son **RouterOS CHR** (la versión virtual de RouterOS).
+Las **{{ n_workstations }} workstations** y el bootstrap son **contenedores LXC** de Debian.
+
+---
+
+## El direccionamiento
+
+| Qué | Red | Puerta de enlace |
+|---|---|---|
+| Red de gestión (patas de administración) | `{{ man.lab_mgmt_network }}` | `{{ man.lab_mgmt_gateway }}` (el host Proxmox) |
+| Segundo segmento de gestión (OOB) | `{{ man.lab_mgmt2.red }}` | `{{ man.lab_mgmt2.puerta }}` (el host Proxmox) |
+{% for s in sedes %}
+| LAN de {{ corto[s.id] }} | `{{ s.red }}` | `{{ s.puerta }}` ({{ nombre('rt-s' ~ s.id ~ '-') }}) |
+| Tránsito router ↔ su firewall ({{ corto[s.id] }}) | `{{ s.transito.red }}` | router `{{ s.transito.rt }}` ↔ firewall `{{ s.transito.fw }}` |
+{% endfor %}
+{% for s in sedes if s.id != hub %}
+| Enlace WAN {{ corto[hub] }} ↔ {{ corto[s.id] }} | `{{ s.wan.red }}` | `{{ nombre('fw-s' ~ hub ~ '-') }}` `{{ s.wan.hub }}` ↔ `{{ nombre('fw-s' ~ s.id ~ '-') }}` `{{ s.wan.spoke }}` |
+{% endfor %}
+| Tránsito de borde | `{{ man.lab_edge_network }}` | `{{ nombre('fw-s' ~ hub ~ '-') }}` `{{ man.lab_edge_core }}` ↔ `fw-wan-edge` `{{ man.lab_edge_fw }}` |
+
+Las direcciones de gestión se asignan **por bloques de función** dentro de
+`{{ man.lab_mgmt_network }}`, y el bloque de cada función sale de las direcciones
+que la declaración ya tiene: {% for r, n in [('switch','switches'),('router','routers'),('firewall','firewalls'),('bootstrap','infraestructura')] %}`{{ bloque_txt(r) }}` {{ n }}{{ ', ' if not loop.last else '' }}{% endfor %}.
+(La regla de la v1 —"el último octeto es el VMID"— no cabe con cuatro dígitos, y
+ese `/24` no se puede ampliar sin reconfigurar el host, que no se toca.)
+
+Las workstations **no tienen dirección fija**: se la da por DHCP el **router de su
+sede**, con una reserva atada a su MAC. La reserva no se escribe dos veces: el
+router la **deriva** de la declaración de la propia workstation.
+
+---
+
+## La salida a internet
+
+Este laboratorio **sí sale a internet**, y hay que decir cómo para que no parezca
+magia:
+
+- **El proveedor es el host Proxmox.** Es el único que tiene salida real, y vive
+  en la red de gestión (`{{ man.lab_mgmt_gateway }}`). No se inventa un segmento "ISP".
+- **El firewall de borde** tiene su pata exterior ahí mismo y hace **NAT
+  (masquerade)** para toda la empresa. Su ruta por defecto apunta al host.
+- **Ningún invitado va en `{{ man.pve_public_bridge }}`** (el bridge público del nodo): la salida va por
+  la red de gestión, así que **ninguna máquina del laboratorio queda expuesta** a
+  internet directamente.
+- **El NAT vive sólo en el borde.** Los firewalls de sede filtran pero no
+  traducen: dentro de la empresa las direcciones son las reales, y por eso existen
+  las rutas de vuelta y no hay traducciones anidadas.
+
+Medido, no supuesto: desde `{{ nombre('fw-wan-edge') }}` responde `{{ man.lab_internet_dns }}`; desde la
+LAN de la central y desde las delegaciones se llega a internet; y una
+workstation resuelve DNS y abre TCP/443 hacia fuera.
+
+---
+
+## Por dónde va un paquete
+
+Una workstation de la central hablando con una de la delegación 2:
+
+{% set origen = sede_por_id[1] %}
+{% set destino = sede_por_id[2] %}
+{% set pc_o = de_sede(origen.id) | selectattr('rol','equalto','workstation') | first %}
+{% set pc_d = de_sede(destino.id) | selectattr('rol','equalto','workstation') | first %}
+```
+  {{ pc_o.n }} ──({{ origen.puerta }})──▶ {{ nombre('rt-s' ~ origen.id ~ '-') }} ──({{ origen.transito.fw }})──▶ {{ nombre('fw-s' ~ origen.id ~ '-') }} ──({{ destino.wan.spoke }})──▶ {{ nombre('fw-s' ~ destino.id ~ '-') }} ──({{ pc_d.direccion }})──▶ {{ pc_d.n }}
+
+  La respuesta vuelve por donde vino.
+```
+Destino: {{ corto[destino.id] }} ({{ destino.red }}), a través del enlace WAN `{{ destino.wan.red }}`.
+
+Y entre las dos delegaciones, el paquete **pasa por la central**, que es lo que
+dice la topología. Ese detalle es una señal de que esto es hardware real: **el
+salto intermedio lo anuncia la interfaz del equipo que RECIBE el paquete**, no la
+del que lo envía.
+
+---
+
+## Qué hace que esto se comporte como hardware de verdad
+
+**1. Las workstations son PCs, no contenedores con una pata de gestión.** Cada
+una tiene **una sola interfaz** —el cable RJ45— y **ninguna vía de gestión**. Es
+como se hace en una empresa: un PC toma su dirección por DHCP y la gestión de
+parque es un agente que **sale** hacia fuera, nunca una conexión entrante.
+
+**2. Los switches son switches por su configuración, no por su nombre.** Ponen
+sus patas de datos en un puente de RouterOS y **no le ponen dirección**. Eso es lo
+que los distingue de un router: su dirección vive sólo en su pata de gestión. Un
+switch con dirección en el puente empieza a enrutar y la topología deja de ser la
+del dibujo **sin que nada falle** — el peor tipo de error, porque no se nota.
+
+**3. Los switches llevan puerta de enlace de gestión.** Sin ella reciben los pings
+de su sede y **no pueden contestarlos**: su tabla de rutas sólo conocería la red de
+gestión y no sabría volver.
+
+**4. La red se prueba desde dentro, como lo haría un ingeniero.** La verificación
+sale de los propios equipos (ping, rutas, concesiones DHCP, reglas del firewall),
+no de una vía de gestión metida en las workstations.
+
+---
+
+## Las dos capas
+
+{% set izq = ['los ' ~ n_bridges ~ ' segmentos (un cable cada uno)',
+                'las ' ~ n_workstations ~ ' workstations',
+                'los ' ~ n_equipos_red ~ ' equipos de red',
+                bootstrap[0].n, '', ''] %}
+{% set der = ['RouterOS ← su API REST HTTP', '· puentes y puertos', '· direcciones IP',
+              '· servidores DHCP por sede', '· rutas entre sedes', '· FIREWALL y NAT'] %}
+```
+   CAPA 1 — LA FORMA (API HTTPS de Proxmox)         CAPA 2 — LA CONFIGURACIÓN (dentro de cada invitado)
+
+{% for i in range(6) %}
+     {{ '%-48s' | format(izq[i]) }}{{ der[i] }}
+{% endfor %}
+     └── declara la FORMA, nunca la toca ────────┘
+```
+
+- **La capa 1** crea las máquinas y los cables. No entra en ninguna.
+- **La capa 2** entra en los invitados y los configura. En un RouterOS es
+  **siempre** por su API REST, con `ansible.builtin.uri`: nada de SSH, nada del
+  puerto binario 8728.
+
+Un mismo fichero, `{{ man_rel }}`, declara **todo**.
+
+---
+
+## Cómo se despliega
+
+Un laboratorio **desde cero** necesita este orden, y cada paso existe por una
+razón física:
+
+```bash
+# 1. la forma: segmentos, workstations y equipos de red. Arranca por escalones
+#    (bootstrap -> equipos de red -> workstations).
+ansible-playbook playbooks/apply.yml
+
+# 2. la configuración de los equipos de red (equipos de red PRIMERO: el DHCP de
+#    una LAN lo sirve su router, así que las estaciones dependen de ellos).
+ansible-playbook configure/site.yml
+
+# 3. reiniciar las estaciones: se crearon antes de que su router sirviera DHCP,
+#    así que su cliente se rindió. Con el router ya repartiendo, vuelven a pedir
+#    su dirección y la obtienen.
+
+# 4. ya con las estaciones alcanzables, se configura su interior
+ansible-playbook configure/site.yml
+
+# 5. y se cierra con la verificación de capa 1
+ansible-playbook playbooks/apply.yml
+```
+
+En un laboratorio ya montado, `configure/site.yml` o `apply.yml` sobre un estado
+convergido **no cambian nada** (`changed=0`), y esa es la garantía central del
+repositorio.
+
+> **Un paso que la API no puede dar.** El extremo del túnel de gestión vive en el
+> host Proxmox, y la API no puede configurar el host (sería ejecutar código en el
+> hipervisor). Se pega **una vez** con `playbooks/tools/wg_endpoint_setup.sh`,
+> pasándole las redes de las sedes como último argumento. Es el único paso manual.
+
+---
+
+## Cómo se verifica
+
+`playbooks/tools/lab-check.sh` se ejecuta **dentro de cualquiera de las {{ n_workstations }}
+workstations** y comprueba contra todos los demás equipos del laboratorio:
+
+| | Qué comprueba | Dureza |
+|---|---|---|
+| **alcance** | ¿contesta? | dura |
+| **primer salto** | ¿el primer salto es la puerta de enlace que le toca? | dura |
+| **camino** | ¿los saltos intermedios son los que predice la topología? | hallazgo |
+| **OOB** | ¿**no** llega al segmento de gestión? (la isla no se toca desde aquí) | dura |
+
+El mismo fichero sirve para todas: mira su propia dirección, deduce en qué sede
+está y quién debe ser su puerta de enlace.
+
+La prueba **OOB** va al revés que las demás: se espera que **falle**. El segundo
+segmento de gestión (`{{ man.lab_mgmt2.red }}`, donde vive `{{ nombre('sw-mgmt-') }}`) no es del dominio de
+producción —en un montaje físico es una isla con su propio switch y su propio DHCP—,
+así que una workstation no debe alcanzarlo. El test lo comprueba desde las estaciones
+(que **no** llegan) y desde el operador (que **sí** llega, por el túnel), que es lo
+fiel a lo que te encontrarías con hierro.
+
+---
+
+## Lo que se ve en la interfaz de Proxmox
+
+Cada invitado lleva **tres etiquetas y ni una más**: quién lo gestiona (`ansible-managed`),
+qué es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`) y dónde está
+(`central`, `delegacion`, `borde`, `infra`). Nada de vocabulario que no responda a una
+de esas tres preguntas.
+
+Esas etiquetas están **coloreadas en el datacenter** (opción `tag-style`, declarada en
+`pve_tag_style` y convergida por `apply.yml`). El color dice dos cosas sin abrir nada: el
+**rojo** es "gestionado por este repositorio", y el resto agrupa por función y por sede.
+PVE guarda las etiquetas ordenadas alfabéticamente; el motor compara **conjuntos
+ordenados**, así que el orden en que se declaren no produce deriva.
+
+La **nota** de cada máquina no es un adorno: es HTML y se **genera desde la propia
+declaración** con `playbooks/tools/pve_notas.py`. Lleva la tabla de conexiones (qué pata
+va a qué bridge y con quién la comparte, incluidas las MAC), el direccionamiento, el
+bloque RouterOS ya con sus referencias resueltas, el camino real hasta internet y **por
+qué** cada pieza es como es. Como sale del manifiesto, no puede contradecirlo: si un día
+la nota dijera otro puerto que la declaración, sería el generador el que estaría roto.
+
+---
+
+## Cuánto costó ponerlo en pie
+
+Los dos registros que el motor escribe mientras trabaja —el **diario** de llamadas
+HTTP y el **log** de Ansible— permiten contar el trabajo con números en vez de con
+impresiones: cuántas llamadas se hicieron a cada API, por equipo y por endpoint,
+cuántas tareas se ejecutaron en cada anfitrión y cuánto tardó cada verbo.
+
+**[`ESFUERZO.md`](ESFUERZO.md)** tiene las tablas. No está escrito a mano: lo genera
+`playbooks/tools/esfuerzo.py` a partir de esos dos registros, así que se puede
+volver a generar y auditar cuando haga falta.
+
+## Lo que este laboratorio NO es
+
+- **El contenedor `{{ bootstrap[0].n }}` no es un equipo de la empresa simulada.** Es
+  la herramienta que da a cada equipo de red su primera dirección, en la única
+  ocasión en que no tiene ninguna (la petición DHCP de un RouterOS recién nacido
+  es una difusión, y una difusión no cruza un enlace punto a punto). Una vez cada
+  equipo la tiene, no interviene más.
+- **No hay un segmento "ISP" simulado**: el proveedor es el host real, y la
+  salida va por la red de gestión.
+- **Los invitados que la v1 adoptaba no se recrean.** Quedan fuera de la
+  declaración a propósito; la convergencia nunca borra, así que siguen corriendo
+  hasta que alguien los retire a mano.
+
+---
+
+## Lo que hace el motor, en una frase
+
+Declaras el estado deseado una vez. Cada verbo —`preflight`, `apply`, `connect`,
+`remove`, `configure/site`— compara lo declarado con lo que hay en la plataforma y
+aplica **sólo la diferencia**; si no hay diferencia, no toca nada y lo dice.

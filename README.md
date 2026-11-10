@@ -1,3 +1,5 @@
+<!-- GENERADO por playbooks/tools/documentos.py desde labs/netlab-v2/inventory/group_vars/all.yml.
+     No editar a mano: edita la plantilla docs/README.md.j2 y regenera. -->
 # Proxmox LXC y VM mediante Ansible
 
 IaC declarativo para los contenedores LXC y las máquinas virtuales QEMU de Proxmox

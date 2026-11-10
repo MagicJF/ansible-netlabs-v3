@@ -1204,6 +1204,34 @@ def api_check():
     say(f"PASS: la API sólo se toca por la puerta; {len(_puertas_api())} puertas, 0 fugas")
 
 
+def docs_check():
+    """Los documentos del repositorio, contra la declaración que los genera.
+
+    Un documento escrito a mano es una segunda fuente de verdad, y la que nadie
+    relee: acaba nombrando un puerto que ya no existe o un invitado que se fue.
+    Aquí se compara el documento en disco con su RENDER: si difieren, o alguien
+    editó el documento (que se genera), o cambió la declaración y no se regeneró.
+    """
+    import documentos as _doc
+    say("== docs: los documentos contra la declaración ==")
+    ctx = _doc.contexto(manifiesto())
+    malos = []
+    for plantilla, salida in _doc.DOCUMENTOS:
+        nuevo = _doc.render(plantilla, ctx)
+        ruta = os.path.join(REPO, salida)
+        actual = open(ruta, encoding="utf-8").read() if os.path.exists(ruta) else None
+        if actual != nuevo:
+            malos.append(salida)
+            say(f"  DESFASADO : {salida} — no es el render de docs/{plantilla}")
+        else:
+            say(f"  al día    : {salida}")
+    if malos:
+        fail("hay documentos que no son el render de la declaración; "
+             "ejecuta `python3 playbooks/tools/documentos.py`")
+    say("\nPASS: los documentos son el render de la declaración, no una copia a mano.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     sub = parser.add_subparsers(dest="mode")
@@ -1225,6 +1253,7 @@ def main():
     lm.add_argument("--check", action="store_true",
                     help="solo verificar que el mapa coincide con la declaración")
     sub.add_parser("api", help="la API sólo se toca por la puerta (tools/ + uri), no a mano")
+    sub.add_parser("docs", help="los documentos son el render de la declaración, no copia a mano")
     args = parser.parse_args()
 
     if args.mode == "invariant":
@@ -1245,6 +1274,8 @@ def main():
         return nuevo_lab(args.nombre, args.desde, args.activar)
     if args.mode == "api":
         return api_check()
+    if args.mode == "docs":
+        return docs_check()
     parser.print_help()
     return 2
 
