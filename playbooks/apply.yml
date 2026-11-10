@@ -61,7 +61,12 @@
     # `playbooks/playbooks/tools/...`.
     pve_routeros_wait: "{{ playbook_dir }}/tools/routeros_wait.py"
     pve_start_batch: "{{ playbook_dir }}/tools/pve_start_batch.py"
-    pve_manifest: "{{ playbook_dir }}/../labs/active/inventory/group_vars/all.yml"
+    # El laboratorio es un PARÁMETRO, no una ruta fija: `bin/lab --lab <nombre>`
+    # (o HERMES_LAB) apunta a otro sin tocar el enlace `labs/active`, que queda como
+    # valor por defecto. Así dos topologías se pueden operar a la vez sin voltear el
+    # enlace a mitad de un despliegue —que es como un verbo acaba yendo al
+    # laboratorio equivocado.
+    pve_manifest: "{{ playbook_dir }}/../{{ pve_lab | default('labs/active') }}/inventory/group_vars/all.yml"
     # La nota HTML y las etiquetas de cada invitado, DERIVADAS de la declaración.
     # No están en el manifiesto: se calculan aquí, una vez por pase, y viajan en
     # la especificación efectiva para que el motor las compare contra lo vivo

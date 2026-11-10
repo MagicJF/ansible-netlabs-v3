@@ -926,11 +926,32 @@ Se copia en vez de escribirse de cero porque un manifiesto de {{ n_invitados }} 
 entre sedes. Copiar arrastra lo que de verdad cuesta acertar; lo que se edita después
 es la topología.
 
-`HERMES_LAB` es la pieza que permite validar un laboratorio **sin activarlo**: `labs/active`
-es un enlace y el laboratorio vivo no se toca. Cuando el nuevo cuadre,
-`nuevo-lab --activar` (o `ln -sfn <nombre> labs/active`) reapunta el enlace. Los
-playbooks leen `labs/active` por `ansible.cfg`, así que el siguiente verbo ya opera el
-laboratorio nuevo sin cambiar una línea de código.
+**El laboratorio es un PARÁMETRO del verbo, no una ruta fija**: `bin/lab --lab <nombre>
+<verbo>` (o `HERMES_LAB=labs/<nombre>`, la variable que ya usaba el marco). El enlace
+`labs/active` es sólo el valor por defecto. Eso es lo que permite **operar dos
+laboratorios sin voltear el enlace**: cambiarlo a mitad de un despliegue es como el
+verbo siguiente acaba yendo al laboratorio equivocado.
+
+```bash
+bin/lab --lab delegacion-4 preflight    # sólo lectura, no toca el vivo
+bin/lab --lab delegacion-4 apply        # converge el nuevo
+HERMES_LAB=labs/delegacion-4 bin/lab check
+```
+
+`nuevo-lab --activar` (o `ln -sfn <nombre> labs/active`) reapunta el enlace cuando el
+nuevo ya cuadra, y entonces los verbos sin `--lab` lo operan a él. **Dos laboratorios
+conviven en el mismo nodo si sus espacios son disjuntos** —vmids, MACs, direcciones y
+bridges—; la red de gestión es del NODO y cada uno se cuelga de ella con direcciones
+propias; y el túnel de gestión lo gestiona uno solo (`manage: true`), los demás lo
+reutilizan con `manage: false`. El registro (`logs/`) es del nodo: con dos vivos, el
+diario de API mezcla el tráfico de los dos.
+
+> **Limitación conocida.** El verificador de red (`playbooks/tools/lab-check.sh`) lleva
+> **el mapa de destinos de la topología incrustado a mano**, así que describe un solo
+> laboratorio a la vez (`framework_check.py agree` lo denuncia en cuanto la declaración
+> dice otra cosa, y `labmap` lo regenera). Es una fuga de topología dentro del motor:
+> lo correcto es que ese mapa se **renderice desde la declaración** en cada ejecución y
+> que el script no sepa ninguna dirección.
 
 ## Cómo se comporta el motor
 

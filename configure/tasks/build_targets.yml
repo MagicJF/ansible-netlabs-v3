@@ -20,7 +20,7 @@
     l2_entorno_ruta: >-
       {{ playbook_dir | regex_replace('/(configure|playbooks/tools)$', '') }}/playbooks/vars/entorno.yml
     l2_manifest: >-
-      {{ playbook_dir | regex_replace('/(configure|playbooks/tools)$', '') }}/labs/active/inventory/group_vars/all.yml
+      {{ playbook_dir | regex_replace('/(configure|playbooks/tools)$', '') }}/{{ pve_lab | default('labs/active') }}/inventory/group_vars/all.yml
 
 - name: Look for the machine environment file
   ansible.builtin.stat:

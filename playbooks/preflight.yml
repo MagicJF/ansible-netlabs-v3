@@ -34,7 +34,7 @@
     pve_log_dir: "{{ playbook_dir }}/../logs"
     pve_journal: "{{ playbook_dir }}/../logs/pve-api.jsonl"
     pve_tool: "{{ playbook_dir }}/tools/pve_read.py"
-    pve_manifest: "{{ playbook_dir }}/../labs/active/inventory/group_vars/all.yml"
+    pve_manifest: "{{ playbook_dir }}/../{{ pve_lab | default('labs/active') }}/inventory/group_vars/all.yml"
     # La nota HTML y las etiquetas de cada invitado, DERIVADAS de la declaración
     # (ver el comentario largo en apply.yml, incluido por qué hay que materializar
     # con `to_json | from_json` antes de llamar al filtro).

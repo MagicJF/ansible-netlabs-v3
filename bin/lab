@@ -14,6 +14,10 @@
 #      declara `playbooks/vars/entorno.yml` y las exporta este script: ninguna
 #      queda escrita aquí dentro.
 #
+# Laboratorio: `--lab <nombre>` (o la variable HERMES_LAB) opera OTRA topología sin
+# tocar el enlace `labs/active`. Sin ninguno de los dos, manda el enlace. El nombre
+# vale con `labs/` delante o sin él.
+#
 # Verbos:
 #   entorno [args]   el fichero del entorno: crear, verificar, mostrar, api
 #   preflight        qué cambiaría, sin cambiar nada
@@ -34,6 +38,38 @@ set -euo pipefail
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export ANSIBLE_CONFIG="$RAIZ/ansible.cfg"
 cd "$RAIZ"
+
+# --- el laboratorio: se acepta `--lab N`, `--lab=N` o HERMES_LAB -----------
+LAB="${HERMES_LAB:-}"
+RESTANTES=()
+ESPERANDO_LAB=""
+for arg in "$@"; do
+    case "$arg" in
+        --lab)      ESPERANDO_LAB=1 ;;
+        --lab=*)    LAB="${arg#--lab=}" ;;
+        *)
+            if [ -n "$ESPERANDO_LAB" ]; then LAB="$arg"; ESPERANDO_LAB=""
+            else RESTANTES+=("$arg"); fi
+            ;;
+    esac
+done
+[ "${#RESTANTES[@]}" -gt 0 ] && set -- "${RESTANTES[@]}" || set --
+
+LAB_ARGS=()
+if [ -n "$LAB" ]; then
+    case "$LAB" in
+        labs/*) RUTA_LAB="$LAB" ;;
+        *)      RUTA_LAB="labs/$LAB" ;;
+    esac
+    if [ ! -f "$RUTA_LAB/inventory/hosts.yml" ]; then
+        printf 'No existe %s/inventory/hosts.yml — corre `ls labs/` para ver los que hay.\n' "$RUTA_LAB" >&2
+        exit 2
+    fi
+    # El inventario por `-i` (ansible.cfg no se puede plantillar) y el manifiesto por
+    # variable. HERMES_LAB va exportado para las herramientas del marco, que ya lo leían.
+    export HERMES_LAB="$RUTA_LAB"
+    LAB_ARGS=(-i "$RUTA_LAB/inventory/hosts.yml" -e "pve_lab=$RUTA_LAB")
+fi
 
 VERBO="${1:-}"
 if [ -z "$VERBO" ]; then
@@ -65,12 +101,12 @@ fi
 case "$VERBO" in
     entorno)   exec python3 "$ENTORNO" "$@" ;;
     marco)     exec python3 playbooks/tools/framework_check.py "$@" ;;
-    preflight) exec ansible-playbook playbooks/preflight.yml "$@" ;;
-    apply)     exec ansible-playbook playbooks/apply.yml "$@" ;;
-    remove)    exec ansible-playbook playbooks/remove.yml "$@" ;;
-    connect)   exec ansible-playbook playbooks/connect.yml "$@" ;;
-    site)      exec ansible-playbook configure/site.yml "$@" ;;
-    audit)     exec ansible-playbook configure/audit.yml "$@" ;;
-    check)     exec ansible-playbook playbooks/tools/lab-check.yml "$@" ;;
+    preflight) exec ansible-playbook "${LAB_ARGS[@]}" playbooks/preflight.yml "$@" ;;
+    apply)     exec ansible-playbook "${LAB_ARGS[@]}" playbooks/apply.yml "$@" ;;
+    remove)    exec ansible-playbook "${LAB_ARGS[@]}" playbooks/remove.yml "$@" ;;
+    connect)   exec ansible-playbook "${LAB_ARGS[@]}" playbooks/connect.yml "$@" ;;
+    site)      exec ansible-playbook "${LAB_ARGS[@]}" configure/site.yml "$@" ;;
+    audit)     exec ansible-playbook "${LAB_ARGS[@]}" configure/audit.yml "$@" ;;
+    check)     exec ansible-playbook "${LAB_ARGS[@]}" playbooks/tools/lab-check.yml "$@" ;;
     *) printf 'Verbo desconocido: %s\nCorre `bin/lab` sin argumentos para ver los que hay.\n' "$VERBO" >&2; exit 2 ;;
 esac
