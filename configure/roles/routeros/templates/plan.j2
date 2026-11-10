@@ -66,12 +66,31 @@
     `POST ip/route/add`, which is what the console `/ip route add` maps to.
     Measured against a live CHR, not assumed. -#}
 {%- set decl_routes = cfg.routes | default([]) -%}
+{#- Una ruta DINAMICA no cuenta como declarada: la instalo el cliente DHCP que
+    esta misma convergencia va a retirar, asi que desaparece con el. Si se contara,
+    el plan no la repondria y el equipo se quedaria sin salida — medido: el switch
+    se quedo sin ruta por defecto al retirarle el cliente y dejo de contestar. Las
+    que hoy solo existen como dinamicas se reponen DENTRO del intercambio atomico,
+    que es lo que garantiza que vayan despues de retirar el cliente. -#}
+{%- set swap_needed = (cfg.dhcp_client | default(true) is false)
+                      and (client_ifaces | length > 0 or swap_addresses | length > 0) -%}
+{%- set swap_routes = [] -%}
 {%- for r in decl_routes -%}
-{%-   set found = ros.routes | default([]) | selectattr('dst-address', 'equalto', r.dst_address)
-                 | selectattr('gateway', 'equalto', r.gateway) | list -%}
-{%-   if found | length == 0 -%}
-{%-     set _ = ops.append({'method': 'POST', 'path': 'ip/route/add',
-                            'body': {'dst-address': r.dst_address, 'gateway': r.gateway}}) -%}
+{%-   set static_found = ros.routes | default([])
+        | selectattr('dst-address', 'equalto', r.dst_address)
+        | selectattr('gateway', 'equalto', r.gateway)
+        | selectattr('static', 'defined') | selectattr('static', 'equalto', 'true') | list -%}
+{%-   set dynamic_found = ros.routes | default([])
+        | selectattr('dst-address', 'equalto', r.dst_address)
+        | selectattr('gateway', 'equalto', r.gateway)
+        | selectattr('dynamic', 'defined') | selectattr('dynamic', 'equalto', 'true') | list -%}
+{%-   if static_found | length == 0 -%}
+{%-     if (dynamic_found | length > 0) and swap_needed -%}
+{%-       set _ = swap_routes.append(r) -%}
+{%-     else -%}
+{%-       set _ = ops.append({'method': 'POST', 'path': 'ip/route/add',
+                              'body': {'dst-address': r.dst_address, 'gateway': r.gateway}}) -%}
+{%-     endif -%}
 {%-   endif -%}
 {%- endfor -%}
 
@@ -302,6 +321,11 @@
 {%-   endfor -%}
 {%-   for a in swap_addresses -%}
 {%-     set _ = lines.append('/ip address add address=' ~ a.address ~ ' interface=' ~ a.interface) -%}
+{%-   endfor -%}
+{#- Las rutas que hasta ahora sostenia el cliente retirado: van DESPUES del
+    remove, que es lo unico que garantiza que la ruta dinamica ya no este. -#}
+{%-   for r in swap_routes -%}
+{%-     set _ = lines.append('/ip route add dst-address=' ~ r.dst_address ~ ' gateway=' ~ r.gateway) -%}
 {%-   endfor -%}
 {%-   set _ = ops.append({'method': 'POST', 'path': 'execute',
                           'body': {'script': lines | join('; ')},
