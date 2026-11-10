@@ -5,11 +5,26 @@
 # in a second file.
 #
 # Runs as a task file inside a play on localhost.
+#
+# La capa 2 se entra por DOS sitios: `configure/site.yml` y `configure/audit.yml`
+# (un nivel bajo la raíz) y `playbooks/tools/lab-check.yml` (dos). Y una ruta
+# relativa DENTRO de una acción local se resuelve contra el directorio del
+# PLAYBOOK, no contra el directorio actual — así que `{{ playbook_dir }}/..` daba
+# `playbooks/playbooks/vars/...` al entrar por lab-check y el verbo se negaba a
+# correr. La raíz se calcula una vez, quitando el tramo por el que se entró.
 # ---------------------------------------------------------------------------
+
+- name: Locate the repository root from the playbook's own directory
+  ansible.builtin.set_fact:
+    l2_raiz: "{{ playbook_dir | regex_replace('/(configure|playbooks/tools)$', '') }}"
+    l2_entorno_ruta: >-
+      {{ playbook_dir | regex_replace('/(configure|playbooks/tools)$', '') }}/playbooks/vars/entorno.yml
+    l2_manifest: >-
+      {{ playbook_dir | regex_replace('/(configure|playbooks/tools)$', '') }}/labs/active/inventory/group_vars/all.yml
 
 - name: Look for the machine environment file
   ansible.builtin.stat:
-    path: "{{ playbook_dir }}/../playbooks/vars/entorno.yml"
+    path: "{{ l2_entorno_ruta }}"
   register: l2_entorno
 
 - name: Refuse to configure anything without the machine environment
@@ -25,7 +40,7 @@
 
 - name: Load the machine environment (gitignored)
   ansible.builtin.include_vars:
-    file: ../playbooks/vars/entorno.yml
+    file: "{{ l2_entorno_ruta }}"
 
 - name: Assert the automation private key exists
   ansible.builtin.assert:
@@ -46,6 +61,44 @@
 #   pve_vms             same, for VMs. A VM's address lives inside its own OS, so
 #                       it cannot be derived from the `net` string: it declares
 #                       an explicit `address:` next to its shape.
+# ---------------------------------------------------------------------------
+# ¿A quién NO se le puede exigir todavía que esté en pie?
+#
+# Una estación toma su dirección al arrancar y NO reintenta: si el DHCP de su sede
+# no está en pie, no está encendida —la capa 1 la aplaza a propósito— y pedirle
+# alcance sería pedir algo que este mismo orden impide. Se pregunta con la MISMA
+# sonda que la capa 1 usa para decidir si enciende, en vez de dar por hecho que
+# todo lo declarado tiene que poder contestar ya.
+#
+# Este verbo SALTARÁ a esas estaciones (no hay nada que configurar en lo que no
+# está), y `lab-check` no las saltará —su razón de ser es probarlas— pero su error
+# dirá la verdadera razón en vez de hablar de la clave.
+# ---------------------------------------------------------------------------
+- name: Preguntar si el DHCP de cada sede está en pie
+  ansible.builtin.command:
+    cmd: >-
+      python3 {{ l2_raiz }}/playbooks/tools/routeros_ready.py
+      --manifest {{ l2_manifest }} --json
+  register: l2_dhcp
+  changed_when: false
+  # Salir 1 no es un fallo de la sonda: es la respuesta «todavía no».
+  failed_when: false
+
+- name: Anotar las estaciones que todavía no pueden estar en pie
+  ansible.builtin.set_fact:
+    l2_sin_dhcp: >-
+      {{ ((l2_dhcp.stdout | default('') | trim | from_json).estaciones | default([])
+          | selectattr('problemas', 'ne', []) | map(attribute='hostname') | list)
+         if (l2_dhcp.stdout | default('') | trim) else [] }}
+
+- name: Decidir a quién se deja FUERA de esta ejecución
+  # A nadie, si el verbo es de los que los necesitan: `lab-check` va a probar a las
+  # estaciones, y saltárselas convertiría un test en un verde vacío. Aun así se
+  # quedan anotadas, porque de ahí sale el aviso que explica por qué no contestan.
+  ansible.builtin.set_fact:
+    l2_fuera: >-
+      {{ [] if (l2_exigir_estaciones | default(false) | bool) else (l2_sin_dhcp | default([])) }}
+
 - name: Build the effective VM specs (the CHR defaults merged, as apply.yml does)
   # The declaration of a router merges pve_chr_defaults over pve_vm_defaults, and
   # `manage: true` lives there — so a target scan that reads the RAW entries sees
@@ -140,12 +193,27 @@
     # guest play as a host var, so it is never re-declared per play.
     l2_ssh_key_path: "{{ pve_ssh_key_path }}"
     l2_config: "{{ item.config }}"
-  loop: "{{ l2_targets | selectattr('kind', 'equalto', 'ssh') | list }}"
+    # Se apunta si este invitado es una estación aplazada, para que el aviso de
+    # alcance diga la razón de verdad y no hable de la clave cuando el problema es
+    # que su sede todavía no reparte.
+    l2_aplazada: "{{ item.hostname in (l2_sin_dhcp | default([])) }}"
+  loop: >-
+    {{ l2_targets | selectattr('kind', 'equalto', 'ssh')
+       | rejectattr('hostname', 'in', l2_fuera | default([])) | list }}
   loop_control:
     label: "{{ item.hostname }}"
   # inventory bookkeeping, not infrastructure state: keep the changed count
   # meaningful for the guests themselves.
   changed_when: false
+
+- name: Decir a quién se deja fuera de esta ejecución, y por qué
+  ansible.builtin.debug:
+    msg: >-
+      FUERA DE ESTA EJECUCIÓN: {{ l2_fuera | join(', ') }}. Su sede todavía no sirve
+      DHCP, así que esas estaciones no están encendidas (la capa 1 las aplaza) y no hay
+      nada dentro de ellas que configurar. No es un fallo ni una omisión: es el orden que
+      impone la física. Vuelve a este verbo cuando sus routers ya repartan.
+  when: (l2_fuera | default([])) | length > 0
 
 # A guest that speaks its own API (RouterOS) is not an SSH target: there is no
 # shell to land in, so the role runs HERE and talks to the address directly.

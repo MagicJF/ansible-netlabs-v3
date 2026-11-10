@@ -21,6 +21,11 @@
 - name: lab-check - build the workstation inventory from the declared state
   hosts: localhost
   gather_facts: false
+  vars:
+    # Esta prueba ES sobre las estaciones: saltarse las que todavía no pueden estar
+    # en pie convertiría un test en un verde vacío. Se exigen, y si no están el
+    # error dirá por qué (su sede aún no sirve DHCP), no que falte una clave.
+    l2_exigir_estaciones: true
   tasks:
     - name: Build the configuration targets
       ansible.builtin.include_tasks: ../../configure/tasks/build_targets.yml
@@ -44,6 +49,14 @@
   hosts: lab_workstations
   gather_facts: false
   tasks:
+    # Sin esto, un invitado que no contesta cae del play en el PRIMER task (una
+    # conexión que falla es `unreachable`, y eso saca al host de la ejecución) y el
+    # informe acaba en «sin salida», que no le dice nada a nadie. La guarda ya sabe
+    # distinguir por qué: si es una estación que la capa 1 aplazó porque su sede no
+    # sirve DHCP, lo dice con esas palabras; si no, manda a conceder la clave.
+    - name: Can we reach the guest at all, and if not, why
+      ansible.builtin.include_tasks: ../../configure/tasks/reachability.yml
+
     - name: The check, run where it belongs
       ansible.builtin.script: lab-check.sh
       register: lab_check

@@ -43,10 +43,30 @@
 
           {{ lookup('ansible.builtin.file', l2_ssh_key_path ~ '.pub') | trim }}
 
+# Una estación que la capa 1 ha aplazado NO es un problema de clave: no está
+# encendida porque su sede aún no sirve DHCP, y encenderla antes la dejaría sin
+# dirección. Decirle al operador que «conceda la clave» sería mandarlo a arreglar lo
+# que no está roto.
+- name: Una estación aplazada no está muda por falta de clave
+  ansible.builtin.fail:
+    msg: >-
+      {{ inventory_hostname }} ({{ ansible_host }}) no está en pie TODAVÍA, y no por un
+      problema de acceso: su sede todavía no sirve DHCP, así que su dirección no puede
+      existir (una workstation pide al arrancar y no reintenta; por eso la capa 1 no la
+      enciende). Nada estaba mal declarado y nada se cambió. El paso es el de siempre:
+      `bin/lab site` para que su router reparta, y después `bin/lab apply`, que la
+      enciende y le da su dirección a la primera.
+  when:
+    - not (l2_reachable | bool)
+    - l2_aplazada | default(false) | bool
+
 - name: A guest declared manage true must be reachable
   ansible.builtin.fail:
     msg: "{{ l2_grant_help }}"
-  when: not (l2_reachable | bool) and (l2_manage | bool)
+  when:
+    - not (l2_reachable | bool)
+    - l2_manage | bool
+    - not (l2_aplazada | default(false) | bool)
 
 - name: A guest that is only audited may be unreachable
   ansible.builtin.debug:

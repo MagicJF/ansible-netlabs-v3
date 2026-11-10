@@ -56,6 +56,14 @@ pve_ssh_key_path: <ruta absoluta a la clave privada>
 # también se deriva.
 pve_tunnel_key_path: <ruta absoluta a la clave del túnel>
 
+# --- opciones EXTRA del cliente ssh de Ansible ----------------------------
+# Se AÑADEN a las que declara ansible.cfg (que es donde vive el ControlMaster).
+# En una máquina sana va vacío: ssh lee /etc/ssh/ssh_config y ~/.ssh/config solos.
+# Se declara cuando NO es así — por ejemplo si el ssh del sistema no se puede leer
+# (`-F <ruta del config de ssh de esta máquina>`), que en un contenedor con malos
+# permisos en /etc/ssh pasa y deja a la capa 2 sin poder entrar.
+pve_ssh_args_extra: ""
+
 # --- el entorno de ejecución de Ansible en esta máquina -------------------
 # Dónde deja Ansible sus ficheros de trabajo. Vacío = su sitio habitual
 # (~/.ansible/tmp). Se declara cuando el home no se puede escribir o cuando se

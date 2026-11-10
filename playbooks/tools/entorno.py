@@ -55,6 +55,7 @@ OBLIGATORIAS = (
 OPCIONALES = (
     ("pve_tunnel_key_path", "la clave privada del túnel de gestión (sólo si el laboratorio declara túnel)"),
     ("control_tmp_dir", "dónde deja Ansible sus ficheros de trabajo (vacío = su sitio habitual)"),
+    ("pve_ssh_args_extra", "opciones EXTRA del cliente ssh de Ansible (vacío en una máquina sana)"),
     ("pve_routeros_password", "la contraseña de administración de RouterOS (vacía = la de fábrica)"),
 )
 # De estas claves del entorno salen variables de Ansible. `entorno.py env` las
@@ -284,6 +285,19 @@ def verificar(ruta=None, manifiesto=None, detallado=False):
     return errores, avisos
 
 
+def _ssh_args_del_framework():
+    """Las `ssh_args` que declara ansible.cfg. Se leen del INI tal cual: es la única
+    copia que existe, y ansible-config las devuelve como una lista de Python que
+    habría que re-parsear para nada."""
+    import configparser
+
+    # interpolation=None: el ControlPath de ansible.cfg lleva `%h-%p-%r`, y el
+    # interpolador de configparser se lo come como si fuera una sustitución.
+    cp = configparser.ConfigParser(interpolation=None)
+    cp.read(os.path.join(RAIZ, "ansible.cfg"))
+    return cp.get("ssh_connection", "ssh_args", fallback="").strip()
+
+
 def exports(ruta=None):
     """Las variables de entorno de Ansible que salen del fichero, en sintaxis de shell.
 
@@ -297,6 +311,12 @@ def exports(ruta=None):
             continue
         for nombre in nombres:
             print(f"export {nombre}={shlex.quote(str(valor))}")
+
+    # Las de ssh se COMPONEN: las del framework, más las que añada esta máquina.
+    # Sin extra no se exporta nada y ansible.cfg sigue mandando, como siempre.
+    extra = declarado.get("pve_ssh_args_extra")
+    if extra:
+        print(f"export ANSIBLE_SSH_ARGS={shlex.quote((_ssh_args_del_framework() + ' ' + str(extra)).strip())}")
 
 
 def mostrar(ruta=None):

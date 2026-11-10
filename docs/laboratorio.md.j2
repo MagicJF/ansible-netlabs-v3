@@ -245,10 +245,11 @@ ansible-playbook playbooks/apply.yml
 #    (un CHR reintenta su primer DHCP, así que la coge en cuanto sirve).
 ansible-playbook configure/site.yml --limit localhost,infra-bootstrap
 
-# 3. los equipos de red, y con ellos el DHCP de cada sede. Se limita a ellos a
-#    propósito: las estaciones todavía no pueden estar en pie, y exigirles
-#    alcance ahora sería exigir algo que este mismo orden impide.
-ansible-playbook configure/site.yml --limit localhost,infra-bootstrap,pve_api_targets
+# 3. los equipos de red, y con ellos el DHCP de cada sede. Las estaciones se quedan
+#    FUERA solas: el verbo pregunta por API si su sede sirve DHCP y no exige alcance
+#    a lo que este mismo orden impide que esté en pie. Lo dice al hacerlo, con los
+#    nombres, para que no parezca que se ha olvidado de ellas.
+ansible-playbook configure/site.yml
 
 # 4. ya con el DHCP de las sedes en pie, apply enciende las estaciones: piden su
 #    dirección y la obtienen a la primera. Y verifica la capa 1 completa, que
@@ -258,6 +259,14 @@ ansible-playbook playbooks/apply.yml
 # 5. con las estaciones alcanzables, se configura su interior
 ansible-playbook configure/site.yml
 ```
+
+**El alcance no se le exige a quien este orden impide estar en pie.** La capa 2
+pregunta lo mismo que la capa 1 —¿sirve ya la sede su DHCP?— y salta a las estaciones
+que todavía no pueden existir, diciendo cuáles y por qué. Por eso el paso 3 no
+necesita ningún apaño para esquivarlas: lo hace el verbo. Y `lab-check` NO las salta
+—su razón de ser es probarlas—, pero su error dice la verdad («su sede todavía no
+sirve DHCP», no «concede la clave»), que es la diferencia entre mandar a alguien a
+arreglar lo que no está roto y decirle qué falta.
 
 **Por qué el paso 1 no puede terminar en verde.** `apply.yml` converge el estado
 declarado o falla, y el estado declarado pide los 21 invitados en pie. Un arranque
