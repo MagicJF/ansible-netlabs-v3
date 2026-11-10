@@ -33,10 +33,16 @@
     pve_journal: "{{ playbook_dir }}/../logs/pve-api.jsonl"
     pve_tool: "{{ playbook_dir }}/tools/pve_read.py"
     pve_manifest: "{{ playbook_dir }}/../labs/active/inventory/group_vars/all.yml"
+    # La nota HTML y las etiquetas de cada invitado, DERIVADAS de la declaración
+    # (ver el comentario largo en apply.yml, incluido por qué hay que materializar
+    # con `to_json | from_json` antes de llamar al filtro).
+    pve_notas: >-
+      {{ (pve_containers | to_json | from_json)
+         | notas_map(pve_vms | to_json | from_json, lab_sites | to_json | from_json, lab_hub) }}
     pve_secrets: "{{ playbook_dir }}/vars/secrets.yml"
   environment:
     PYTHONPATH: "{{ playbook_dir }}/tracing"
-    PVE_HTTP_TRACE: "{{ pve_log_dir }}/pve-api.jsonl"
+    API_HTTP_TRACE: "{{ pve_log_dir }}/pve-api.jsonl"
   pre_tasks:
     - name: Look for the local credentials file
       ansible.builtin.stat:
@@ -66,10 +72,12 @@
 
     - name: Build the effective spec of every guest and keep the read
       ansible.builtin.set_fact:
+        # `pve_notas` añade a cada invitado su `description` y sus `tags`, que son
+        # DERIVADOS: no están en la declaración (ver el comentario de apply.yml).
         pve_cts: >-
-          {% set out = [] %}{% for i in pve_containers %}{% set _ = out.append(pve_defaults | combine(i)) %}{% endfor %}{{ out }}
+          {% set out = [] %}{% for i in pve_containers %}{% set _ = out.append(pve_defaults | combine(i) | combine(pve_notas[i.vmid])) %}{% endfor %}{{ out }}
         pve_vm_specs: >-
-          {% set out = [] %}{% for i in pve_vms %}{% set _ = out.append(pve_vm_defaults | combine(pve_chr_defaults if (i.chr | default(false)) else {}) | combine(i)) %}{% endfor %}{{ out }}
+          {% set out = [] %}{% for i in pve_vms %}{% set _ = out.append(pve_vm_defaults | combine(pve_chr_defaults if (i.chr | default(false)) else {}) | combine(i) | combine(pve_notas[i.vmid])) %}{% endfor %}{{ out }}
         pve_read_meta: "{{ pve_read.stdout | from_json }}"
 
     # Same check as apply.yml, and for the same reason: preflight is the verb you

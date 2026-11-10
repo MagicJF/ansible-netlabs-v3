@@ -1,7 +1,7 @@
 """HTTP journal for every Proxmox API call made from an Ansible module process.
 
 How it gets loaded: the playbooks put this directory on PYTHONPATH and set
-PVE_HTTP_TRACE to the target file. CPython imports `sitecustomize` automatically
+API_HTTP_TRACE to the target file. CPython imports `sitecustomize` automatically
 at interpreter start-up, so the trace is armed in every module process before
 the module runs — no change to the modules themselves.
 
@@ -33,7 +33,7 @@ import sys
 import threading
 import time
 
-_TRACE_PATH = os.environ.get("API_HTTP_TRACE") or os.environ.get("PVE_HTTP_TRACE")
+_TRACE_PATH = os.environ.get("API_HTTP_TRACE")
 _SECRET_KEYS = ("password", "token", "secret", "key")
 
 
@@ -79,7 +79,7 @@ def _emit(entry):
             handle.write(line + "\n")
         return True
     except Exception as exc:  # noqa: BLE001 - the reason has to reach the operator
-        _to_stderr(f"PVE_HTTP_TRACE write failed: {type(exc).__name__}: {exc}")
+        _to_stderr(f"API_HTTP_TRACE write failed: {type(exc).__name__}: {exc}")
         return False
 
 

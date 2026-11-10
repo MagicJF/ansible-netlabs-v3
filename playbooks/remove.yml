@@ -57,7 +57,7 @@
     rd_keep_disks: "{{ keep_disks | default(false) | bool }}"
   environment:
     PYTHONPATH: "{{ playbook_dir }}/tracing"
-    PVE_HTTP_TRACE: "{{ playbook_dir }}/../logs/pve-api.jsonl"
+    API_HTTP_TRACE: "{{ playbook_dir }}/../logs/pve-api.jsonl"
   pre_tasks:
     - name: Refuse an unconfirmed or ambiguous destruction
       ansible.builtin.assert:

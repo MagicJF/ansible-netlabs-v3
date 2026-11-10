@@ -26,11 +26,12 @@
 #     'sede1/2/3', con lo que todos los invitados caían en 'infra' y el
 #     diagrama de posición desaparecía sin dar ningún error.
 #
-# Reescribe el manifiesto POR TEXTO (no con PyYAML) para no perder ni un
-# comentario, y es idempotente: la segunda pasada deja el fichero byte a byte
-# igual. Se prueba así sobre una copia antes de tocar el original.
+# Es una BIBLIOTECA: no escribe nada. La nota y las etiquetas se CALCULAN en el
+# momento de usarlas — las llama `filter_plugins/notas.py` desde la
+# construcción de la especificación efectiva (apply.yml / preflight.yml) — así
+# que no queda ningún derivado guardado dentro de la declaración.
 #
-# Uso:  python3 playbooks/tools/pve_notas.py [ruta-del-manifiesto]
+# Uso (inspección):  python3 playbooks/tools/pve_notas.py [--vmid NNNN] [ruta-del-manifiesto]
 # ===========================================================================
 import copy
 import json
@@ -43,14 +44,26 @@ import yaml
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 POR_DEFECTO = os.path.join(AQUI, "..", "..", "labs", "active", "inventory", "group_vars", "all.yml")
-MAN = sys.argv[1] if len(sys.argv) > 1 else os.path.normpath(POR_DEFECTO)
-# El manifiesto con sus referencias RESUELTAS: la tabla de sedes se cita en las
-# fichas (`lab_sede[1].mgmt.rt`) y aqui hacen falta los valores. La resolucion es
-# la misma que usan el resto de herramientas (tools/declaracion.py).
 sys.path.insert(0, AQUI)
 import declaracion  # noqa: E402
 
-man = declaracion.cargar(MAN)
+# El manifiesto con sus referencias RESUELTAS: la tabla de sedes se cita en las
+# fichas (`lab_sede[1].mgmt.rt`) y aqui hacen falta los valores. La resolucion es
+# la misma que usan el resto de herramientas (tools/declaracion.py).
+#
+# `man` es un global porque las funciones de render lo consultan (los cables, las
+# sedes). El FILTRO de Ansible se lo inyecta ya resuelto desde el play, sin leer
+# ficheros; solo la CLI lo carga de disco. Por eso la carga es PEREZOSA: importar
+# este módulo no puede tener efectos — el filtro lo importa en cada ejecución.
+man = None
+
+
+def cargar(ruta=None):
+    """Carga el manifiesto resuelto en el global `man` y lo devuelve."""
+    global man
+    man = declaracion.cargar(ruta or os.path.normpath(POR_DEFECTO))
+    preparar()
+    return man
 
 ENV = jinja2.Environment(undefined=jinja2.StrictUndefined)
 
@@ -72,11 +85,25 @@ ROLES = {"pc-": "workstation", "sw-": "switch", "rt-": "router", "fw-": "firewal
 # etiquetas se resienten. `tag` es el valor de la etiqueta de PVE (el color lo
 # fija `pve_tag_style`), `nombre` el nombre corto y `etiqueta` como se dice en
 # prosa. El hub se declara aparte (`lab_hub`) porque la topologia no es plana.
-SEDES = {int(s["id"]): s for s in (man.get("lab_sites") or [])}
-HUB = int(man.get("lab_hub", 1))
-SITIO = {"sede%d" % i: (s.get("tag") or s.get("nombre")) for i, s in SEDES.items()}
-NOMBRE_SITIO = {"sede%d" % i: (s.get("etiqueta") or s.get("nombre"))
-                for i, s in SEDES.items()}
+#
+# Se calculan en `preparar()` y no al importar: dependen del manifiesto, que
+# unas veces llega de disco (la CLI) y otras inyectado por el play (el filtro).
+SEDES = {}
+HUB = 1
+SITIO = {}
+NOMBRE_SITIO = {}
+
+
+def preparar():
+    """Recalcula lo que depende del manifiesto. Hay que llamarla tras fijarlo."""
+    global SEDES, HUB, SITIO, NOMBRE_SITIO, CABLES, SEDE_POR_NOMBRE
+    SEDES = {int(s["id"]): s for s in (man.get("lab_sites") or [])}
+    HUB = int(man.get("lab_hub") or 1)
+    SITIO = {"sede%d" % i: (s.get("tag") or s.get("nombre")) for i, s in SEDES.items()}
+    NOMBRE_SITIO = {"sede%d" % i: (s.get("etiqueta") or s.get("nombre"))
+                    for i, s in SEDES.items()}
+    CABLES = cables(man)
+    SEDE_POR_NOMBRE = {e["n"]: sede_de(e) for e in todos(man)}
 
 
 def rol(n):
@@ -152,7 +179,8 @@ def cables(man):
     return e
 
 
-CABLES = cables(man)
+# Se calcula en preparar(): depende del manifiesto.
+CABLES = []
 
 
 def punta_de(nombre, bridge):
@@ -211,7 +239,7 @@ def camino_de(sede):
     return camino + ["fw-wan-edge", "internet"]
 
 
-SEDE_POR_NOMBRE = {e["n"]: sede_de(e) for e in todos(man)}
+SEDE_POR_NOMBRE = {}
 
 
 def diagrama(e):
@@ -426,58 +454,24 @@ def tags_de(e):
     return ["ansible-managed", rol(e["n"]), sitio_de(e)]
 
 
-# --------------------------------------------------- reescribir el manifiesto -
-texto = open(MAN).read()
-lineas = texto.split("\n")
+# ------------------------------------------------------------------- CLI -
+# Inspección: imprime lo que PVE enseñará para un invitado (o para todos). Sirve
+# para leer la nota sin abrir la interfaz de Proxmox; no escribe nada.
+def main(argv):
+    args = list(argv[1:])
+    vmid = None
+    if "--vmid" in args:
+        i = args.index("--vmid")
+        vmid = int(args[i + 1])
+        del args[i:i + 2]
+    cargar(args[0] if args else None)
+    for e in todos(man):
+        if vmid is not None and e["vmid"] != vmid:
+            continue
+        print("=== %s (%s)  etiquetas: %s" % (e["n"], e["vmid"], ", ".join(tags_de(e))))
+        print(html(e))
+        print()
 
-# Los límites de cada bloque: "  - vmid: NNNN" hasta el siguiente.
-inicios = [i for i, l in enumerate(lineas) if re.match(r"^  - vmid: \d+$", l)]
-bloques = []
-for k, i in enumerate(inicios):
-    fin = inicios[k + 1] if k + 1 < len(inicios) else len(lineas)
-    bloques.append((i, fin))
 
-cambios = 0
-# En orden INVERSO: cada descripción se inserta desplazando líneas, y así los
-# índices de los bloques que faltan por tratar (que están más arriba) siguen
-# siendo válidos. En orden directo, la primera inserción desfasa todas las
-# siguientes y la búsqueda del bloque empieza a fallar.
-for e in reversed(todos(man)):
-    html_txt = html(e)
-    etiquetas = "[%s]" % ", ".join(tags_de(e))
-    idx = [b for b in bloques
-           if re.match(r"^    (hostname|name): %s$" % re.escape(e["n"]), lineas[b[0] + 1])]
-    if not idx:
-        sys.exit("no encuentro el bloque de " + e["n"])
-    ini, fin = idx[0]
-    # tags
-    ti = [i for i in range(ini, fin) if re.match(r"^    tags: ", lineas[i])]
-    if not ti:
-        sys.exit("no encuentro tags de " + e["n"])
-    lineas[ti[0]] = "    tags: %s" % etiquetas
-    # description (bloque escalar)
-    di = [i for i in range(ini, fin) if re.match(r"^    description:", lineas[i])]
-    cuerpo = ["    description: |"] + ["      " + l for l in html_txt.split("\n")]
-    if di:
-        # La vieja se quita ENTERA: cabecera y todas las líneas más indentadas
-        # que le siguen. Si sólo se quitara la cabecera, al reescribir quedarían
-        # las dos versiones mezcladas — pasó de verdad en una segunda pasada.
-        j = di[0] + 1
-        while j < len(lineas) and (lineas[j].startswith("      ") or lineas[j].strip() == ""):
-            j += 1
-        del lineas[di[0]:j]
-        for n_, l in enumerate(cuerpo):
-            lineas.insert(di[0] + n_, l)
-    else:
-        # detrás de tags
-        for n_, l in enumerate(cuerpo):
-            lineas.insert(ti[0] + 1 + n_, l)
-    cambios += 1
-
-# Se escribe sin espacios al final de línea: las líneas en blanco de la nota
-# llevan la sangría del bloque, y eso es lo que hacía que `yaml[trailing-spaces]`
-# señalara 142 líneas del manifiesto — todas dentro de un `description:`, o sea
-# todas del generador. Un espacio al final no significa nada en el HTML, así que
-# se recorta al escribir y el manifiesto queda limpio para el linter.
-open(MAN, "w").write("\n".join(l.rstrip() for l in lineas))
-print("reescritos %d invitados" % cambios)
+if __name__ == "__main__":
+    main(sys.argv)

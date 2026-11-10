@@ -846,6 +846,12 @@ def notas_check():
       4. que no se invente una MAC donde la declaración no declara ninguna
       5. que las etiquetas sean exactamente las tres: quién, qué y dónde
       6. que ninguna nota se haya quedado con una referencia Jinja sin resolver
+
+    Y una cosa más, que es la regla: que NINGÚN invitado guarde `description` ni
+    `tags` en la declaración. Son derivados y se calculan (aquí y en el
+    despliegue, con el mismo generador); guardarlos era tener una caché dentro de
+    la fuente de verdad, y una caché dentro de la fuente de verdad se queda vieja
+    sin decirlo.
     """
     say("== notas: la nota de cada invitado contra la declaración ==")
     # La declaración RESUELTA: el `net0` de un invitado es una plantilla
@@ -854,6 +860,25 @@ def notas_check():
     man = manifiesto()
     invitados = ([(c, "LXC", c["hostname"]) for c in man["pve_containers"]]
                  + [(v, "CHR", v["name"]) for v in man["pve_vms"]])
+
+    guardados = [n for g, _t, n in invitados if "description" in g or "tags" in g]
+    if guardados:
+        for n in guardados:
+            say(f"  {n}: declara `description`/`tags`, que son DERIVADOS de la declaración")
+        fail(f"{len(guardados)} invitado(s) guardan algo derivado en la declaración: "
+             "la nota y las etiquetas se CALCULAN, no se almacenan")
+
+    # Se generan aquí con el MISMO generador que usa el despliegue
+    # (filter_plugins/notas.py -> playbooks/tools/pve_notas.py), así que lo que
+    # esta comprobación aprueba es exactamente lo que PVE va a recibir.
+    sys.path.insert(0, os.path.join(REPO, "playbooks", "tools"))
+    import pve_notas as _notas  # noqa: E402
+    _notas.man = {"pve_containers": man["pve_containers"], "pve_vms": man["pve_vms"],
+                  "lab_sites": man.get("lab_sites") or [],
+                  "lab_hub": man.get("lab_hub")}
+    _notas.preparar()
+    generadas = {e["vmid"]: {"description": _notas.html(e), "tags": _notas.tags_de(e)}
+                 for e in _notas.todos(_notas.man)}
 
     cables = {}
     for g, tipo, nombre in invitados:
@@ -873,10 +898,10 @@ def notas_check():
 
     fallos = []
     for g, tipo, nombre in sorted(invitados, key=lambda x: x[0]["vmid"]):
-        desc = g.get("description") or ""
+        desc = generadas[g["vmid"]]["description"]
         if "{{" in desc or "{%" in desc:
             fallos.append(f"{nombre}: la nota se quedó con una referencia Jinja sin resolver")
-        live = sorted(t.strip() for t in (g.get("tags") or []) if t.strip())
+        live = sorted(t.strip() for t in generadas[g["vmid"]]["tags"] if t.strip())
         if live != etiquetas_esperadas(nombre):
             fallos.append(f"{nombre}: etiquetas {live}, esperadas {etiquetas_esperadas(nombre)}")
         blk = re.search(r"<b>CONEXIONES</b>\s*<table>(.*?)</table>", desc, re.S)

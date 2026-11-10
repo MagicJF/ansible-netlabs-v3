@@ -79,7 +79,8 @@ playbooks/tools/framework_check.py     # el test del propio marco: convergente, 
 playbooks/tools/documentos.py          # renderiza los documentos del repo desde la declaración
 playbooks/tools/declaracion.py         # motor: resuelve la declaración (el render de Ansible) para las herramientas
 docs/*.md.j2                           # las plantillas de esos documentos (prosa + valores del manifiesto)
-playbooks/tools/pve_notas.py           # motor: genera la nota HTML y las etiquetas, desde la declaración
+playbooks/tools/pve_notas.py           # motor: compone la nota HTML y las etiquetas (no las guarda)
+filter_plugins/notas.py                # motor: deriva nota y etiquetas al construir la especificación de cada invitado
 playbooks/tools/logs_prune.py          # motor: retención de logs/, la aplica cada verbo
 playbooks/tools/esfuerzo.py            # genera ESFUERZO.md desde los registros reales
 playbooks/tools/lab-check.sh           # verificación end-to-end de la red, desde dentro de una workstation
@@ -255,8 +256,8 @@ Declarado por contenedor, heredado de `pve_defaults` salvo que se sobrescriba:
 | `status` | `stopped` por defecto, `started` por invitado | sí — el contenedor se para/arranca para coincidir |
 | `cmode` | `shell` | sí |
 | `timezone` | `host` | sí |
-| `description` | nota HTML, **generada** por `playbooks/tools/pve_notas.py` | sí |
-| `tags` | `[ansible-managed, <rol>, <sede>]` — tres, ni una más | sí |
+| `description` | **DERIVADA**: la nota HTML la calcula `filter_plugins/notas.py` al construir la especificación. NO está en el manifiesto: una copia guardada es una caché dentro de la fuente de verdad, y se queda vieja | sí |
+| `tags` | **DERIVADAS**: `[ansible-managed, <rol>, <sede>]`, tres ni una más, por el mismo filtro | sí |
 | `features`, `startup` | `[]` (no deben existir) | sí — se borran si están |
 | `netif` | `{}` por defecto; declarado por invitado | sí — se crean las interfaces declaradas y se borran las que no lo estén |
 | `mounts`, `mount_devices` | `{}`, `[]` (no deben existir) | sí — se borran si están |
@@ -842,9 +843,11 @@ no basta: tienen que crearse en el orden correcto. Es la comprobación que siemp
 correr, y es la razón por la que las reglas salen en orden.
 
 **¿La nota sigue diciendo la verdad?** `framework_check.py notas` tampoco necesita
-laboratorio. La nota en la interfaz de PVE es HTML y está *generada* desde la
-declaración (`pve_notas.py`), así que la comprobación lee la nota y la declaración y
-exige que el CONTENIDO de la nota cuadre: una fila por pata declarada con su bridge y su MAC, el vecino real en cada
+laboratorio, y comprueba dos cosas. Primero **la regla**: que ningún invitado guarde
+`description` ni `tags` en el manifiesto — son derivados y se calculan, y guardarlos
+es tener una caché dentro de la fuente de verdad. Segundo **el contenido**: la nota es
+HTML que genera `filter_plugins/notas.py`, así que la comprobación la renderiza con el
+MISMO generador que usa el despliegue y exige que cuadre: una fila por pata declarada con su bridge y su MAC, el vecino real en cada
 cable punto a punto, el segmento de gestión compartido descrito como segmento
 compartido en vez de nombrar un vecino de doce, y exactamente las tres etiquetas (quién
 lo gestiona, qué es, dónde está). Nada más puede pillar esta clase de error: una nota

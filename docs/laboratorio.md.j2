@@ -301,8 +301,11 @@ Esas etiquetas están **coloreadas en el datacenter** (opción `tag-style`, decl
 PVE guarda las etiquetas ordenadas alfabéticamente; el motor compara **conjuntos
 ordenados**, así que el orden en que se declaren no produce deriva.
 
-La **nota** de cada máquina no es un adorno: es HTML y se **genera desde la propia
-declaración** con `playbooks/tools/pve_notas.py`. Lleva la tabla de conexiones (qué pata
+La **nota** de cada máquina no es un adorno: es HTML y se **deriva** de la propia
+declaración (`filter_plugins/notas.py`, con el generador de
+`playbooks/tools/pve_notas.py`) en el momento de desplegarla; **no está guardada en el
+manifiesto**, porque una copia guardada es una caché dentro de la fuente de verdad y un
+día se queda vieja sin decirlo. Lleva la tabla de conexiones (qué pata
 va a qué bridge y con quién la comparte, incluidas las MAC), el direccionamiento, el
 bloque RouterOS ya con sus referencias resueltas, el camino real hasta internet y **por
 qué** cada pieza es como es. Como sale del manifiesto, no puede contradecirlo: si un día
