@@ -137,6 +137,29 @@ lab_sede: "{{ dict(lab_sites | map(attribute='id') | zip(lab_sites)) }}"
 # infraestructura (da la primera direccion a cada equipo de red) y el firewall
 # de borde. Se declaran aqui por el mismo motivo que las de sede: una vez, y
 # las fichas las citan.
+# ---------------------------------------------------------------------------
+# SEGUNDO SEGMENTO DE GESTION (OOB) — su puerta es el HOST, 10.20.20.1/24
+#
+# Por que existe: el primer segmento de gestion esta justo ENCIMA de la puerta
+# del host. Eso hace que, para alcanzarlo desde el tunel, baste con estar en el
+# mismo segmento; no hace falta anadirle rutas al host. Este segundo segmento NO
+# esta encima de la puerta: para llegar a el desde el tunel hace falta una ruta
+# en el host — y por eso su bridge lleva direccion. El host enruta lo que tiene
+# conectado, asi que su direccion en el bridge ES la puerta del segmento.
+#
+# El bootstrap lo sirve igual que el primero: su net1 esta en este bridge y su
+# dnsmasq reparte en los dos. Un equipo NUEVO aqui nace con su primera direccion
+# sin que nadie la escriba a mano — que es el trabajo real del bootstrap.
+# ---------------------------------------------------------------------------
+lab_mgmt2:
+  bridge: vmbr22
+  red: "10.20.20.0/24"
+  prefijo: "10.20.20.0/24"
+  puerta: "10.20.20.1"
+  pool: "10.20.20.100-10.20.20.200"
+  bootstrap: "10.20.20.41"
+  reserva: "10.20.20.11"
+
 lab_mgmt_otros:
   infra: "10.10.10.41"
   borde: "10.10.10.34"
@@ -269,6 +292,9 @@ pve_bridges:
     comments: "cable: sw-s3-acc-01 ether4 <-> rt-s3-edge ether2 (LA LAN DE LA SEDE 3, 10.13.0.0/24)"
   - iface: vmbr21
     comments: "cable: rt-s3-edge ether3 <-> fw-s3-perim ether2 (transito 10.23.0.0/30)"
+  - iface: vmbr22
+    comments: "SEGUNDO SEGMENTO DE GESTION (OOB): la puerta es el host 10.20.20.1/24"
+    address: "10.20.20.1/24"
 
 # ---------------------------------------------------------------------------
 # CONTENEDORES (LXC)
@@ -356,6 +382,7 @@ pve_containers:
       <table>
        <tr><th>Pata</th><th>Interfaz</th><th>Cable (bridge)</th><th>MAC</th><th>Al otro extremo</th></tr>
        <tr><td>net0</td><td>eth0</td><td><code>vmbr1</code></td><td>—</td><td>segmento compartido (12 patas)</td></tr>
+       <tr><td>net1</td><td>eth1</td><td><code>vmbr22</code></td><td>—</td><td>sw-mgmt-01</td></tr>
       </table>
       
       Cada cable es un <b>bridge de Proxmox sin puerto físico</b>: un segmento de capa 2. Este invitado tiene una pata en un <b>segmento compartido</b> (<code>vmbr1</code>), donde no hay un "otro extremo" único: ahí cuelgan las patas de administración de todos los equipos de red. Sus demás cables son punto a punto, con exactamente dos patas. Nada en el invitado sabe quién está al otro lado: lo aprende, igual que el hardware real.
@@ -381,10 +408,22 @@ pve_containers:
       </ul>
     netif:
       net0: "name=eth0,bridge=vmbr1,gw=10.10.10.1,ip={{ lab_mgmt_otros.infra }}/24"
+      net1: "name=eth1,bridge=vmbr22,ip={{ lab_mgmt2.bootstrap }}/24,gw={{ lab_mgmt2.puerta }}"
     manage: true
     config:
       bootstrap:
         interface: eth0
+        segments:
+          - interface: eth0
+            bridge: vmbr1
+            red: "{{ lab_control_network }}"
+            gateway: "{{ lab_mgmt_gateway }}"
+            pool: "{{ lab_mgmt_otros.infra }}"
+          - interface: eth1
+            bridge: vmbr22
+            red: "{{ lab_mgmt2.red }}"
+            gateway: "{{ lab_mgmt2.puerta }}"
+            pool: "{{ lab_mgmt2.pool }}"
         # A qué tiene que saber VOLVER: las redes de las tres sedes. Sin esto
         # recibe los pings de una workstation y no puede contestarlos, porque su
         # ruta por defecto va al host y el host no enruta hacia el interior. El
@@ -958,6 +997,36 @@ pve_chr_defaults:
   tags: [netlab, routeros, red, ansible-managed]
 
 pve_vms:
+  - vmid: 3401
+    name: sw-mgmt-01
+    chr: true
+    tags: [ansible-managed, switch, infra]
+    description: |
+      <b>sw-mgmt-01</b> — el switch del segundo segmento de gestion (OOB).
+      Es L2 puro: su puerta es el host y su direccion de gestion sale de el.
+      Nace SIN direccion escrita a mano: se la da el bootstrap en su primera
+      difusion, y desde ahi se configura por API como cualquier otro equipo.
+
+      <b>CONEXIONES</b>
+      <table>
+       <tr><th>pata</th><th>interfaz</th><th>bridge</th><th>MAC</th><th>vecino</th></tr>
+       <tr><td>net0</td><td>eth0</td><td><code>vmbr22</code></td><td>BC:24:11:00:20:01</td><td>infra-bootstrap</td></tr>
+      </table>
+    net:
+      net0: "virtio=BC:24:11:00:20:01,bridge=vmbr22"
+    config:
+      routeros:
+        identity: sw-mgmt-01
+        addresses:
+          - address: "{{ lab_mgmt2.reserva }}/24"
+            interface: ether1
+        bridges:
+          - name: lan
+            ports: [ether2, ether3]
+        dhcp_client: false
+        routes:
+          - dst_address: "0.0.0.0/0"
+            gateway: "{{ lab_mgmt2.puerta }}"
   # ==========================================================================
   # SWITCHES (ST = 3S) — conmutan. No enrutan, no filtran y NO dan DHCP.
   #
