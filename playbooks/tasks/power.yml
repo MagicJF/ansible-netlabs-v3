@@ -47,6 +47,28 @@
   register: paso_espera
   changed_when: false
   when: paso.routeros | length > 0
+  # Un equipo que este MISMO verbo acaba de crear no puede tener todavía la
+  # dirección que le da un DHCP que la capa 2 no ha configurado aún: esperar a que
+  # la tenga es esperar a que ocurra algo que nadie ha hecho posible todavía. Se
+  # espera igual —si el bootstrap ya servía, contesta en segundos, y así se confirma
+  # en el caso bueno—, pero si no llega y TODOS los equipos del escalón son recién
+  # nacidos, eso es un "todavía no" y no un fallo. Un equipo que YA EXISTÍA y no
+  # contesta sí es un fallo: ahí la espera es una guarda de verdad.
+  failed_when: >-
+    paso_espera.rc | default(0) != 0 and not (paso.nacido | default(false) | bool)
+
+- name: Decir por qué NO se espera a los equipos de red de este escalón
+  ansible.builtin.debug:
+    msg: >-
+      Los equipos de red de este escalón ({{ paso.nombres | join(', ') }}) son recién
+      nacidos y aún no contestan: su primera dirección de gestión la da el bootstrap,
+      que configura la capa 2. Se quedan pidiéndola — un CHR reintenta su primer DHCP —
+      y la cogen solos en cuanto el bootstrap sirva. Siguiente paso:
+      `configure/site.yml --limit localhost,infra-bootstrap`.
+  when:
+    - paso.routeros | length > 0
+    - paso.nacido | default(false) | bool
+    - paso_espera.rc | default(0) != 0
 
 - name: Dar a este escalón, antes del siguiente, el margen que declara
   # Sólo para lo que no tiene una señal propia que consultar: el escalón del

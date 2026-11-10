@@ -30,7 +30,11 @@
                      | map(attribute='ip-address', default='') | list)
   retries: "{{ lab_address_retries }}"
   delay: "{{ lab_address_delay }}"
-  loop: "{{ pve_cts | selectattr('site', 'defined') | list }}"
+  # A una estación que este verbo ha decidido NO encender no se le puede exigir su
+  # dirección: se queda fuera de la guarda a propósito (ver `apply.yml`, donde se
+  # apunta por qué se quedó sin encender).
+  loop: "{{ pve_cts | selectattr('site', 'defined')
+            | rejectattr('vmid', 'in', lab_estaciones_diferidas | default([])) | list }}"
   loop_control:
     label: "{{ item.hostname }} wants {{ item.address }}"
   when: item.status | default('started') == 'started'

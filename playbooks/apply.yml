@@ -391,9 +391,15 @@
           {% set direccion = (direcciones | first | default({}, true)).address | default('') %}
           {% set _ = sueltos.append({'order': o, 'vmid': c.vmid,
                                      'nombre': c.name | default(c.hostname),
-                                     'routeros': (direccion.split('/')[0] if direccion else '')}) %}
+                                     'routeros': (direccion.split('/')[0] if direccion else ''),
+                                     'estacion': (c.site | default('', true) | length > 0),
+                                     'recien': (not pve_plan[c.vmid | string].exists)}) %}
           {% endif %}
           {% endfor %}
+          {#- `equalto, true` EXPLÍCITO en los selectattr de abajo: `selectattr('x')`
+              sin test NO selecciona por veracidad — Jinja malinterpreta el argumento,
+              y como esto vive dentro de un `{% set %}`, el error se traga y la lista
+              sale vacía sin avisar. Costó una ejecución. -#}
           {% set escalones = [] %}
           {% for o in sueltos | map(attribute='order') | list | unique | sort %}
           {% set suyos = sueltos | selectattr('order', 'equalto', o) | list %}
@@ -402,6 +408,10 @@
                  'vmids': suyos | map(attribute='vmid') | list,
                  'nombres': suyos | map(attribute='nombre') | list,
                  'routeros': suyos | map(attribute='routeros') | select('ne', '') | list,
+                 'estaciones': suyos | selectattr('estacion', 'equalto', true)
+                               | map(attribute='vmid') | list,
+                 'nacido': (suyos | selectattr('recien', 'equalto', true) | list | length
+                            == suyos | length),
                  'espera': (pve_power_gap_after.get(o, 0) if not loop.last else 0)}) %}
           {% endfor %}
           {{ {'escalones': escalones, 'parar': parar} | to_json }}
@@ -526,6 +536,42 @@
     # Va después de crear ambos tipos porque la llamada en bloque es de Proxmox y
     # necesita que existan. Y va por escalones precisamente por el orden: es lo que
     # evita que una workstation pida su dirección antes de que su router escuche.
+    # ---- ¿puede encenderse una estación? ---------------------------------
+    # Una workstation NO reintenta su DHCP: pide al arrancar, se rinde, y no vuelve
+    # a preguntar. Encenderla antes de que su router sirva la condena a quedarse sin
+    # dirección hasta que alguien la reinicie a mano — que era exactamente el paso
+    # manual que el procedimiento tenía ("reiniciar las estaciones"). Aquí se
+    # pregunta antes en vez de arreglarlo después: si el DHCP que va a responderle no
+    # está en pie, el escalón de las estaciones no se enciende y se dice por qué.
+    #
+    # Un CHR es distinto y por eso NO pasa por esta puerta: su cliente de primer
+    # arranque reintenta, así que se le enciende y se le deja pidiendo.
+    - name: Preguntar si está en pie el DHCP que va a responder a las estaciones
+      ansible.builtin.command:
+        cmd: >-
+          python3 {{ playbook_dir }}/tools/routeros_ready.py
+          --manifest {{ pve_manifest }} --json
+      register: lab_dhcp_estaciones
+      changed_when: false
+      # Salir 1 aquí no es un fallo del verbo: es la respuesta "todavía no", y es la
+      # que decide si las estaciones se encienden o se quedan esperando.
+      failed_when: false
+
+    - name: Leer la respuesta
+      ansible.builtin.set_fact:
+        lab_estaciones_listas: >-
+          {{ (lab_dhcp_estaciones.stdout | default('') | trim | from_json).listo
+             if (lab_dhcp_estaciones.stdout | default('') | trim) else false }}
+
+    - name: Decir si las estaciones pueden encenderse
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'El DHCP de las estaciones está en pie: se encienden.'
+             if lab_estaciones_listas | bool else
+             'El DHCP de las estaciones NO está en pie todavía: no se enciende ninguna
+             workstation (una workstation no reintenta su DHCP). Configure los equipos de
+             red con `configure/site.yml` y repita este verbo.' }}
+
     - name: Subir la energía escalón a escalón, con su margen entre uno y el siguiente
       # El arranque, la espera de su tarea y el margen tienen que ir en el MISMO
       # recorrido. Estaban en tareas distintas con `loop`, y Ansible recorre primero
@@ -537,6 +583,33 @@
       loop_control:
         loop_var: paso
         label: "order={{ paso.order }}: {{ paso.nombres | join(', ') }}"
+      # El ÚNICO escalón que puede quedar esperando es el de las estaciones, y sólo
+      # mientras su router no sirva. Lo que no se enciende, luego no se le exige.
+      when: paso.estaciones | length == 0 or (lab_estaciones_listas | bool)
+
+    - name: Decir qué escalón se queda esperando, y por qué
+      ansible.builtin.debug:
+        msg: >-
+          Escalón order={{ paso.order }} ({{ paso.nombres | join(', ') }}) NO se enciende:
+          sus estaciones piden su dirección a un router que todavía no sirve DHCP, y una
+          workstation no reintenta — encenderla ahora la dejaría sin dirección hasta
+          reiniciarla. Queda declarada y sin arrancar. Siguiente paso: `configure/site.yml`
+          (equipos de red) y repetir `apply.yml`.
+      loop: "{{ pve_power.escalones }}"
+      loop_control:
+        loop_var: paso
+        label: "order={{ paso.order }}"
+      when: paso.estaciones | length > 0 and not (lab_estaciones_listas | bool)
+
+    - name: Recordar qué estaciones se quedaron sin encender
+      # La guarda de direcciones de más abajo exige a TODA estación declarada que
+      # tenga la suya. A una que este verbo ha decidido no encender no se le puede
+      # exigir nada: se apunta aquí para que la guarda la deje en paz.
+      ansible.builtin.set_fact:
+        lab_estaciones_diferidas: >-
+          {{ pve_power.escalones | selectattr('estaciones', 'defined')
+             | map(attribute='estaciones') | flatten | list
+             if not (lab_estaciones_listas | bool) else [] }}
 
     - name: Parar en bloque lo que la declaración quiere parado
       # Aquí SÍ una sola llamada: `stopall` invierte el orden por su cuenta, que es
@@ -642,7 +715,11 @@
           - b.mismatched | length == 0
           - b.forbidden_present | length == 0
           - b.creation_time_drift | length == 0
-          - not b.power_drift
+          # La energía se le exige a TODOS... salvo a la estación que este verbo ha
+          # decidido aplazar a propósito porque su sede aún no sirve DHCP. A esa se le
+          # sigue exigiendo todo lo demás (su ficha tiene que estar bien); que siga
+          # apagada se declara aparte, en voz alta, unas líneas más abajo.
+          - (not b.power_drift) or (vmid in lab_estaciones_diferidas | map('string') | list)
         fail_msg: >-
           VMID {{ vmid }} does not match labs/netlab-v2/inventory/group_vars/all.yml after apply:
           mismatched={{ b.declared_subset | to_json }} vs live={{ b.actual_subset | to_json }},
@@ -658,6 +735,28 @@
       loop: "{{ pve_plan_after | dict2items }}"
       loop_control:
         label: "VMID {{ item.key }}"
+
+    # Un arranque en frío no puede terminar en verde con invitados declarados en pie y
+    # fuera de la red. Pero "fuera de la red" porque su router aún no sirve NO es una
+    # desviación: es la física — una workstation no reintenta su DHCP, así que
+    # encenderla antes la dejaría muda hasta reiniciarla a mano. Eso se declara con
+    # todas las letras y con el paso exacto que falta; lo que no se hace es callarlo.
+    - name: Declarar lo que esta ejecución deja sin converger (y por qué)
+      ansible.builtin.assert:
+        that: lab_estaciones_diferidas | length == 0
+        fail_msg: >-
+          APLAZADAS: {{ lab_estaciones_diferidas | length }} estación(es) declaradas ARRANCADAS
+          siguen SIN ENCENDER porque su sede todavía no sirve DHCP. ESTA EJECUCIÓN NO DEJA EL
+          LABORATORIO COMPLETO: la declaración pide 21 invitados en pie y hay
+          {{ lab_estaciones_diferidas | length }} menos (VMID {{ lab_estaciones_diferidas | join(', ') }}).
+          No es una desviación de la declaración ni un fallo del despliegue: es el orden que
+          impone la física — una workstation pide su dirección al arrancar, no reintenta, y
+          encenderla antes de que su router lo sirva la dejaría sin dirección hasta reiniciarla
+          a mano. Siguiente paso: `configure/site.yml` (equipos de red) y repetir `apply.yml`,
+          que entonces sí enciende las estaciones y las pone en la red a la primera.
+        success_msg: >-
+          Nada aplazado: la declaración completa está en pie y verificada.
+      when: lab_estaciones_diferidas | length > 0
 
     # Observability is only real if it is checked: a trace that quietly stopped
     # working must fail the run, not produce empty logs.
