@@ -4,7 +4,9 @@
 #
 # This is NOT the lab's DHCP server. It hands ONE address to ONE machine: the
 # router, on the single occasion the router has no address at all.
-interface={{ bootstrap_interface }}
+{% for s in l2_bootstrap_segments -%}
+interface={{ s.interface }}
+{% endfor -%}
 bind-interfaces
 # No DNS: this container is not a resolver, and dnsmasq would otherwise answer
 # port 53 on the management LAN.
@@ -15,10 +17,14 @@ port=0
 # container from racing the host's own DHCP server for any other machine on the
 # segment — the same effect as the `dhcp-ignore=tag:!known` it replaces, said in
 # the one line that was needed anyway.
-dhcp-range={{ bootstrap_hosts[0].address }},static,{{ bootstrap_netmask }},{{ bootstrap_lease_time }}
-{% for h in bootstrap_hosts %}
-# {{ h.name | default('router') }}
+# Una RANGE por segmento. dnsmasq ata cada range a la interfaz por la subred de la
+# direccion, asi que declarar dos segmentos no los mezcla.
+{% for s in l2_bootstrap_segments %}
+dhcp-range={{ s.hosts[0].address }},static,{{ bootstrap_netmask }},{{ bootstrap_lease_time }}
+{% for h in s.hosts %}
+# {{ h.name | default('router') }} ({{ s.interface }})
 dhcp-host={{ h.mac }},{{ h.address }}
+{% endfor %}
 {% endfor %}
 
 # No router and no DNS options: the only thing this hands over is an address.

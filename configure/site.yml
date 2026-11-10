@@ -204,6 +204,10 @@
       vars:
         bootstrap_interface: "{{ (l2_config.bootstrap | default({})).interface | default('eth0') }}"
         bootstrap_hosts: "{{ (l2_config.bootstrap | default({})).hosts | default([]) }}"
+        # La forma de VARIOS segmentos. Si no se declara, el rol usa el bloque de
+        # un solo segmento de arriba: los dos declaran lo mismo, sólo que uno
+        # admite más de una interfaz (ver roles/bootstrap/defaults/main.yml).
+        bootstrap_segments: "{{ (l2_config.bootstrap | default({})).segments | default([]) }}"
         bootstrap_routes: "{{ (l2_config.bootstrap | default({})).routes | default([]) }}"
         bootstrap_route_gateway: "{{ (l2_config.bootstrap | default({})).route_gateway | default('') }}"
       when:

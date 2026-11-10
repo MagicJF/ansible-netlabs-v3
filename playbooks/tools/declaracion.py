@@ -39,16 +39,33 @@ def crudo(ruta):
     return yaml.safe_load(open(ruta, encoding="utf-8")) or {}
 
 
-def _resolver(x, env, ctx):
+def _resolver(x, env, ctx, _prof=0):
+    """Resuelve en CASCADA, que es como renderiza Ansible.
+
+    Un valor no se queda resuelto por renderizar su propia cadena: el `hosts` del
+    bootstrap es una plantilla que LEE `pve_vms`, y las direcciones de `pve_vms`
+    son a su vez plantillas contra la tabla de sedes. Con una sola pasada, la
+    lista de reservas salía con `{{ lab_sede[1].mgmt.sw[0] }}` dentro — y una
+    reserva DHCP con una plantilla es una reserva que no concede nada.
+    """
+    if _prof > 6:
+        return x
     if isinstance(x, str):
         try:
-            return env.from_string(x).render(**ctx)
+            r = env.from_string(x).render(**ctx)
         except Exception:
             return x  # se queda como estaba; lo denunciará quien la use
+        # Sólo se sigue si el resultado TODAVÍA es una plantilla: si no, un texto
+        # sin Jinja se renderizaría a sí mismo para siempre.
+        if isinstance(r, str) and ("{{" in r or "{%" in r):
+            return _resolver(r, env, ctx, _prof + 1)
+        if isinstance(r, (list, dict)):
+            return _resolver(r, env, ctx, _prof + 1)
+        return r
     if isinstance(x, dict):
-        return {k: _resolver(v, env, ctx) for k, v in x.items()}
+        return {k: _resolver(v, env, ctx, _prof) for k, v in x.items()}
     if isinstance(x, list):
-        return [_resolver(v, env, ctx) for v in x]
+        return [_resolver(v, env, ctx, _prof) for v in x]
     return x
 
 

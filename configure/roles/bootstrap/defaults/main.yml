@@ -19,6 +19,14 @@
 bootstrap_netmask: "255.255.255.0"
 bootstrap_lease_time: "1h"
 bootstrap_dnsmasq_conf: /etc/dnsmasq.d/bootstrap.conf
+# Los SEGMENTOS que este contenedor sirve, cuando son MÁS DE UNO: una lista de
+# {interface, hosts}. Vacía = se usa el bloque de un solo segmento
+# (`bootstrap_interface` + `bootstrap_hosts`), que es como nació el rol. Sea cual
+# sea la forma declarada, tasks/main.yml la normaliza a una lista de segmentos, y
+# el resto del rol sólo conoce esa lista: añadir un segmento de gestión es una
+# entrada más, no otro contenedor con su propia copia del rol.
+bootstrap_segments: []
+
 bootstrap_offload_unit: bootstrap-tx-offload.service
 bootstrap_routes_unit: bootstrap-routes.service
 # How long to wait for the router to have its first address. Generous on
