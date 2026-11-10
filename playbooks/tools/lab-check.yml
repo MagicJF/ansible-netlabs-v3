@@ -100,6 +100,32 @@
           que es lo que debe pasar; un `OOB_FUGA` es un fallo.
       when: groups['lab_workstations'] | default([]) | length > 0
 
+    - name: Ninguna estacion pasa por comprobada sin numeros
+      # El fallo de una estacion se tolera ARRIBA a proposito, para que el informe
+      # pueda contar lo que le pasa a TODAS; pero tolerarlo y no comprobar nada era
+      # un verde falso: `checked` contaba estaciones, no medidas. Una estacion sin
+      # linea `alcance=X/Y` es una estacion que no se ha probado, y se dice asi.
+      ansible.builtin.assert:
+        that:
+          - medidas | length == 2
+          - medidas[0] == medidas[1]
+        fail_msg: >-
+          {{ item }} no ha producido ninguna medida. Su linea de resultado esta
+          vacia, asi que este laboratorio NO queda comprobado por su parte. La
+          causa habitual: el mapa de destinos de `lab-check.sh` no cubre esta
+          topologia (lleva dentro los destinos de OTRO laboratorio). Arreglar el
+          mapa, no la asercion.
+        success_msg: >-
+          {{ item }} midio su red: {{ medidas[0] }} de {{ medidas[1] }} destinos.
+      vars:
+        medidas: >-
+          {{ (hostvars[item].lab_check.stdout | default('')
+             | regex_findall('alcance=([0-9]+)/([0-9]+)') | first) | default([]) }}
+      loop: "{{ groups['lab_workstations'] | default([]) | sort }}"
+      loop_control:
+        label: "{{ item }}"
+      when: groups['lab_workstations'] | default([]) | length > 0
+
 # ===========================================================================
 # El OTRO lado de la puerta: el OPERADOR. El segmento de gestion OOB no lo
 # prueban las estaciones —de hecho comprueban que NO llegan—: lo prueba quien
