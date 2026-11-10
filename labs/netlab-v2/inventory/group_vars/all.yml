@@ -397,7 +397,7 @@ pve_containers:
         hosts: >-
           {%- set out = [] -%}
           {%- for v in pve_vms | selectattr('chr', 'defined') -%}
-          {%-   set mac = v.net.net0 | regex_replace('^.*virtio=([0-9A-Fa-f:]{17}).*$', '\\1') -%}
+          {%-   set mac = (v.net.net0.split(',') | select('match', '^virtio=') | first).split('=')[1] -%}
           {%-   set mgmt = v.config.routeros.addresses
                           | selectattr('interface', 'equalto', 'ether1') | first -%}
           {%-   set _ = out.append({'mac': mac,
@@ -1371,7 +1371,7 @@ pve_vms:
                      | selectattr('site', 'equalto', 'sede1') -%}
               {%-   set _ = out.append({
                     'address': c.address,
-                    'mac_address': c.netif.net0 | regex_replace('^.*hwaddr=([0-9A-Fa-f:]{17}).*$', '\\1'),
+                    'mac_address': (c.netif.net0.split(',') | select('match', '^hwaddr=') | first).split('=')[1],
                     'comment': c.hostname }) -%}
               {%- endfor -%}
               {{ out }}
@@ -1474,7 +1474,7 @@ pve_vms:
                      | selectattr('site', 'equalto', 'sede2') -%}
               {%-   set _ = out.append({
                     'address': c.address,
-                    'mac_address': c.netif.net0 | regex_replace('^.*hwaddr=([0-9A-Fa-f:]{17}).*$', '\\1'),
+                    'mac_address': (c.netif.net0.split(',') | select('match', '^hwaddr=') | first).split('=')[1],
                     'comment': c.hostname }) -%}
               {%- endfor -%}
               {{ out }}
@@ -1575,7 +1575,7 @@ pve_vms:
                      | selectattr('site', 'equalto', 'sede3') -%}
               {%-   set _ = out.append({
                     'address': c.address,
-                    'mac_address': c.netif.net0 | regex_replace('^.*hwaddr=([0-9A-Fa-f:]{17}).*$', '\\1'),
+                    'mac_address': (c.netif.net0.split(',') | select('match', '^hwaddr=') | first).split('=')[1],
                     'comment': c.hostname }) -%}
               {%- endfor -%}
               {{ out }}
