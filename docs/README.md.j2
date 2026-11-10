@@ -77,6 +77,7 @@ playbooks/tasks/                       # motor: pasos compartidos (segmentos, im
 playbooks/tools/pve_read.py            # motor: lee todos los invitados + datos de plataforma en UN proceso
 playbooks/tools/framework_check.py     # el test del propio marco: convergente, y ve el drift
 playbooks/tools/documentos.py          # renderiza los documentos del repo desde la declaración
+playbooks/tools/declaracion.py         # motor: resuelve la declaración (el render de Ansible) para las herramientas
 docs/*.md.j2                           # las plantillas de esos documentos (prosa + valores del manifiesto)
 playbooks/tools/pve_notas.py           # motor: genera la nota HTML y las etiquetas, desde la declaración
 playbooks/tools/logs_prune.py          # motor: retención de logs/, la aplica cada verbo
@@ -364,7 +365,7 @@ La metodología, una línea por regla:
   control, sin SSH. El `kind` del destino (`ssh` o `api`) se deriva del bloque que
   el invitado declara, y cada kind tiene su propio play, porque los dos no pueden
   compartir conexión.
-- **Un invitado puede no tener `config:` en absoluto.** Las ocho workstations
+- **Un invitado puede no tener `config:` en absoluto.** Las {{ n_workstations }} workstations
   declaran sólo una forma: son PCs cuyo interior nadie configura, así que no son
   destinos de capa 2. Lo que necesitan —una dirección— se lo da el router, y el
   router la declara.
@@ -688,7 +689,7 @@ PVE, 4 vCPU, sin cuota de CPU):
 | `apply` creando un invitado de principio a fin | 105 s |
 
 Cómo se hizo, sin quitar ni una comprobación: **se eliminaron las fronteras de
-ejecución, no la verificación.** Un proceso lector (`tools/pve_read.py`) hace todas
+ejecución, no la verificación.** Un proceso lector (`playbooks/tools/pve_read.py`) hace todas
 las lecturas de invitados *y* todos los prerrequisitos de plataforma (nodo en línea,
 storage activo, plantilla presente, ISO presente) que antes costaban una tarea cada
 uno. Una sola pasada de plantillado (macros de `pve_engine.j2`) analiza todos los
