@@ -474,5 +474,10 @@ for e in reversed(todos(man)):
             lineas.insert(ti[0] + 1 + n_, l)
     cambios += 1
 
-open(MAN, "w").write("\n".join(lineas))
+# Se escribe sin espacios al final de línea: las líneas en blanco de la nota
+# llevan la sangría del bloque, y eso es lo que hacía que `yaml[trailing-spaces]`
+# señalara 142 líneas del manifiesto — todas dentro de un `description:`, o sea
+# todas del generador. Un espacio al final no significa nada en el HTML, así que
+# se recorta al escribir y el manifiesto queda limpio para el linter.
+open(MAN, "w").write("\n".join(l.rstrip() for l in lineas))
 print("reescritos %d invitados" % cambios)

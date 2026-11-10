@@ -60,8 +60,7 @@
 
     - name: Hand back the block this script was written to produce
       ansible.builtin.debug:
-        msg: "{{ (lab_check.stdout | default(lab_check.msg | default('no output')))
-                 .split('### PEGA ESTO ###')[-1].split('### FIN ###')[0] | trim }}"
+        msg: "{{ (lab_check.stdout | default(lab_check.msg | default('no output'))).split('### PEGA ESTO ###')[-1].split('### FIN ###')[0] | trim }}"
 
 - name: lab-check - the whole lab on one screen
   hosts: localhost
