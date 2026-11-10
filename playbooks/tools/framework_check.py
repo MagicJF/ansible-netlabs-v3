@@ -51,6 +51,10 @@ from typing import NoReturn
 import requests
 import yaml
 
+# La herramienta hermana que resuelve la declaración (una sola vez, para todas).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import declaracion  # noqa: E402
+
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # La topología viva se resuelve por `labs/active`, que es un enlace al laboratorio
 # que se está operando. HERMES_LAB permite apuntar a OTRO sin tocar el enlace: es
@@ -65,6 +69,18 @@ ROUTEROS_DEFAULTS = os.path.join(REPO, "configure/roles/routeros/defaults/main.y
 # JSON callback is orders of magnitude larger than the human output, and mixing
 # the two is what made that file unreadable. See run_verb().
 FRAMEWORK_LOG = os.path.join(REPO, "logs/framework-check.log")
+
+
+def manifiesto():
+    """El manifiesto con sus referencias ya resueltas (ver tools/declaracion.py).
+
+    Una ficha no lleva la direccion dentro: CITA la tabla (`lab_sede[1].mgmt.rt`)
+    y Ansible la renderiza al usarla. Sin resolverla, el mapa de destinos saldria
+    con la plantilla y `agree` denunciaria un desfase que no existe. La
+    resolucion vive en `declaracion.cargar`, compartida con las demas
+    herramientas: un solo sitio que tocar cuando aparezca otra variable derivada.
+    """
+    return declaracion.cargar(MANIFEST)
 
 # `141: IN SYNC | exists` / `142: DRIFT | ...` — the line both verbs print per
 # guest. The drill reads the framework's own verdict instead of re-deriving it.
@@ -320,7 +336,7 @@ LABCHECK = os.path.join(REPO, "playbooks/tools/lab-check.sh")
 # ---------------------------------------------------------------------------
 def declared_addresses():
     """Las direcciones que la declaración dice que hay. La fuente de verdad."""
-    m = yaml.safe_load(open(MANIFEST, encoding="utf-8"))
+    m = manifiesto()
     out = {}
     for c in m.get("pve_containers", []):
         cfg = c.get("config") or {}
@@ -349,7 +365,7 @@ def declared_targets():
     mantiene a mano, añadir un invitado deja el test ciego a él y nada lo nota.
     El tipo sale del nombre (pc/sw/rt/fw) y la sede del campo `site` declarado.
     """
-    m = yaml.safe_load(open(MANIFEST, encoding="utf-8"))
+    m = manifiesto()
     out = []
     for c in m.get("pve_containers", []):
         cfg = c.get("config") or {}
@@ -448,7 +464,7 @@ def _menu_counts(export):
 
 def routeros_export():
     say("== export: qué hay en los equipos de red que la declaración no menciona ==")
-    manifest = yaml.safe_load(open(MANIFEST)) or {}
+    manifest = manifiesto()
     defaults = yaml.safe_load(open(ROUTEROS_DEFAULTS)) or {}
     creds = yaml.safe_load(open(SECRETS)) or {}
 
@@ -829,7 +845,7 @@ def _topology_data():
     enlace WAN. Las demás son spokes: su firewall termina UN enlace hacia el hub.
     Eso no se deduce del direccionamiento, se declara con `lab_hub`.
     """
-    m = yaml.safe_load(open(MANIFEST, encoding="utf-8"))
+    m = manifiesto()
     hub = int(m.get("lab_hub", 1))
     sites = {int(s["id"]): s for s in m.get("lab_sites", [])}
     routers = {}

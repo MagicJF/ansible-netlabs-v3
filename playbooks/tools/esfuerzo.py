@@ -62,7 +62,12 @@ def tst(s):
 
 # ------------------------------------------------------------------ nombres --
 def nombres():
-    man = yaml.safe_load(open(os.path.join(RAIZ, "labs", "active", "inventory", "group_vars", "all.yml")))
+    # La declaracion RESUELTA: las fichas citan la tabla de sedes y aqui hacen
+    # falta las direcciones, no las plantillas (para atar cada IP al invitado).
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import declaracion
+    man = declaracion.cargar(os.path.join(RAIZ, "labs", "active",
+                                          "inventory", "group_vars", "all.yml"))
     nom, tipo = {}, {}
     for g in man["pve_containers"]:
         nom[int(g["vmid"])] = g["hostname"]
@@ -75,7 +80,8 @@ def nombres():
         for a in g["config"]["routeros"]["addresses"]:
             if a["interface"] == "ether1":
                 ip[a["address"].split("/")[0]] = g["name"]
-    ip.setdefault("10.10.10.41", "infra-bootstrap")
+    # El bootstrap no es un CHR: su dirección sale de la tabla, no de un literal.
+    ip.setdefault((man.get("lab_mgmt_otros") or {}).get("infra"), "infra-bootstrap")
     return man, nom, tipo, ip
 
 

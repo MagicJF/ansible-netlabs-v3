@@ -63,6 +63,11 @@ pve_node: Proxmox
 #   10.10.10.21-29  routers       (ST = 12/22/32)
 #   10.10.10.31-39  firewalls     (ST = 11/21/31, y el de borde 91)
 #   10.10.10.41-49  infraestructura (ST = 09)
+#
+# La direccion CONCRETA de cada equipo no se escribe en su ficha: se declara en
+# el bloque `mgmt:` de su sede (o en `lab_mgmt_otros`, para lo que no es una
+# sede) y cada ficha la CITA. Los bloques de arriba son la convencion que esa
+# tabla respeta; si un dia cambia una direccion, cambia en UN sitio.
 # ---------------------------------------------------------------------------
 lab_mgmt_network: "10.10.10.0/24"
 lab_mgmt_gateway: "10.10.10.1"
@@ -99,6 +104,8 @@ lab_sites:
     puerta: "10.11.0.1"
     pool: "10.11.0.100-10.11.0.199"
     transito: { red: "10.21.0.0/30", fw: "10.21.0.1", rt: "10.21.0.2" }
+    mgmt: { sw: ["10.10.10.11", "10.10.10.12"], rt: "10.10.10.21", fw: "10.10.10.31" }
+    tag: "central"
   - id: 2
     nombre: "delegacion-2"
     etiqueta: "la delegación 2"
@@ -107,6 +114,8 @@ lab_sites:
     pool: "10.12.0.100-10.12.0.199"
     transito: { red: "10.22.0.0/30", fw: "10.22.0.1", rt: "10.22.0.2" }
     wan: { red: "10.99.1.0/30", hub: "10.99.1.1", spoke: "10.99.1.2" }
+    mgmt: { sw: ["10.10.10.13"], rt: "10.10.10.22", fw: "10.10.10.32" }
+    tag: "delegacion"
   - id: 3
     nombre: "delegacion-3"
     etiqueta: "la delegación 3"
@@ -115,9 +124,19 @@ lab_sites:
     pool: "10.13.0.100-10.13.0.199"
     transito: { red: "10.23.0.0/30", fw: "10.23.0.1", rt: "10.23.0.2" }
     wan: { red: "10.99.2.0/30", hub: "10.99.2.1", spoke: "10.99.2.2" }
+    mgmt: { sw: ["10.10.10.14"], rt: "10.10.10.23", fw: "10.10.10.33" }
+    tag: "delegacion"
 
 # Acceso por id: las declaraciones de equipo dicen lab_sede[2].red, no la IP.
 lab_sede: "{{ dict(lab_sites | map(attribute='id') | zip(lab_sites)) }}"
+
+# Las direcciones de gestion de lo que NO es una sede: el contenedor de
+# infraestructura (da la primera direccion a cada equipo de red) y el firewall
+# de borde. Se declaran aqui por el mismo motivo que las de sede: una vez, y
+# las fichas las citan.
+lab_mgmt_otros:
+  infra: "10.10.10.41"
+  borde: "10.10.10.34"
 
 
 # El borde de la empresa: el firewall de la central entrega aquí todo lo que
@@ -167,11 +186,11 @@ pve_tunnel:
   # real: por la pata de administración del equipo que es puerta de esa red.
   endpoint_routes:
     - to: "{{ lab_sede[1].red }}"
-      via: "10.10.10.21"   # rt-s1-core
+      via: "{{ lab_sede[1].mgmt.rt }}"   # rt-s1-core
     - to: "{{ lab_sede[2].red }}"
-      via: "10.10.10.22"   # rt-s2-edge
+      via: "{{ lab_sede[2].mgmt.rt }}"   # rt-s2-edge
     - to: "{{ lab_sede[3].red }}"
-      via: "10.10.10.23"   # rt-s3-edge
+      via: "{{ lab_sede[3].mgmt.rt }}"   # rt-s3-edge
   private_key_path: "/home/hermes/.hermes/profiles/hermione/secrets/wg-lab-client"
   keepalive: 25
 
@@ -358,7 +377,7 @@ pve_containers:
       <li><b>Hace un solo trabajo y por eso existe.</b> La primera dirección de un CHR llega por una difusión que no cruza un enlace de capa 3, así que tiene que haber algo en su mismo segmento que se la dé. Después no vuelve a intervenir.</li>
       </ul>
     netif:
-      net0: "name=eth0,bridge=vmbr1,gw=10.10.10.1,ip=10.10.10.41/24"
+      net0: "name=eth0,bridge=vmbr1,gw=10.10.10.1,ip={{ lab_mgmt_otros.infra }}/24"
     manage: true
     config:
       bootstrap:
@@ -371,7 +390,7 @@ pve_containers:
           - "{{ lab_sede[1].red }}"
           - "{{ lab_sede[2].red }}"
           - "{{ lab_sede[3].red }}"
-        route_gateway: "10.10.10.21"   # rt-s1-core
+        route_gateway: "{{ lab_sede[1].mgmt.rt }}"   # rt-s1-core
         hosts: >-
           {%- set out = [] -%}
           {%- for v in pve_vms | selectattr('chr', 'defined') -%}
@@ -1007,7 +1026,7 @@ pve_vms:
       routeros:
         identity: sw-s1-acc-01
         addresses:
-          - address: "10.10.10.11/24"
+          - address: "{{ lab_sede[1].mgmt.sw[0] }}/24"
             interface: ether1
         bridges:
           - name: lan
@@ -1018,7 +1037,7 @@ pve_vms:
         # gestionable de verdad.
         routes:
           - dst_address: "0.0.0.0/0"
-            gateway: "10.10.10.21"
+            gateway: "{{ lab_sede[1].mgmt.rt }}"
 
   # sw-s1-acc-02: segundo switch de acceso de la central. Cuelga del troncal
   # (mismo dominio L2, que es lo que hace que las cuatro workstations de la sede
@@ -1082,7 +1101,7 @@ pve_vms:
       routeros:
         identity: sw-s1-acc-02
         addresses:
-          - address: "10.10.10.12/24"
+          - address: "{{ lab_sede[1].mgmt.sw[1] }}/24"
             interface: ether1
         bridges:
           - name: lan
@@ -1090,7 +1109,7 @@ pve_vms:
         dhcp_client: false
         routes:
           - dst_address: "0.0.0.0/0"
-            gateway: "10.10.10.21"
+            gateway: "{{ lab_sede[1].mgmt.rt }}"
 
   # sw-s2-acc-01: el switch de acceso de la delegación 2.
   - vmid: 2301
@@ -1152,7 +1171,7 @@ pve_vms:
       routeros:
         identity: sw-s2-acc-01
         addresses:
-          - address: "10.10.10.13/24"
+          - address: "{{ lab_sede[2].mgmt.sw[0] }}/24"
             interface: ether1
         bridges:
           - name: lan
@@ -1160,7 +1179,7 @@ pve_vms:
         dhcp_client: false
         routes:
           - dst_address: "0.0.0.0/0"
-            gateway: "10.10.10.22"
+            gateway: "{{ lab_sede[2].mgmt.rt }}"
 
   # sw-s3-acc-01: el switch de acceso de la delegación 3.
   - vmid: 3301
@@ -1222,7 +1241,7 @@ pve_vms:
       routeros:
         identity: sw-s3-acc-01
         addresses:
-          - address: "10.10.10.14/24"
+          - address: "{{ lab_sede[3].mgmt.sw[0] }}/24"
             interface: ether1
         bridges:
           - name: lan
@@ -1230,7 +1249,7 @@ pve_vms:
         dhcp_client: false
         routes:
           - dst_address: "0.0.0.0/0"
-            gateway: "10.10.10.23"
+            gateway: "{{ lab_sede[3].mgmt.rt }}"
 
   # ==========================================================================
   # ROUTERS (ST = 2S) — son la PUERTA DE ENLACE y el SERVIDOR DHCP de su LAN, y
@@ -1314,7 +1333,7 @@ pve_vms:
       routeros:
         identity: rt-s1-core
         addresses:
-          - address: "10.10.10.21/24"
+          - address: "{{ lab_sede[1].mgmt.rt }}/24"
             interface: ether1
           - address: "{{ lab_sede[1].puerta }}/24"
             interface: ether2
@@ -1426,7 +1445,7 @@ pve_vms:
       routeros:
         identity: rt-s2-edge
         addresses:
-          - address: "10.10.10.22/24"
+          - address: "{{ lab_sede[2].mgmt.rt }}/24"
             interface: ether1
           - address: "{{ lab_sede[2].puerta }}/24"
             interface: ether2
@@ -1527,7 +1546,7 @@ pve_vms:
       routeros:
         identity: rt-s3-edge
         addresses:
-          - address: "10.10.10.23/24"
+          - address: "{{ lab_sede[3].mgmt.rt }}/24"
             interface: ether1
           - address: "{{ lab_sede[3].puerta }}/24"
             interface: ether2
@@ -1642,7 +1661,7 @@ pve_vms:
       routeros:
         identity: fw-s1-perim
         addresses:
-          - address: "10.10.10.31/24"
+          - address: "{{ lab_sede[1].mgmt.fw }}/24"
             interface: ether1
           - address: "{{ lab_sede[1].transito.fw }}/30"
             interface: ether2
@@ -1770,7 +1789,7 @@ pve_vms:
       routeros:
         identity: fw-s2-perim
         addresses:
-          - address: "10.10.10.32/24"
+          - address: "{{ lab_sede[2].mgmt.fw }}/24"
             interface: ether1
           - address: "{{ lab_sede[2].transito.fw }}/30"
             interface: ether2
@@ -1866,7 +1885,7 @@ pve_vms:
       routeros:
         identity: fw-s3-perim
         addresses:
-          - address: "10.10.10.33/24"
+          - address: "{{ lab_sede[3].mgmt.fw }}/24"
             interface: ether1
           - address: "{{ lab_sede[3].transito.fw }}/30"
             interface: ether2
@@ -1962,7 +1981,7 @@ pve_vms:
       routeros:
         identity: fw-wan-edge
         addresses:
-          - address: "10.10.10.34/24"
+          - address: "{{ lab_mgmt_otros.borde }}/24"
             interface: ether1
           - address: "{{ lab_edge_fw }}/30"
             interface: ether2

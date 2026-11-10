@@ -44,7 +44,13 @@ import yaml
 AQUI = os.path.dirname(os.path.abspath(__file__))
 POR_DEFECTO = os.path.join(AQUI, "..", "..", "labs", "active", "inventory", "group_vars", "all.yml")
 MAN = sys.argv[1] if len(sys.argv) > 1 else os.path.normpath(POR_DEFECTO)
-man = yaml.safe_load(open(MAN))
+# El manifiesto con sus referencias RESUELTAS: la tabla de sedes se cita en las
+# fichas (`lab_sede[1].mgmt.rt`) y aqui hacen falta los valores. La resolucion es
+# la misma que usan el resto de herramientas (tools/declaracion.py).
+sys.path.insert(0, AQUI)
+import declaracion  # noqa: E402
+
+man = declaracion.cargar(MAN)
 
 ENV = jinja2.Environment(undefined=jinja2.StrictUndefined)
 
@@ -60,9 +66,17 @@ def ros_de(g):
 
 
 ROLES = {"pc-": "workstation", "sw-": "switch", "rt-": "router", "fw-": "firewall"}
-SITIO = {"sede1": "central", "sede2": "delegacion", "sede3": "delegacion"}
-NOMBRE_SITIO = {"sede1": "la central (sede 1)", "sede2": "la delegación 2",
-                "sede3": "la delegación 3"}
+
+# Las sedes salen de la TABLA del manifiesto (`lab_sites`), no de un diccionario
+# escrito a mano: anadir una sede es anadir una entrada, y ni la nota ni las
+# etiquetas se resienten. `tag` es el valor de la etiqueta de PVE (el color lo
+# fija `pve_tag_style`), `nombre` el nombre corto y `etiqueta` como se dice en
+# prosa. El hub se declara aparte (`lab_hub`) porque la topologia no es plana.
+SEDES = {int(s["id"]): s for s in (man.get("lab_sites") or [])}
+HUB = int(man.get("lab_hub", 1))
+SITIO = {"sede%d" % i: (s.get("tag") or s.get("nombre")) for i, s in SEDES.items()}
+NOMBRE_SITIO = {"sede%d" % i: (s.get("etiqueta") or s.get("nombre"))
+                for i, s in SEDES.items()}
 
 
 def rol(n):
@@ -89,9 +103,9 @@ def sede_de(e):
     posición desaparecía sin dar ningún error. El nombre no cambia nunca.
     """
     n = e["n"]
-    for i in ("1", "2", "3"):
-        if "-s%s-" % i in n:
-            return "sede" + i
+    for i in sorted(SEDES):
+        if "-s%d-" % i in n:
+            return "sede%d" % i
     return None
 
 
@@ -161,22 +175,40 @@ def punta_de(nombre, bridge):
 
 # ------------------------------------------------------------- el camino ------
 def camino_de(sede):
-    """El camino medido de una estación hasta internet, con los nombres reales.
+    """El camino de una estación hasta internet, derivado de la declaración.
 
-    Medido con traceroute desde una estación: es el que sigue un paquete de
-    verdad, no el que uno dibujaría. Las delegaciones cruzan la central antes
-    del borde; es lo que devolvió la prueba, no lo que parecía lógico.
+    La FORMA la da la topología declarada, que no es plana: el hub es la sede
+    cuyo firewall termina el borde y las demás son spokes. La estación sale por
+    su switch, su router y su firewall; si su sede NO es el hub, cruza antes el
+    firewall del hub; y de ahí al firewall de borde. Los NOMBRES salen de la
+    declaración, no de una lista escrita a mano, así que una sede nueva aparece
+    aquí sin tocar esto.
+
+    El camino se midió en vivo con traceroute en la puesta en marcha: coincide
+    con el que implica la topología, y esa coincidencia es lo que se comprueba.
     """
-    if sede == "sede1":
-        return ["pc-s1-01", "sw-s1-acc-01", "rt-s1-core", "fw-s1-perim",
-                "fw-wan-edge", "internet"]
-    if sede == "sede2":
-        return ["pc-s2-01", "sw-s2-acc-01", "rt-s2-edge", "fw-s2-perim",
-                "fw-s1-perim", "fw-wan-edge", "internet"]
-    if sede == "sede3":
-        return ["pc-s3-01", "sw-s3-acc-01", "rt-s3-edge", "fw-s3-perim",
-                "fw-s1-perim", "fw-wan-edge", "internet"]
-    return []
+    if not sede:
+        return []
+    sid = int(sede.replace("sede", ""))
+
+    def un(prefijo):
+        for e in todos(man):
+            if e["n"].startswith(prefijo):
+                return e["n"]
+        return None
+
+    pc = next((c["hostname"] for c in man["pve_containers"]
+               if str(c.get("site")) == "sede%d" % sid), None)
+    sw, fw = un("sw-s%d-" % sid), un("fw-s%d-" % sid)
+    rt = un("rt-s%d-" % sid)
+    if not all((pc, sw, rt, fw)):
+        return []
+    camino = [pc, sw, rt, fw]
+    if sid != HUB:
+        fw_hub = un("fw-s%d-" % HUB)
+        if fw_hub:
+            camino.append(fw_hub)
+    return camino + ["fw-wan-edge", "internet"]
 
 
 SEDE_POR_NOMBRE = {e["n"]: sede_de(e) for e in todos(man)}
@@ -186,7 +218,7 @@ def diagrama(e):
     """La posición del invitado en el camino, con su nombre marcado."""
     n = e["n"]
     if n == "fw-wan-edge":
-        cadena = camino_de("sede1")
+        cadena = camino_de("sede%d" % HUB)
     elif n.startswith("infra-"):
         return ("<pre>\n"
                 "  infra-bootstrap ── vmbr1 (red de gestión) ──▶ todos los equipos\n"

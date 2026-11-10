@@ -192,6 +192,31 @@ playbooks de capa 2, que lo llenan con `add_host` desde la declaración; en la v
 no contiene nada. Lo que la v1 adoptaba queda fuera de la declaración, así que la
 convergencia nunca lo lee, lo crea ni lo modifica.
 
+### La tabla de sedes
+
+El direccionamiento **no se escribe dentro de cada ficha**: se declara una vez en la
+tabla `lab_sites` y cada equipo la cita. Una sede es una entrada con su `id` (el
+dígito `S` de la numeración), su `nombre`, su `etiqueta` (cómo se dice en prosa), su
+`tag` (el valor de la etiqueta de PVE), su LAN (`red`, `puerta`, `pool`), su tránsito
+hacia el firewall (`transito`), su enlace WAN (`wan` — que no tiene la sede del hub,
+porque ella *es* el hub) y **sus direcciones de gestión** (`mgmt`: la lista de
+switches, el router y el firewall). Lo que no es una sede —el contenedor de
+infraestructura y el firewall de borde— va en `lab_mgmt_otros`.
+
+La tabla se indexa por id con
+`lab_sede: "{{ dict(lab_sites | map(attribute='id') | zip(lab_sites)) }}"`, así que una
+ficha dice `lab_sede[2].mgmt.rt` y no la IP. Añadir una sede es **una entrada en la
+tabla** más su cableado: no hay ninguna otra lista de sedes que actualizar, ni en los
+playbooks ni en las herramientas. Los bloques de función de la red de gestión
+(`.11-.19` switches, `.21-.29` routers, `.31-.39` firewalls, `.41-.49` infraestructura)
+siguen siendo la convención que la tabla respeta, pero la dirección concreta de cada
+equipo vive en la tabla.
+
+Las herramientas que necesitan los **valores** y no las plantillas
+(`framework_check.py`, `pve_notas.py`, `esfuerzo.py`) resuelven la declaración con
+`playbooks/tools/declaracion.py`, que replica el render de Ansible **en un solo
+sitio**: es el único punto que tocar cuando aparezca otra variable derivada.
+
 Declarado por contenedor, heredado de `pve_defaults` salvo que se sobrescriba:
 
 | Propiedad | Declarada como | La converge `apply.yml` |
@@ -568,7 +593,9 @@ SEDE 1 (central)                     SEDE 2                SEDE 3
 El direccionamiento, para que un lector pueda seguir los pings: gestión
 `10.10.10.0/24` **en bloques por función** (`.11-.14` switches, `.21-.23` routers,
 `.31-.34` firewalls, `.41` el bootstrap — la regla de la v1 "el último octeto es el
-vmid" no cabe en cuatro dígitos), las sedes `10.11/10.12/10.13.0.0/24`, el tránsito
+vmid" no cabe en cuatro dígitos). La dirección **concreta** de cada equipo no está en
+su ficha: está en la tabla de sedes (`mgmt:`) y en `lab_mgmt_otros`, y las fichas la
+citan. Las sedes `10.11/10.12/10.13.0.0/24`, el tránsito
 `router↔firewall` de cada sede como un `/30` (`10.21`, `10.22`, `10.23.0.0/30`), los
 enlaces entre firewalls de sede como `/30`s (`10.99.1.0/30`, `10.99.2.0/30`) y el
 tránsito de borde `10.29.0.0/30`. **Dieciocho bridges sin puertos** (`vmbr4`…`vmbr21`),
