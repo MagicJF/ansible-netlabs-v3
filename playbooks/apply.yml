@@ -31,8 +31,12 @@
     pve_auth: &pve_auth
       api_host: "{{ pve_api_host }}"
       api_port: 8006
-      api_user: root@pam
-      api_token_id: "{{ pve_api_token_id }}"
+      # El modulo proxmox quiere el USUARIO y el NOMBRE del token por separado,
+      # pero el token se declara entero (`usuario@realm!nombre`), que es como lo
+      # espera el API en la cabecera. Se parte aqui: darle el id entero devuelve
+      # 401, porque el modulo lo vuelve a prefijar con el usuario.
+      api_user: "{{ pve_api_token_id.split('!')[0] if '!' in pve_api_token_id else 'root@pam' }}"
+      api_token_id: "{{ pve_api_token_id.split('!')[1] if '!' in pve_api_token_id else pve_api_token_id }}"
       api_token_secret: "{{ pve_api_token_secret }}"
       validate_certs: true
       timeout: 300
