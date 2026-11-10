@@ -42,7 +42,7 @@
       # segmento: con direccion, el host enruta ese segmento y lo hace alcanzable
       # desde el tunel sin anadirle ninguna ruta a mano. Los bridges aislados del
       # laboratorio no la llevan a proposito.
-      address: "{{ item.address | default(omit) }}"
+      cidr: "{{ item.address | default(omit) }}"
       comments: "{{ item.comments | default('managed by proxmox-ansible-lxc-test') }}"
     validate_certs: true
     ca_path: "{{ pve_api_ca_path }}"
