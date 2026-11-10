@@ -34,9 +34,8 @@
       api_user: root@pam
       api_token_id: "{{ pve_api_token_id }}"
       api_token_secret: "{{ pve_api_token_secret }}"
-      ca_path: "{{ pve_api_ca_path }}"
       validate_certs: true
-      api_timeout: 300
+      timeout: 300
     pve_loop: &pve_loop
       loop_var: ct
       index_var: idx
@@ -66,6 +65,7 @@
   # reader tool inherits it too, so its reads land in the journal as well.
   environment:
     PYTHONPATH: "{{ playbook_dir }}/tracing"
+    REQUESTS_CA_BUNDLE: "{{ pve_api_ca_path }}"
     PVE_HTTP_TRACE: "{{ pve_log_dir }}/pve-api.jsonl"
   pre_tasks:
     - name: Look for the local credentials file
