@@ -119,16 +119,23 @@
     - name: Los invitados que viven en el segundo segmento de gestion
       ansible.builtin.set_fact:
         oob_guests: >-
+          {#- El segundo segmento de gestion es una propiedad DEL LABORATORIO: el
+              grande lo declara, un laboratorio minimo puede no tenerlo. Se lee de
+              la declaracion en vez de darlo por hecho, para que una topologia que
+              no lo declare no muera por una variable ajena. -#}
+          {%- set red = (lab_mgmt2 | default({})).red | default('') -%}
           {%- set out = [] -%}
-          {%- for v in (pve_vms | default([])) -%}
-          {%-   set ros = (v.config | default({})).routeros | default({}) -%}
-          {%-   for a in (ros.addresses | default([])) -%}
-          {%-     set ip = a.address.split('/')[0] -%}
-          {%-     if a.interface == 'ether1' and (ip | ansible.utils.ipaddr(lab_mgmt2.red)) -%}
-          {%-       set _ = out.append({'name': v.name, 'ip': ip}) -%}
-          {%-     endif -%}
+          {%- if red -%}
+          {%-   for v in (pve_vms | default([])) -%}
+          {%-     set ros = (v.config | default({})).routeros | default({}) -%}
+          {%-     for a in (ros.addresses | default([])) -%}
+          {%-       set ip = a.address.split('/')[0] -%}
+          {%-       if a.interface == 'ether1' and (ip | ansible.utils.ipaddr(red)) -%}
+          {%-         set _ = out.append({'name': v.name, 'ip': ip}) -%}
+          {%-       endif -%}
+          {%-     endfor -%}
           {%-   endfor -%}
-          {%- endfor -%}
+          {%- endif -%}
           {{ out }}
 
     - name: Leer la identidad de cada uno por su API (uri, y queda en el diario)
@@ -145,13 +152,22 @@
       loop_control:
         label: "{{ item.name }} ({{ item.ip }})"
 
+    - name: Avisar cuando este laboratorio no declara un segundo segmento de gestion
+      ansible.builtin.debug:
+        msg: >-
+          Este laboratorio no declara `lab_mgmt2`: no hay un segundo segmento de
+          gestion que comprobar, asi que esta parte de la prueba no aplica. No es
+          un aprobado: es que no hay nada que probar aqui.
+      when: (lab_mgmt2 | default({})).red | default('') == ''
+
     - name: El operador llega al segmento de gestion
+      when: (lab_mgmt2 | default({})).red | default('') != ''
       ansible.builtin.assert:
         that:
           - oob_guests | length > 0
         fail_msg: >-
           La declaracion no tiene ningun invitado en el segmento de gestion
-          ({{ lab_mgmt2.red }}); no hay nada que el operador pueda comprobar.
+          ({{ (lab_mgmt2 | default({})).red }}); no hay nada que el operador pueda comprobar.
         success_msg: >-
           El operador alcanza los {{ oob_guests | length }} invitado(s) del segmento
-          de gestion {{ lab_mgmt2.red }}: {{ oob_guests | map(attribute='name') | join(', ') }}.
+          de gestion {{ (lab_mgmt2 | default({})).red }}: {{ oob_guests | map(attribute='name') | join(', ') }}.
