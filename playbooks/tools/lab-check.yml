@@ -21,7 +21,6 @@
 - name: lab-check - build the workstation inventory from the declared state
   hosts: localhost
   gather_facts: false
-  vars:
   tasks:
     - name: Build the configuration targets
       ansible.builtin.include_tasks: ../../configure/tasks/build_targets.yml

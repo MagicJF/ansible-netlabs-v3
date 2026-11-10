@@ -711,10 +711,12 @@ ningún paso manual:
   (`pve_chr_defaults.cloudinit: false`): RouterOS no ejecuta cloud-init y su acceso
   es por la API REST, no por SSH.
 
-La única fuente de la clave es el FICHERO de la clave, no una copia de su texto:
-`pve_ssh_pubkey_path` apunta al `.pub` junto a la clave privada que usa
-`configure/`, y `pve_defaults.pubkey` es un `lookup('file', ...)` del mismo. Un
-invitado se descuelga con `pubkey: ""`.
+La única fuente de la clave es el FICHERO de la clave, no una copia de su texto: su
+ruta se declara UNA vez en el entorno de la máquina (`pve_ssh_key_path`), la `.pub` se
+DERIVA de ella (misma ruta más `.pub`), y `pve_defaults.pubkey` es un
+`lookup('file', pve_ssh_key_path ~ '.pub')`. La ruta no vive en el manifiesto del
+laboratorio: una clave es del framework, y es de la máquina. Un invitado se descuelga
+con `pubkey: ""`.
 
 Verificado de extremo a extremo: un invitado creado por `apply` respondió por SSH
 como root al primer intento, con el marcador `# --- BEGIN PVE ---` y la clave de

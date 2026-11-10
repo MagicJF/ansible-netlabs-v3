@@ -13,7 +13,6 @@
 - name: Layer 2 - build the target inventory from the declared state
   hosts: localhost
   gather_facts: false
-  vars:
   tasks:
     - name: Keep logs/ bounded (the policy in the declared state)
       ansible.builtin.include_tasks: ../playbooks/tasks/prune_logs.yml

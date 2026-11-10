@@ -471,7 +471,8 @@
         # size.
         scsi: "{{ ct.scsi | pve_disk_specs(ct.disk_import | default([])) }}"
         # A VM has no `pubkey`; the key at birth travels through cloud-init: the
-        # same key as the containers (single source: pve_ssh_pubkey_path), plus
+        # same key as the containers (single source: pve_ssh_key_path, whose .pub
+        # is DERIVED from it — not declared twice), plus
         # the cloud-init drive and its user. The drive claims ide2, so a guest
         # that declares cloudinit true must not use ide2 for anything else.
         ide: >-
