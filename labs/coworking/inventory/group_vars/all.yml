@@ -192,6 +192,14 @@ lab_sites:
 #
 #   1x conmutación   2x enrutamiento   7x apoyo   8x seguridad   9x puestos
 # ---------------------------------------------------------------------------
+# Sedes que no son `lab_sites`: la infraestructura (el bootstrap), la gestión
+# (el switch de gestión) y el borde. Se declaran aquí porque también ocupan un
+# código de sede en el número, aunque no alojen estaciones.
+lab_sedes_extra:
+  AA: "infraestructura"
+  AE: "gestión"
+  AF: "borde"
+
 lab_clases:
   11: { token: "swac", nombre: "switch de acceso" }
   12: { token: "swge", nombre: "switch de gestión" }

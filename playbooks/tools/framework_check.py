@@ -1676,6 +1676,65 @@ def docs_check():
     return 0
 
 
+
+def _codigo_numero(codigo):
+    """El valor numérico de un código de sede de dos letras (A=1 .. I=9)."""
+    letras = "ABCDEFGHIJ"
+    return (letras.index(codigo[0]) + 1) * 10 + (letras.index(codigo[1]) + 1)
+
+
+def numeracion_check():
+    """El número de cada invitado se compone de su declaración, y su nombre lo espeja.
+
+    Un VMID de 8 cifras es LL SS CC II: laboratorio, sede, clase, índice. La sede se
+    declara como dos letras (A=1 .. I=9); la clase como un número de la tabla
+    `lab_clases`; el nombre se compone como `LL-SS-token-II`. El check no adivina
+    nada: comprueba que el número y el nombre de la MISMA declaración se componen
+    de la misma forma. Si un invitado se numera a mano y se desvía, aquí se ve.
+    """
+    say("== numeracion: el numero y el nombre de cada invitado ==")
+    man = manifiesto()
+    lab = man.get("lab_numero")
+    if lab is None:
+        say("  SKIP: este laboratorio no declara lab_numero (migracion pendiente)")
+        return 0
+    sedes = {s.get("codigo"): s for s in man.get("lab_sites", []) if s.get("codigo")}
+    sedes.update({c: {"codigo": c} for c in (man.get("lab_sedes_extra") or {})})
+    clases = {int(k): v for k, v in (man.get("lab_clases") or {}).items()}
+    sede_por_numero = {_codigo_numero(c): c for c in sedes}
+    invitados = list(man.get("pve_containers") or []) + list(man.get("pve_vms") or [])
+    errores = []
+    for g in invitados:
+        vmid = g.get("vmid")
+        nombre = g.get("hostname") or g.get("name")
+        if vmid is None or not nombre:
+            errores.append(f"invitado sin vmid o nombre: {g}")
+            continue
+        cifras = str(vmid)
+        if len(cifras) != 8:
+            errores.append(f"{nombre}: vmid {vmid} no tiene 8 cifras")
+            continue
+        ll, ss, cc, ii = cifras[0:2], cifras[2:4], cifras[4:6], cifras[6:8]
+        if int(ll) != int(lab):
+            errores.append(f"{nombre}: vmid {vmid} empieza por {ll}, no por el laboratorio {lab}")
+        if int(ss) not in sede_por_numero:
+            errores.append(f"{nombre}: vmid {vmid} usa la sede {ss}, que no esta declarada")
+            continue
+        if int(cc) not in clases:
+            errores.append(f"{nombre}: vmid {vmid} usa la clase {cc}, que no esta declarada")
+            continue
+        token = clases[int(cc)]["token"]
+        esperado = f"{ll}-{sede_por_numero[int(ss)]}-{token}-{ii}"
+        if nombre != esperado:
+            errores.append(f"{nombre}: el nombre no espeja el numero (esperado {esperado})")
+    for e in errores:
+        say(f"  DESFASE: {e}")
+    if errores:
+        fail(f"{len(errores)} invitado(s) con numero o nombre que no cuadran con el esquema")
+    say(f"PASS: los {len(invitados)} invitados de este laboratorio tienen numero y nombre coherentes.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     sub = parser.add_subparsers(dest="mode")
@@ -1707,6 +1766,7 @@ def main():
     rf.add_argument("--sellar", nargs="*", default=None,
                     help="sella las citas actuales (sin nombres: todos los documentos)")
     sub.add_parser("caducidad", help="documentos que citan código cambiado desde su última revisión")
+    sub.add_parser("numeracion", help="el numero y el nombre de cada invitado se componen igual")
     args = parser.parse_args()
 
     if args.mode == "invariant":
@@ -1737,6 +1797,8 @@ def main():
         if args.sellar is not None:
             return refs_sellar(args.sellar or None)
         return refs(args.ruta)
+    if args.mode == "numeracion":
+        return numeracion_check()
     if args.mode == "caducidad":
         return caducidad_check()
     parser.print_help()
