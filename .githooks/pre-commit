@@ -1,0 +1,25 @@
+#!/bin/sh
+# Pre-commit: si tocas un fichero de mecanismo, imprime qué DOCUMENTOS lo citan.
+#
+# El puntero va del documento al código; el cambio va al revés, así que quien toca el
+# código es quien debe revisar los documentos que lo citan — pero el fichero no lo dice,
+# lo dice el conjunto. Esto lo saca a la luz en el mismo commit.
+#
+# NO bloquea nada: siempre sale 0. Es un recordatorio, no un guardián. Para saltarlo,
+# `git commit --no-verify`.
+raiz=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$raiz" || exit 0
+
+citados=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null \
+  | grep -E '^(configure/|playbooks/)' | grep -v '^playbooks/tools/framework_check\.py$')
+[ -z "$citados" ] && exit 0
+
+echo "=========================================================="
+echo " refs — documentos que citan lo que estás commiteando"
+echo "=========================================================="
+echo "$citados" | while read -r f; do
+  [ -f "$f" ] || continue
+  python3 playbooks/tools/framework_check.py refs "$f" 2>/dev/null
+done
+echo "=========================================================="
+exit 0
