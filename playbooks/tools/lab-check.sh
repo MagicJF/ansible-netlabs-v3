@@ -20,71 +20,26 @@
 set -u
 
 # --- el mapa del lab: nombre, dirección, sede (0 = red de gestión), tipo -----
-# GENERADO desde la declaración. No se edita a mano: la lista es la ENTRADA de
-# este test, así que una lista escrita a mano se queda ciega a los invitados que
-# se añaden después y nada lo detecta. Se regenera con:
-#     python3 playbooks/tools/framework_check.py labmap
-# >>> LABMAP
-LAB="pc-s1-01 10.11.0.11 1 pc"
-LAB="$LAB;pc-s1-02 10.11.0.12 1 pc"
-LAB="$LAB;pc-s1-03 10.11.0.13 1 pc"
-LAB="$LAB;pc-s1-04 10.11.0.14 1 pc"
-LAB="$LAB;pc-s2-01 10.12.0.11 2 pc"
-LAB="$LAB;pc-s2-02 10.12.0.12 2 pc"
-LAB="$LAB;pc-s3-01 10.13.0.11 3 pc"
-LAB="$LAB;pc-s3-02 10.13.0.12 3 pc"
-LAB="$LAB;sw-s1-acc-01 10.10.10.11 0 sw"
-LAB="$LAB;sw-s1-acc-02 10.10.10.12 0 sw"
-LAB="$LAB;sw-s2-acc-01 10.10.10.13 0 sw"
-LAB="$LAB;sw-s3-acc-01 10.10.10.14 0 sw"
-LAB="$LAB;rt-s1-core 10.10.10.21 0 rt"
-LAB="$LAB;rt-s2-edge 10.10.10.22 0 rt"
-LAB="$LAB;rt-s3-edge 10.10.10.23 0 rt"
-LAB="$LAB;fw-s1-perim 10.10.10.31 0 fw"
-LAB="$LAB;fw-s2-perim 10.10.10.32 0 fw"
-LAB="$LAB;fw-s3-perim 10.10.10.33 0 fw"
-LAB="$LAB;fw-wan-edge 10.10.10.34 0 fw"
-LAB="$LAB;infra-bootstrap 10.10.10.41 0 boot"
-# <<< LABMAP
+# ESTE SCRIPT NO LLEVA TOPOLOGIA DENTRO. El mapa (LAB, OOB, GW, RT y HOP) se
+# deriva de la declaración de CADA laboratorio y se pasa como fichero en la
+# primera posición. Así el mismo script sirve para N topologías y ninguna lista
+# escrita a mano puede quedarse ciega a los invitados que se añaden después.
+# Lo genera `framework_check.py labmap --emit`; el playbook lo entrega por ti.
 
-# --- el segmento de gestion OOB: a lo que NO se debe llegar ------------------
-# GENERADO desde la declaración, igual que LABMAP. No se edita a mano. Este
-# segmento (10.20.20.0/24, el switch de gestion OOB) NO es del dominio de
-# producción: en un despliegue físico es una isla —switch propio, DHCP propio—
-# que se alcanza desde el lado del operador, no desde una workstation. Aquí se
-# comprueba justo lo contrario: que una estación NO llega. La comprobación
-# positiva (que el operador sí llega) vive en playbooks/tools/lab-check.yml.
-# Se regenera con:  python3 playbooks/tools/framework_check.py labmap
-# >>> OOB
-OOB="sw-mgmt-01 10.20.20.11"
-# <<< OOB
-
-# --- la topología: quién es quién y por dónde se cruza -----------------------
-# GENERADO desde la declaración. No se edita a mano: las puertas, los routers de
-# gestión y los saltos de cada par de sedes se derivan de `lab_sites` y `lab_hub`.
-# Se regenera con:  python3 playbooks/tools/framework_check.py labmap
-#
-# La LAN de la sede cuelga de su ROUTER (el router es la puerta y el servidor
-# DHCP) y el FIREWALL se interpone entre el router y la WAN. Por eso el tránsito
-# entre sedes tiene CUATRO saltos: entra y sale por dos firewalls además de los
-# dos routers. El hub es la sede cuyo firewall termina el borde; las demás son
-# spokes con UN enlace hacia el hub.
-# >>> TOPOLOGY
-GW="1 10.11.0.1 2 10.12.0.1 3 10.13.0.1"
-RT="1 10.10.10.21 2 10.10.10.22 3 10.10.10.23"
-HOP="1-0 10.11.0.1
-1-1
-1-2 10.11.0.1 10.21.0.1 10.99.1.2 10.22.0.2
-1-3 10.11.0.1 10.21.0.1 10.99.2.2 10.23.0.2
-2-0 10.12.0.1
-2-1 10.12.0.1 10.22.0.1 10.99.1.1 10.21.0.2
-2-2
-2-3 10.12.0.1 10.22.0.1 10.99.1.1 10.99.2.2 10.23.0.2
-3-0 10.13.0.1
-3-1 10.13.0.1 10.23.0.1 10.99.2.1 10.21.0.2
-3-2 10.13.0.1 10.23.0.1 10.99.2.1 10.99.1.2 10.22.0.2
-3-3"
-# <<< TOPOLOGY
+# --- el mapa viene de FUERA: el playbook pasa el de SU laboratorio -----------
+# Sin mapa este script no sabe qué probar, así que se niega en vez de adivinar.
+LABCHECK_MAP="${LABCHECK_MAP:-${1:-}}"
+if [ -z "$LABCHECK_MAP" ]; then
+  echo "!! Este script no lleva topología dentro: pásale el mapa del laboratorio." >&2
+  echo "   El playbook lo hace solo:  bin/lab check" >&2
+  exit 2
+fi
+if [ ! -f "$LABCHECK_MAP" ]; then
+  echo "!! No encuentro el mapa del laboratorio: $LABCHECK_MAP" >&2
+  exit 2
+fi
+# shellcheck disable=SC1090
+. "$LABCHECK_MAP"
 
 gw_of() { printf '%s\n' "$GW" | awk -v s="$1" '{for(i=1;i<=NF;i+=2) if($i==s){print $(i+1); exit}}'; }
 rt_of() { printf '%s\n' "$RT" | awk -v s="$1" '{for(i=1;i<=NF;i+=2) if($i==s){print $(i+1); exit}}'; }

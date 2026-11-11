@@ -395,7 +395,7 @@ def _vantage(ip):
 def declared_targets():
     """El mapa del lab derivado de la declaración: nombre, dirección, sede y tipo.
 
-    Es la lista que `lab-check.sh` lleva incrustada. Se deriva en vez de
+    Es la lista que el playbook entrega a `lab-check.sh` como fichero. Se deriva en vez de
     escribirse a mano porque la lista es la ENTRADA del propio test: si se
     mantiene a mano, añadir un invitado deja el test ciego a él y nada lo nota.
     El tipo sale del nombre (pc/sw/rt/fw) y la sede del campo `site` declarado.
@@ -439,22 +439,23 @@ def declared_targets():
 
 
 def mapped_addresses():
-    """Las direcciones que el script va a probar, leídas de su propio mapa."""
+    """Las direcciones que el script probará, derivadas de la declaración.
+
+    Ya NO se leen del script: el script no lleva topología dentro. El mapa que
+    el playbook le entrega se genera con `_labmap_block()`, así que se compara
+    contra ESA función —la fuente única— y no contra una copia incrustada.
+    """
     out = {}
-    for line in open(LABCHECK, encoding="utf-8"):
-        if "LAB=" not in line:
-            continue
+    for line in _labmap_block().splitlines():
         for mm in re.finditer(r"([\w-]+) ([\d.]+) \d+ \w+", line):
             out[mm.group(1)] = mm.group(2)
     return out
 
 
 def mapped_oob():
-    """Los destinos OOB incrustados, que las estaciones deben NO alcanzar."""
+    """Los destinos OOB que las estaciones deben NO alcanzar, de la declaración."""
     out = {}
-    for line in open(LABCHECK, encoding="utf-8"):
-        if "OOB=" not in line:
-            continue
+    for line in _oob_block().splitlines():
         for mm in re.finditer(r"([\w-]+) ([\d.]+)", line):
             out[mm.group(1)] = mm.group(2)
     return out
@@ -961,16 +962,28 @@ def _topology_data():
     m = manifiesto()
     hub = int(m.get("lab_hub", 1))
     sites = {int(s["id"]): s for s in m.get("lab_sites", [])}
+    # El router de cada sede sale de la DECLARACION (`lab_sites[].mgmt.rt`), no
+    # del nombre del equipo: el mini lo llama `rt-u1` y el patron `rt-s<N>-` no
+    # casaba, asi que `RT` salia VACIO y el test perdia la puerta de su sede.
     routers = {}
+    for sid, s in sites.items():
+        mgmt = s.get("mgmt") or {}
+        if mgmt.get("rt"):
+            routers[sid] = str(mgmt["rt"])
+    # Respaldo: si una sede no declara su router en `mgmt.rt`, se busca un CHR
+    # cuyo nombre empiece por `rt-s<sede>-`.
     for v in m.get("pve_vms", []):
         if not v.get("chr"):
             continue
         mm = re.match(r"rt-s(\d+)-", v["name"])
         if not mm:
             continue
+        sid = int(mm.group(1))
+        if sid in routers:
+            continue
         for a in ((v.get("config") or {}).get("routeros") or {}).get("addresses", []):
             if a.get("interface") == "ether1":
-                routers[int(mm.group(1))] = a["address"].split("/")[0]
+                routers[sid] = a["address"].split("/")[0]
     return hub, sites, routers
 
 
@@ -1016,7 +1029,7 @@ OOB_END = "# <<< OOB"
 
 
 def _labmap_block():
-    """El bloque `LAB=` que lab-check.sh lleva incrustado, derivado del manifiesto.
+    """El bloque `LAB=` que el playbook entrega como fichero, derivado del manifiesto.
 
     Se agrupa por tipo y se ordena por nombre para que dos generaciones seguidas
     den el MISMO texto: si el orden bailara, el fichero pareceria cambiado sin
@@ -1038,7 +1051,7 @@ def _labmap_block():
 
 
 def _oob_block():
-    """El bloque `OOB=` que lab-check.sh lleva incrustado: qué NO debe alcanzar.
+    """El bloque `OOB=` que el playbook entrega como fichero: qué NO debe alcanzar.
 
     Es la cara negativa del mismo mapa. Los destinos del segmento de gestión OOB
     no son del dominio de producción: en un despliegue físico son una isla. Las
@@ -1071,38 +1084,28 @@ def _reescribe(texto, marca, nuevo):
     return texto[:ini + len(marca[0])] + "\n" + nuevo + "\n" + texto[fin:], False
 
 
-def labmap(check=False):
-    """Regenera (o con --check verifica) los bloques incrustados en lab-check.sh.
+def labmap(check=False, emit=False):
+    """Emite el mapa de ESTE laboratorio y, con --check, vigila que el script no
+    lleve topología dentro.
 
-    Son tres porque responden a preguntas distintas: LABMAP es QUIÉN hay (la lista
-    de destinos de las estaciones), OOB es a QUIÉN NO deben llegar (el segmento de
-    gestión, isla aparte), y TOPOLOGY es POR DÓNDE se cruza (puertas, routers de
-    gestión y saltos predichos de cada par de sedes). Los tres se derivan del
-    manifiesto.
+    El mapa (LAB, OOB, GW, RT y HOP) se deriva de la declaración y el playbook lo
+    entrega al script como FICHERO. Antes se incrustaba en lab-check.sh; eso
+    convertía al script en una copia de la topología del laboratorio activo y lo
+    dejaba ciego al laboratorio que se estaba operando (medido: el mini se negó a
+    medir porque su dirección no estaba en el mapa del grande). El script es
+    lógica; la topología es un dato que se pasa.
     """
-    say("== labmap: el mapa, el OOB y la topología del test, derivados de la declaración ==")
-    texto = open(LABCHECK, encoding="utf-8").read()
-    bloques = [
-        ((LABMAP_START, LABMAP_END), _labmap_block(), "destinos"),
-        ((OOB_START, OOB_END), _oob_block(), "OOB"),
-        ((TOPOLOGY_START, TOPOLOGY_END), _topology_block(), "saltos"),
-    ]
-    pendientes = []
-    for marca, nuevo, etiqueta in bloques:
-        texto, igual = _reescribe(texto, marca, nuevo)
-        if not igual:
-            pendientes.append(etiqueta)
-    if not pendientes:
-        say(f"  ya coincide con la declaración: {len(declared_targets())} destinos "
-            f"y {len(declared_targets())} pares de sedes")
-        say("\nPASS: el mapa y la topología del test son los que la declaración produce.")
-        return 0
+    say("== labmap: el mapa de este laboratorio, derivado de la declaración ==")
     if check:
-        say(f"  DESINCRONIZADO: {', '.join(pendientes)}")
-        fail("lab-check.sh no coincide con la declaración; ejecuta `labmap` para regenerarlo")
-    open(LABCHECK, "w", encoding="utf-8").write(texto)
-    say(f"  regenerado: {', '.join(pendientes)}")
-    say("\nPASS: lab-check.sh ya lleva el mapa y la topología de la declaración.")
+        texto = open(LABCHECK, encoding="utf-8").read()
+        incrustado = [m for m in (LABMAP_START, OOB_START, TOPOLOGY_START) if m in texto]
+        if incrustado:
+            fail(f"lab-check.sh lleva topología incrustada ({', '.join(incrustado)}); "
+                 "el mapa debe venir como fichero, no escrito dentro")
+        say("  el script no lleva topología incrustada: el mapa se pasa como fichero")
+        say("\nPASS: el script no lleva el mapa dentro; el mapa se deriva de la declaración.")
+        return 0
+    print("\n".join([_labmap_block(), _oob_block(), _topology_block()]))
     return 0
 
 
@@ -1281,9 +1284,11 @@ def main():
     nl.add_argument("--desde", help="laboratorio de origen (por defecto: labs/active)")
     nl.add_argument("--activar", action="store_true",
                     help="reapuntar labs/active al laboratorio nuevo")
-    lm = sub.add_parser("labmap", help="regenerar el mapa de destinos incrustado en lab-check.sh")
+    lm = sub.add_parser("labmap", help="emitir el mapa de este laboratorio (derivado de la declaración)")
     lm.add_argument("--check", action="store_true",
-                    help="solo verificar que el mapa coincide con la declaración")
+                    help="verificar que el script no lleva topología incrustada")
+    lm.add_argument("--emit", action="store_true",
+                    help="imprimir el mapa en stdout, sin escribir en lab-check.sh")
     sub.add_parser("api", help="la API sólo se toca por la puerta (tools/ + uri), no a mano")
     sub.add_parser("docs", help="los documentos son el render de la declaración, no copia a mano")
     args = parser.parse_args()
@@ -1301,7 +1306,7 @@ def main():
     if args.mode == "notas":
         return notas_check()
     if args.mode == "labmap":
-        return labmap(args.check)
+        return labmap(args.check, args.emit)
     if args.mode == "nuevo-lab":
         return nuevo_lab(args.nombre, args.desde, args.activar)
     if args.mode == "api":

@@ -859,11 +859,13 @@ declara el manifiesto: si alguien añade un invitado y no lo añade a la prueba 
 revés), falla. Una suite que prueba uno menos de los que hay sale verde y miente.
 
 Ese mapa **no se escribe a mano**: `framework_check.py labmap` lo deriva del
-manifiesto y reescribe entre marcadores **tres** bloques de `lab-check.sh`. Con
-`--check` sólo verifica, sin tocar. Se derivan porque esa lista es la *entrada* del
-propio test: si se mantiene a mano, añadir un invitado deja el test ciego a él y el
-script no puede echar en falta un destino que no sabe que existe. `agree` detecta ese
-desfase; `labmap` lo hace imposible.
+manifiesto y el playbook de `check` lo entrega a `lab-check.sh` como **fichero**, en
+la primera posición. El script no lleva ninguna dirección dentro: es lógica, y la
+topología se le pasa como dato. Con `--check` se verifica que el script no tenga
+ningún bloque incrustado. Se deriva porque esa lista es la *entrada* del propio test:
+si se mantiene a mano, añadir un invitado deja el test ciego a él y el script no
+puede echar en falta un destino que no sabe que existe. `agree` detecta ese desfase;
+`labmap` lo hace imposible.
 
 - **`LABMAP`** — quién hay: nombre, dirección, sede y tipo de cada invitado.
 - **`OOB`** — a quién **no** debe llegar una estación: el segundo segmento de gestión
@@ -973,12 +975,10 @@ propias; y el túnel de gestión lo gestiona uno solo (`manage: true`), los dem�
 reutilizan con `manage: false`. El registro (`logs/`) es del nodo: con dos vivos, el
 diario de API mezcla el tráfico de los dos.
 
-> **Limitación conocida.** El verificador de red (`playbooks/tools/lab-check.sh`) lleva
-> **el mapa de destinos de la topología incrustado a mano**, así que describe un solo
-> laboratorio a la vez (`framework_check.py agree` lo denuncia en cuanto la declaración
-> dice otra cosa, y `labmap` lo regenera). Es una fuga de topología dentro del motor:
-> lo correcto es que ese mapa se **renderice desde la declaración** en cada ejecución y
-> que el script no sepa ninguna dirección.
+> **Resuelto.** El verificador de red (`playbooks/tools/lab-check.sh`) ya no lleva
+> ninguna dirección dentro: el mapa de destinos se **renderiza desde la declaración**
+> en cada ejecución y se le pasa como fichero. Así un mismo script sirve para N
+> laboratorios y no puede quedarse ciego al que se está operando.
 
 ## Cómo se comporta el motor
 

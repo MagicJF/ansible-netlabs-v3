@@ -45,6 +45,16 @@
         label: "{{ item.hostname }}"
       changed_when: false
 
+    # El mapa del test se deriva de ESTE laboratorio, no se escribe a mano ni se
+    # hereda del activo. Se genera UNA vez aquí y se pasa a cada estación como
+    # fichero: el script ya no lleva topología dentro, así que sirve para
+    # cualquier laboratorio sin regenerarlo a mano.
+    - name: Generate the map of this laboratory for the check
+      ansible.builtin.command:
+        cmd: python3 {{ playbook_dir }}/framework_check.py labmap --emit
+      register: lab_map
+      changed_when: false
+
 - name: lab-check - the topology check, on every workstation at once
   hosts: lab_workstations
   gather_facts: false
@@ -57,8 +67,15 @@
     - name: Can we reach the guest at all, and if not, why
       ansible.builtin.include_tasks: ../../configure/tasks/reachability.yml
 
+    - name: Place the map of this laboratory where the check will read it
+      ansible.builtin.copy:
+        content: "{{ hostvars['localhost']['lab_map'].stdout }}"
+        dest: /tmp/labcheck-map.env
+        mode: "0600"
+      changed_when: false
+
     - name: The check, run where it belongs
-      ansible.builtin.script: lab-check.sh
+      ansible.builtin.script: lab-check.sh /tmp/labcheck-map.env
       register: lab_check
       # Pings and traceroutes: this reports on the lab, it does not touch it.
       changed_when: false
