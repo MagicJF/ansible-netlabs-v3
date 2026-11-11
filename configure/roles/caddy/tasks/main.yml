@@ -1,4 +1,9 @@
 ---
+# PROPÓSITO: converger el interior de un invitado que sirve web por Caddy.
+# INVARIANTES: el Caddyfile se RENDERIZA desde los sitios declarados; se valida con
+#   `caddy validate` antes de recargar; se verifican los timers systemd declarados; se
+#   comprueba lo declarado en vez de fiarse del estado de salida.
+# VER: los asserts de este rol y `framework_check.py`.
 # ===========================================================================
 # Layer 2, Caddy role. Converges the INSIDE of a guest: the package, the
 # Caddyfile rendered from the declared sites, the service and any declared

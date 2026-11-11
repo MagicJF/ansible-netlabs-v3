@@ -287,6 +287,10 @@ ansible-playbook playbooks/apply.yml
 ansible-playbook configure/site.yml
 ```
 
+El orden y sus verbos se explican en la cabecera de cada uno:
+[`playbooks/apply.yml`](playbooks/apply.yml) y
+[`configure/site.yml`](configure/site.yml); aquí sólo se cuenta el orden.
+
 **El alcance no se le exige a quien este orden impide estar en pie.** La capa 2
 pregunta lo mismo que la capa 1 —¿sirve ya la sede su DHCP?— y salta a las estaciones
 que todavía no pueden existir, diciendo cuáles y por qué. Por eso el paso 3 no

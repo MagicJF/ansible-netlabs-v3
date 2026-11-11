@@ -1,4 +1,10 @@
 ---
+# PROPÓSITO: el tercer verbo: converger el CAMINO del nodo de control hacia la LAN de
+#   invitados. No toca ningún invitado.
+# INVARIANTES: el camino se DECLARA (`pve_tunnel`) y se converge aquí; `configure/site.yml`
+#   incluye esta misma tarea cuando su sondeo no encuentra invitado que conteste, así que
+#   un `site` normal no necesita este verbo.
+# VER: el propio playbook y `framework_check.py`.
 # ===========================================================================
 # connect.yml — the third verb: converge the control node's PATH into the guest
 # LAN. It touches no guest.

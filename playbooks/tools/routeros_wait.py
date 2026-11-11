@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# PROPÓSITO: esperar a que los equipos RouterOS de un escalón estén LISTOS, no sólo
+#   encendidos.
+# INVARIANTES: «orden de arranque dada» ≠ «listo»; y contestar la API no basta si el
+#   equipo no sirve para nada.
+# VER: lo usa `apply.yml`.
 """Espera a que los equipos RouterOS de un escalón estén LISTOS, no sólo encendidos.
 
 `startall` devuelve una tarea, y la tarea termina cuando Proxmox ha DADO la orden de

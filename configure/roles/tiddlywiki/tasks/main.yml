@@ -1,4 +1,12 @@
 ---
+# PROPÓSITO: converger el interior de un invitado que sirve un wiki (Node.js de la
+#   distribución, motor TiddlyWiki versionado y la unidad systemd que lo sirve).
+# INVARIANTES: el motor se instala desde el artefacto OFICIAL versionado, no por `npm`
+#   (el paquete no tiene dependencias de runtime, y el rol lo comprueba); se verifica el
+#   servicio que CORRE, no la instalación.
+# LÍMITES: `apt install npm` en Debian 13 arrastra ~400 paquetes (el stack GTK/X) para
+#   algo que no lo necesita.
+# VER: los asserts de este rol y `framework_check.py`.
 # ===========================================================================
 # Layer 2, TiddlyWiki role. Converges the INSIDE of a guest: Node.js from the
 # distribution, the pinned TiddlyWiki engine, a server-edition wiki folder and

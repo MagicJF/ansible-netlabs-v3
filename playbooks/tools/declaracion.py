@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# PROPÓSITO: cargar la declaración del laboratorio con sus referencias `{{ }}` resueltas.
+# INVARIANTES: una ficha CITA la tabla del manifiesto, no lleva la dirección dentro; quien
+#   lea el YAML en crudo encuentra plantillas donde espera direcciones.
+# LÍMITES: el fallo por referencias sin resolver no siempre es ruidoso (el mapa sale con
+#   `{{ … }}` y `agree` denuncia un desfase que no existe).
+# VER: `framework_check.py agree`.
 # ===========================================================================
 # declaracion.py — la declaración del laboratorio, con sus referencias resueltas.
 #

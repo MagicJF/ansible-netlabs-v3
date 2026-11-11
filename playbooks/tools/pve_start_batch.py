@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# PROPÓSITO: arranque optimista, con comprobación y reintento.
+# INVARIANTES: un escalón se pide ENTERO (sin limitar trabajadores); se comprueba en UN
+#   proceso y se relanza SÓLO lo que quedó parado.
+# VER: lo usa `apply.yml`.
 # ===========================================================================
 # pve_start_batch.py — arranque optimista, con comprobación y reintento.
 #

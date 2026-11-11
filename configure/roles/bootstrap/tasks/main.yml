@@ -1,4 +1,12 @@
 ---
+# PROPÓSITO: entregar la PRIMERA dirección de un router —la única que su API no puede
+#   darse a sí misma— y PROBAR que el router la tomó.
+# INVARIANTES: una sola oferta por router (dnsmasq en modo `static`, atado a la MAC): no
+#   hay carrera con otro servidor DHCP; el contenedor no interviene tras el bootstrap;
+#   `ethtool -K … tx off gso off tso off` apaga el checksum offload o la oferta llega rota.
+# LÍMITES: la oferta lleva la puerta por defecto (opción 3): sin ella el router no sabe
+#   volver fuera de su subred y su API no contesta al nodo de control.
+# VER: los asserts de este rol, `framework_check.py` y ADR 0002.
 # ===========================================================================
 # bootstrap — converge the one thing that has to exist before a router's own
 # API can be used: its first address.

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# PROPÓSITO: renderizar los documentos con valores desde la declaración.
+# INVARIANTES: un documento con nombres, direcciones o recuentos a mano es una SEGUNDA
+#   fuente de verdad; los documentos con valores se RENDERIZAN desde el manifiesto.
+# VER: `framework_check.py docs`.
 # ===========================================================================
 # documentos.py — los documentos del repositorio, renderizados desde la
 #                 declaración.

@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# PROPÓSITO: los ojos del motor: leer TODOS los invitados y los prerrequisitos de la
+#   plataforma en UN proceso.
+# INVARIANTES: una llamada a la API de PVE cuesta ~15-80 ms y una tarea de Ansible ~3 s;
+#   todo lo que se pueda leer de golpe, se lee de golpe.
+# VER: lo usan `apply.yml` y `preflight.yml`.
 # ===========================================================================
 # pve_read.py — the engine's eyes.
 #

@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# PROPÓSITO: el entorno de esta máquina de control: un solo fichero, una sola verdad.
+# INVARIANTES: todo lo que cambia de una máquina a otra se declara UNA vez en
+#   `playbooks/vars/entorno.yml`; este módulo es el ÚNICO que sabe dónde está y cómo se
+#   llama cada clave (y con qué nombres alternativos se acepta).
+# VER: `entorno.py verificar` (lo corre `bin/lab` antes de cualquier verbo).
 """El entorno de esta máquina de control: un solo fichero, una sola verdad.
 
 Todo lo que cambia de una máquina a otra —las credenciales de la API, su puerto,

@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# PROPÓSITO: la prueba del propio marco: ¿sigue comportándose como un sistema convergente?
+# INVARIANTES: una pasada sobre un lab ya convergido no cambia NADA; y el lab VUELVE a
+#   converger tras inyectarle deriva.
+# LÍMITES: una regresión en cualquiera de las dos propiedades produce una pasada VERDE.
+# VER: es la comprobación del marco.
 """The framework's own test: does it still behave like a convergent system?
 
 Two properties hold this framework up, and both are easy to lose without

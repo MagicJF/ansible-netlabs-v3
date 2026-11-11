@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# PROPÓSITO: generar `ESFUERZO.md` contando los registros que el propio motor escribe.
+# INVARIANTES: dos fuentes separadas por el campo `api` — Proxmox del diario, RouterOS del
+#   log de Ansible; el documento es RECUENTO, no prosa de diseño.
+# VER: regenerar con `python3 playbooks/tools/esfuerzo.py`.
 """Genera ESFUERZO.md: cuanto trabajo costo poner el laboratorio en pie.
 
 Dos registros, dos alcances distintos, y conviene saber por que:

@@ -1,4 +1,8 @@
 ---
+# PROPÓSITO: el verbo de SÓLO LECTURA: informa de qué cambiaría, sin cambiar nada.
+# INVARIANTES: mismo motor que `apply.yml` (un lector, una pasada de plantilla), para que
+#   los dos verbos no puedan discrepar sobre qué es «en sincronía»; no muta nada.
+# VER: la propia salida del playbook.
 # ===========================================================================
 # preflight.yml — the read-only verb. Changes nothing at all.
 #

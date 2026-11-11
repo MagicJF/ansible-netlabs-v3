@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# PROPÓSITO: decir si el DHCP que va a servir a las estaciones está EN PIE (sólo lectura).
+# INVARIANTES: no basta con que un equipo «funcione» (puentes/rutas) —un router recién
+#   importado no tiene configuración y ese examen lo daría por bueno—; se pregunta por el
+#   DHCP y su reserva.
+# VER: decide si las estaciones pueden encenderse; lo usa `apply.yml`.
 """¿Está en pie el DHCP que va a responder a las estaciones? Sólo lectura.
 
 Por qué existe, y por qué no vale `routeros_wait.py`: aquél dice si un equipo de

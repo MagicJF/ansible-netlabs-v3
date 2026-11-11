@@ -1,4 +1,12 @@
 ---
+# PROPÓSITO: el verbo convergente: leer, aplicar y verificar el estado declarado de los
+#   invitados en una sola pasada.
+# INVARIANTES: UN lector de todos los invitados (una tarea, no una por invitado); UNA
+#   pasada de plantilla; sólo muta lo que ha derivado; la verificación RE-LEE, porque un
+#   estado de salida no prueba que PVE guardó lo declarado.
+# LÍMITES: las comprobaciones nunca fueron el coste; el coste es la sobrecarga por tarea
+#   (~3 s) frente a la llamada a la API de PVE (15-80 ms).
+# VER: `framework_check.py invariant` / `drill` / `agree` y la verificación de este playbook.
 # ===========================================================================
 # apply.yml — the convergent verb.
 #

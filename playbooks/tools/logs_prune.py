@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# PROPÓSITO: retención de `logs/`, el único directorio que crece sin límite.
+# INVARIANTES: el fichero vivo se ROTA al superar `live_max_mb`; los archivos viejos se
+#   BORRAN por `keep_days`/`keep_count`.
+# VER: ejecución directa (`python3 playbooks/tools/logs_prune.py`).
 """Retention for `logs/` — the only directory in this repository that grows without bound.
 
 Ansible's `log_path` is append-only and Ansible never rotates it, so one file

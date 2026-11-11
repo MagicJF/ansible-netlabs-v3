@@ -1,4 +1,14 @@
 {#-
+  PROPÓSITO: calcular las llamadas REST que el router necesita, de lo que respondió (ros)
+    contra lo que la declaración pide (l2_config.routeros). Emite una lista JSON.
+  INVARIANTES: el orden es bridges → ports → addresses → routes → pool → dhcp network →
+    dhcp server → leases → deletions → identity → el intercambio de ether1; el intercambio
+    va ÚLTIMO y atómico.
+  LÍMITES: no puede borrar una ruta ni una address dinámica huérfana («created by a
+    different owner»): eso se purga con un reinicio (ADR 0003).
+  VER: `framework_check.py plan`.
+-#}
+{#-
   The REST calls this router needs, computed from what it answered (ros) and what
   the declaration asks for (l2_config.routeros). Emits a JSON list of
   {method, path, body} — the plan is printed before anything is sent, so the run

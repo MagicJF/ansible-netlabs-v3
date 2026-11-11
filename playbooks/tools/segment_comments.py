@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# PROPÓSITO: poner en el nodo los comentarios de cableado y crear los segmentos que
+#   falten.
+# INVARIANTES: el motor de aplicar sólo CREA segmentos (uno existente se deja igual, para
+#   no cortar un laboratorio vivo); esto actualiza por API, el mismo camino que el motor.
+# VER: ejecución directa.
 """Pone en el nodo los comentarios de cableado de la v2 y crea los segmentos
 que falten.
 

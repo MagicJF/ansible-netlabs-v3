@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# PROPÓSITO: derivar de la declaración las notas HTML y las etiquetas de cada invitado
+#   (lo que PVE enseña en su interfaz).
+# INVARIANTES: `description` y `tags` se GENERAN, no se escriben a mano; se escriben DE
+#   VUELTA en el manifiesto.
+# LÍMITES: una comprobación que valide el CONTENIDO de la nota no detecta que el texto
+#   guardado no sea ya el render — el desfase pasa en verde.
+# VER: `framework_check.py notas`.
 # ===========================================================================
 # pve_notas.py — las notas de los invitados, derivadas de la declaración.
 #

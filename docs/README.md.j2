@@ -999,20 +999,11 @@ los valores tal cual:
 
 Sin esa normalización el motor informa drift fantasma y deja de ser idempotente.
 
-Sólo las claves con drift se envían en la ruta de actualización:
-`community.proxmox.proxmox` hace PUT de todos los parámetros que recibe, no sólo de
-los que encontró distintos, así que enviar `disk`/`ostemplate`/`unprivileged` en una
-actualización los escribiría a ciegas. `state=present` también exige `node` y
-`hostname`, así que esos se envían siempre (hostname sin cambios).
-
-`community.proxmox.proxmox` declara `supports_check_mode=False`: bajo `--check`
-Ansible se salta la tarea mutante y no predice nada, así que `apply.yml` falla pronto
-bajo check mode en vez de insinuar un dry-run. Usa `preflight.yml` para la vista no
-mutante.
-
-`apply.yml` es idempotente: cuando el estado vivo coincide con el declarado no
-informa cambios y no cambia ningún `digest` de configuración. Cada ejecución hace una
-llamada HTTPS por tarea y por contenedor contra el nodo.
+El detalle fino —la semántica del PUT, `check_mode`, la idempotencia— vive en la
+cabecera de su verbo y de su plantilla, no aquí:
+[`playbooks/apply.yml`](playbooks/apply.yml),
+[`playbooks/preflight.yml`](playbooks/preflight.yml) y
+[`playbooks/pve_engine.j2`](playbooks/pve_engine.j2).
 
 ## Registro y observabilidad de la API
 

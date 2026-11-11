@@ -1,4 +1,10 @@
 ---
+# PROPÓSITO: el ÚNICO verbo que destruye. La convergencia nunca borra.
+# INVARIANTES: se niega mientras el invitado siga declarado (salvo `destroy_declared=true`);
+#   exige `-e confirm=<hostname|vmid>`; pasa hostname Y vmid al módulo (cada uno solo falla
+#   de una forma); se niega a borrar uno encendido sin `force=true`; prueba el resultado
+#   re-leyendo la plataforma.
+# VER: la verificación de este playbook y `framework_check.py`.
 # ===========================================================================
 # remove.yml — the ONLY verb that destroys. Convergence never deletes: a guest
 # that disappears from the declaration keeps running, untouched, and that is

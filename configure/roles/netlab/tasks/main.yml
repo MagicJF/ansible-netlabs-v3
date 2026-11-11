@@ -1,4 +1,9 @@
 ---
+# PROPÓSITO: converger las rutas de un invitado en un segmento aislado y PROBAR la
+#   conectividad desde DENTRO del invitado.
+# INVARIANTES: toda ruta necesita `to`, `via` y `dev`; la prueba es un paquete que sale,
+#   no el estado de salida de una tarea.
+# VER: los asserts de este rol y `framework_check.py`.
 # ===========================================================================
 # netlab — the inside of a guest that lives on an isolated segment.
 #

@@ -1,4 +1,11 @@
 ---
+# PROPÓSITO: converger el interior de un invitado que sirve web por Apache.
+# INVARIANTES: `ports.conf` se RENDERIZA desde los sitios declarados —la exposición es
+#   del manifiesto, no de un fichero editado dentro del invitado—; la configuración
+#   ensamblada se comprueba con `apache2ctl configtest`.
+# LÍMITES: sin `validate:` en el vhost (es un FRAGMENTO): validarlo aislado falla en las
+#   directivas que aportan los módulos y rechazaría un fichero correcto.
+# VER: los asserts de este rol y `framework_check.py`.
 # ===========================================================================
 # Layer 2, Apache role. Converges the INSIDE of a guest: the package, the
 # listening ports, one vhost per declared site, the content it serves, and the
