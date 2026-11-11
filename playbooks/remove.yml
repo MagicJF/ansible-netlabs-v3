@@ -35,11 +35,14 @@
     pve_api_token_id: "{{ lookup('env', 'PROXMOX_TOKEN_ID') }}"
     pve_api_token_secret: "{{ lookup('env', 'PROXMOX_TOKEN_SECRET') }}"
     pve_api_ca_path: "{{ lookup('env', 'PROXMOX_CA_PATH') }}"
-    pve_api: "https://{{ pve_api_host }}:8006/api2/json"
+    # El puerto es configurable (default 8006): escribirlo a mano aquí ataba el
+    # verbo a un despliegue concreto y rompía en cualquiera que lo moviera.
+    pve_api_port: "{{ lookup('env', 'PROXMOX_API_PORT') | default('8006', true) }}"
+    pve_api: "https://{{ pve_api_host }}:{{ pve_api_port }}/api2/json"
     pve_token_header: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
     pve_auth: &pve_auth
       api_host: "{{ pve_api_host }}"
-      api_port: 8006
+      api_port: "{{ pve_api_port }}"
       api_user: root@pam
       api_token_id: "{{ pve_api_token_id }}"
       api_token_secret: "{{ pve_api_token_secret }}"
@@ -79,7 +82,8 @@
           - declared_matches | from_json | length == 0
         fail_msg: >-
           {{ target_hostname or target_vmid }} is still declared in
-          labs/netlab-v2/inventory/group_vars/all.yml ({{ declared_matches | from_json | join(', ') }}).
+          {{ pve_lab | default(lookup('env', 'HERMES_LAB') | default('labs', true)) }}/inventory/group_vars/all.yml
+          ({{ declared_matches | from_json | join(', ') }}).
           Remove its entry from pve_containers / pve_vms / pve_config_targets first — otherwise
           the next `apply` recreates it. Nothing was changed.
         success_msg: "The declaration no longer owns this guest."
@@ -141,8 +145,16 @@
         found: >-
           {%- set out = [] -%}
           {%- for g in all_guests -%}
-          {%- if ((target_vmid | length > 0) and ((g.vmid | string) == (target_vmid | string)))
-                 or ((target_hostname | length > 0) and (g.name | default('') == target_hostname)) -%}
+          {#- El vmid es único en la plataforma; el nombre NO. Cuando se da vmid se
+              resuelve por vmid y sólo por vmid: si se sumara el nombre, dos
+              laboratorios que comparten `infra-bootstrap` devolvían DOS
+              coincidencias y el verbo se negaba a destruir ninguno. El par sigue
+              siendo lo que desambigua, pero el vmid manda. -#}
+          {%- if (target_vmid | length > 0) -%}
+          {%- if (g.vmid | string) == (target_vmid | string) -%}
+          {%- set _ = out.append(g) -%}
+          {%- endif -%}
+          {%- elif (target_hostname | length > 0) and (g.name | default('') == target_hostname) -%}
           {%- set _ = out.append(g) -%}
           {%- endif -%}
           {%- endfor -%}
