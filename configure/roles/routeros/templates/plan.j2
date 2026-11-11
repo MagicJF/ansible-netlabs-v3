@@ -65,8 +65,23 @@
 {%-     set _ = residue_addresses.append(a) -%}
 {%-   endif -%}
 {%- endfor -%}
-{%- set swap_addresses = (decl_addresses | selectattr('interface', 'in', client_ifaces) | list)
-                          + residue_addresses -%}
+{#- La MISMA dirección llegaba por DOS caminos: por estar en una interfaz con
+    cliente DHCP que se va a retirar, y por seguir viva como residuo dinámico. Se
+    sumaban las dos listas tal cual, así que el guion emitía `/ip address add`
+    DUPLICADO para esa dirección. RouterOS aborta el script en el segundo `add`
+    (dirección ya presente), y como las rutas van DESPUÉS, el equipo se quedaba
+    sin ruta por defecto y dejaba de contestar — medido: sw-mgmt-01 convergía, y
+    la lectura siguiente expiraba porque se había quedado mudo. Se deduplica por
+    (address, interface) antes de emitir el intercambio. -#}
+{%- set swap_sources = (decl_addresses | selectattr('interface', 'in', client_ifaces) | list)
+                        + residue_addresses -%}
+{%- set swap_addresses = [] -%}
+{%- for a in swap_sources -%}
+{%-   if (swap_addresses | selectattr('address', 'equalto', a.address)
+          | selectattr('interface', 'equalto', a.interface) | list) | length == 0 -%}
+{%-     set _ = swap_addresses.append(a) -%}
+{%-   endif -%}
+{%- endfor -%}
 {%- set plain_addresses = decl_addresses
       | rejectattr('interface', 'in', client_ifaces)
       | rejectattr('address', 'in', (residue_addresses | map(attribute='address') | list)) | list -%}
