@@ -315,6 +315,15 @@ porque el motor nunca destruye nada:
 Hacerlo al revés es cómo un invitado borrado vuelve: destruye uno que siga
 declarado y el siguiente `apply` lo recrea.
 
+Hay una excepción deliberada, y es el ciclo «destruir y recrear»: cuando lo que
+quieres es justamente volver a levantar un invitado idéntico, el inventario lo
+sigue declarando y `remove.yml` se negaría. La intención se declara entonces con
+`-e destroy_declared=true`: el guardián calla, deja constancia en el registro de
+que el borrado era a propósito, y el siguiente `apply` lo recrea. La bandera no
+relaja lo demás —`-e confirm=<objetivo>` sigue siendo obligatorio, así que un
+error de tecleo no borra nada, y el invitado en marcha sigue exigiendo
+`-e force=true`—, y sin ella el orden de arriba continúa siendo el único camino.
+
 **Borra la entrada entera, o nada de ella.** YAML se queda con el *último* valor de
 una clave duplicada sin avisar, así que una entrada cuyas líneas de identidad se
 borraron mientras su bloque `manage:`/`config:` seguía ahí no desaparece: se
@@ -1158,5 +1167,8 @@ descubrimiento/bootstrap inicial; ningún playbook de infraestructura usa SSH.
 Para quitar un invitado, **desdecláralo primero y destrúyelo después** — ver [Añadir y
 quitar un invitado](#añadir-y-quitar-un-invitado). `ansible-playbook
 playbooks/remove.yml -e hostname=<nombre> -e confirm=<nombre>` hace el segundo paso y
-se niega mientras el invitado siga declarado. No quites recursos con comandos SSH, y no
-destruyas un invitado que el manifiesto aún declara: el siguiente `apply` lo recrearía.
+se niega mientras el invitado siga declarado. Para el ciclo «destruir y recrear»
+—borrarlo a sabiendas y que el siguiente `apply` lo levante otra vez— añade
+`-e destroy_declared=true`; la confirmación sigue siendo obligatoria. No quites
+recursos con comandos SSH, y no destruyas un invitado que el manifiesto aún declara sin
+esa bandera: el siguiente `apply` lo recrearía.

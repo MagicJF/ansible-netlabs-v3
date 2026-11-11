@@ -16,6 +16,9 @@
 #      which is what replacing a lab without renaming produces. The pair is what
 #      disambiguates;
 #   4. it refuses to delete a RUNNING guest unless -e force=true is given;
+#   4b. it also refuses to delete a guest the declaration still owns --
+#      because the next apply would resurrect it -- unless the recreate
+#      intent is declared with -e destroy_declared=true;
 #   5. it proves the result by re-reading the platform: the guest must be gone and
 #      — unless -e keep_disks=true — no volume of it may remain in any storage.
 #
@@ -23,6 +26,8 @@
 #   ansible-playbook playbooks/remove.yml -e hostname=old-guest -e confirm=old-guest
 #   ansible-playbook playbooks/remove.yml -e vmid=130 -e confirm=130 -e force=true
 #   ansible-playbook playbooks/remove.yml -e hostname=old-guest -e confirm=old-guest -e keep_disks=true
+#   # ciclo destruir y recrear: el invitado sigue declarado y el siguiente apply lo levanta
+#   ansible-playbook playbooks/remove.yml -e hostname=lab-guest -e confirm=lab-guest -e destroy_declared=true
 #
 # To only STOP a guest, do not use this verb: declare `status: stopped` and run
 # apply.yml. That is a state change, not a removal.
@@ -58,6 +63,11 @@
     # Ansible dies with "Recursive loop detected in template" before doing
     # anything. The `-e` name and the internal name must differ.
     rd_keep_disks: "{{ keep_disks | default(false) | bool }}"
+    # Destruir un invitado que la declaracion TODAVIA posee es legitimo cuando
+    # lo que se busca es justamente recrearlo: se borra aqui y el siguiente
+    # `apply` lo vuelve a levantar identico. Sigue siendo opt-in para que un
+    # despiste en el objetivo no borre nunca algo vivo por accidente.
+    rd_destroy_declared: "{{ destroy_declared | default(false) | bool }}"
   environment:
     PYTHONPATH: "{{ playbook_dir }}/tracing"
     API_HTTP_TRACE: "{{ playbook_dir }}/../logs/pve-api.jsonl"
@@ -77,6 +87,7 @@
     # A guest that is still declared would be recreated by the next apply, so
     # deleting it now would only produce a confusing resurrection later.
     - name: Refuse to destroy a guest the declaration still owns
+      when: not rd_destroy_declared
       ansible.builtin.assert:
         that:
           - declared_matches | from_json | length == 0
@@ -87,6 +98,28 @@
           Remove its entry from pve_containers / pve_vms / pve_config_targets first — otherwise
           the next `apply` recreates it. Nothing was changed.
         success_msg: "The declaration no longer owns this guest."
+      vars:
+        declared_all: >-
+          {{ (pve_containers | default([])) + (pve_vms | default([])) + (pve_config_targets | default([])) }}
+        declared_matches: >-
+          {%- set out = [] -%}
+          {%- for g in declared_all -%}
+          {%- if ((target_vmid | length > 0) and ((g.vmid | string) == (target_vmid | string)))
+                 or ((target_hostname | length > 0) and ((g.hostname | default(g.name | default(''))) == target_hostname)) -%}
+          {%- set _ = out.append((g.vmid | string) ~ ' ' ~ (g.hostname | default(g.name | default('')))) -%}
+          {%- endif -%}
+          {%- endfor -%}
+          {{- out | to_json -}}
+
+    # Con la intencion declarada, el guardian de arriba calla: conviene
+    # que quede escrito que este borrado era deliberado.
+    - name: Announce a deliberate destruction of a declared guest
+      when: rd_destroy_declared and ((declared_matches | from_json | length) > 0)
+      ansible.builtin.debug:
+        msg: >-
+          destroy_declared=true: {{ target_hostname or target_vmid }} sigue declarado
+          ({{ declared_matches | from_json | join(", ") }}) y se destruye igualmente.
+          El siguiente `apply` lo recreara.
       vars:
         declared_all: >-
           {{ (pve_containers | default([])) + (pve_vms | default([])) + (pve_config_targets | default([])) }}
@@ -168,7 +201,15 @@
           Expected exactly one guest matching hostname='{{ target_hostname }}' vmid='{{ target_vmid }}',
           found {{ (found | from_json) | length }}: {{ (found | from_json) | map(attribute='vmid') | list | to_json }}.
           Nothing was changed.
-        success_msg: "Found VMID {{ (found | from_json)[0].vmid }} ({{ (found | from_json)[0].name }}, {{ (found | from_json)[0].kind }})."
+        # El success_msg se plantilla antes de saber si el assert pasa: indexar
+        # [0] sobre una lista vacia reventaba el mensaje de fallo cuando el
+        # invitado no existe, tapando el "found 0" que sí lo explica.
+        success_msg: >-
+          {%- if (found | from_json) | length == 1 -%}
+          Found VMID {{ (found | from_json)[0].vmid }} ({{ (found | from_json)[0].name }}, {{ (found | from_json)[0].kind }}).
+          {%- else -%}
+          No unique guest resolved.
+          {%- endif -%}
 
     - name: Show what is about to be destroyed
       ansible.builtin.debug:
