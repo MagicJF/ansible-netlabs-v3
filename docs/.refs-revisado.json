@@ -5,7 +5,7 @@
   "EL-LABORATORIO.md": {
     "ESFUERZO.md": "0943e0d04277e1cad94f5526bf57add8051d3eda340c1f48202b6e7ecea5fc19",
     "configure/site.yml": "59f4b1a265c56a573f08f172ea004bfac895238d50fb388d739c89d530dac7f7",
-    "playbooks/apply.yml": "b30ac3bb228cabc9da83c0aaf8c41430361ca1422e72ab5c48317e99bdde9ded"
+    "playbooks/apply.yml": "f63eb8ad3d3a8e66cd2755489f3d311c004b6e1385cd35d599410d98e6cc0367"
   },
   "README.md": {
     "EL-LABORATORIO.md": "f8d1a1d3ad312096ffe601958f5e1c4ed3fb66a74d52bef877cdf1e81f8b45ae",
@@ -16,7 +16,7 @@
     "docs/decisiones/0002-bootstrap-existe.md": "267cb2feabdc60a9cca1e2f21a28fdaf884746b3d483bc4ab32a0d25e35b9535",
     "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": "14af559a3fdd6f3a5569b7e2770e6be43ec2b3b38ca7069d4fd02379f78d5804",
     "docs/decisiones/0004-invitado-por-etiqueta.md": "9836f07945fb9bc938bfa00f9733f28899648132a4a17d9feec3d8f51336774a",
-    "playbooks/apply.yml": "b30ac3bb228cabc9da83c0aaf8c41430361ca1422e72ab5c48317e99bdde9ded",
+    "playbooks/apply.yml": "f63eb8ad3d3a8e66cd2755489f3d311c004b6e1385cd35d599410d98e6cc0367",
     "playbooks/preflight.yml": "7ff3a61321b60801ad604ceca2687a47449ddf966619a34451859daed8d2db8f",
     "playbooks/pve_engine.j2": "532533398250f7d858c55495b24fa433dc792fa8ff28b6b34bbbff9efe321fbe"
   },

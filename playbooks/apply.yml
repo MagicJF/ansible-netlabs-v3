@@ -803,7 +803,7 @@
         fail_msg: >-
           APLAZADAS: {{ lab_estaciones_diferidas | length }} estación(es) declaradas ARRANCADAS
           siguen SIN ENCENDER porque su sede todavía no sirve DHCP. ESTA EJECUCIÓN NO DEJA EL
-          LABORATORIO COMPLETO: la declaración pide 21 invitados en pie y hay
+          LABORATORIO COMPLETO: la declaración pide {{ pve_plan | length }} invitados en pie y hay
           {{ lab_estaciones_diferidas | length }} menos (VMID {{ lab_estaciones_diferidas | join(', ') }}).
           No es una desviación de la declaración ni un fallo del despliegue: es el orden que
           impone la física — una workstation pide su dirección al arrancar, no reintenta, y

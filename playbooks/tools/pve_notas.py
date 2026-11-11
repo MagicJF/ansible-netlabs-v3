@@ -509,8 +509,14 @@ def html(e):
 
 
 def tags_de(e):
-    """Tres etiquetas y ni una más: quien lo gestiona, qué es y dónde está."""
-    return ["ansible-managed", rol(e["n"]), sitio_de(e)]
+    """Tres etiquetas y ni una más: quien lo gestiona, qué es y dónde está.
+
+    El papel y la sede salen de la DECLARACIÓN; si un invitado aún no resuelve
+    (dirección plantillada sin renderizar), se omite la etiqueta en vez de
+    devolver None: una lista con None revienta el `sort` del motor y tumba el
+    preflight de TODOS los laboratorios, no sólo el de ese invitado.
+    """
+    return [t for t in ("ansible-managed", rol(e["n"]), sitio_de(e)) if t]
 
 
 # ------------------------------------------------------------------- CLI -
