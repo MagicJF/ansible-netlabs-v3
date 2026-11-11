@@ -23,3 +23,4 @@ Dónde se aplica.
 - [0001 — El hipervisor se gobierna SOLO por su API](0001-solo-api.md)
 - [0002 — Por qué existe el bootstrap](0002-bootstrap-existe.md)
 - [0003 — La ruta por defecto del DHCP de fábrica se purga con un reinicio](0003-reinicio-purga-ruta-dhcp.md)
+- [0004 — Un invitado del laboratorio se reconoce por su etiqueta, no por su VMID](0004-invitado-por-etiqueta.md)

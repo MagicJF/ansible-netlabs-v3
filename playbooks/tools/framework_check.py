@@ -1380,6 +1380,91 @@ def routeros_check():
     return 0
 
 
+def _labs_declarados():
+    """[(nombre, ruta_manifest)] de todos los laboratorios, menos el enlace `active`."""
+    raiz = os.path.join(REPO, "labs")
+    out = []
+    for nombre in sorted(os.listdir(raiz)):
+        ruta = os.path.join(raiz, nombre)
+        if os.path.islink(ruta):      # `active` es un enlace a uno de los laboratorios
+            continue
+        p = os.path.join(ruta, "inventory", "group_vars", "all.yml")
+        if os.path.isfile(p):
+            out.append((nombre, p))
+    return out
+
+
+def _lab_set(ruta):
+    """(vmids declarados, etiquetas que la declaración pone a cada invitado)."""
+    d = yaml.safe_load(open(ruta)) or {}
+    vmids = set()
+    for clave in ("pve_containers", "pve_vms"):
+        for it in (d.get(clave) or []):
+            if isinstance(it, dict) and it.get("vmid") is not None:
+                vmids.add(int(it["vmid"]))
+    marcas = set()
+    for clave in ("pve_defaults", "pve_vm_defaults"):
+        for t in ((d.get(clave) or {}).get("tags") or []):
+            marcas.add(str(t))
+    return vmids, marcas
+
+
+def guests_check():
+    """La plataforma no tiene invitados del lab fuera de la declaración.
+
+    «Fuera de la declaración» se define por la ETIQUETA que la propia declaración pone
+    a todos sus invitados (`pve_defaults.tags` = netlab, ansible-managed), NO por rangos
+    de VMID: los rangos se solapan entre laboratorios (mini usa 2xxx, netlab-v2 también)
+    y una lista de VMID escrita a mano sería otra copia que envejece. Un invitado del
+    host (hermesagent, caddy, netbox) no lleva esa etiqueta y queda fuera del juicio.
+    """
+    say("== guests: ningún invitado del lab fuera de la declaración ==")
+    labs = _labs_declarados()
+    if not labs:
+        fail("no hay ningún laboratorio declarado en labs/")
+    union, marcas, por_lab = set(), set(), {}
+    for nombre, ruta in labs:
+        vmids, m = _lab_set(ruta)
+        union |= vmids
+        marcas |= m
+        por_lab[nombre] = vmids
+    if not marcas:
+        fail("la declaración no define pve_defaults.tags: no hay forma de reconocer sus invitados")
+
+    activo = os.path.basename(os.path.realpath(os.path.join(REPO, "labs", "active")))
+    manifest = manifiesto()
+    node = manifest.get("pve_node")
+    if not node:
+        fail("la declaración no fija pve_node")
+
+    session, base = _api()
+    plataforma = {}
+    for kind in ("lxc", "qemu"):
+        r = session.get(f"{base}/nodes/{node}/{kind}", timeout=30)
+        r.raise_for_status()
+        for g in r.json().get("data") or []:
+            tags = {t.strip() for t in str(g.get("tags", "")).split(";") if t.strip()}
+            plataforma[int(g["vmid"])] = {"name": g.get("name"), "tags": tags, "kind": kind}
+
+    del_lab = {v: g for v, g in plataforma.items() if g["tags"] & marcas}
+    extras = sorted(v for v in del_lab if v not in union)
+    faltan = sorted(v for v in por_lab.get(activo, set()) if v not in plataforma)
+
+    say(f"  {len(labs)} laboratorio(s), {len(union)} invitado(s) declarados; "
+        f"{len(plataforma)} en la plataforma, {len(del_lab)} del lab")
+    for v in extras:
+        g = del_lab[v]
+        say(f"  EXTRA: {g['kind']} {v} «{g['name']}» lleva {sorted(g['tags'])} "
+            f"pero ningún laboratorio lo declara")
+    for v in faltan:
+        say(f"  FALTA: el laboratorio «{activo}» declara {v} y no está en la plataforma")
+    if extras or faltan:
+        fail(f"{len(extras)} invitado(s) sin declarar y {len(faltan)} declarado(s) ausente(s)")
+    say(f"PASS: los {len(del_lab)} invitados del lab están declarados y no falta ninguno "
+        f"(lab activo «{activo}»).")
+    return 0
+
+
 def docs_check():
     """Los documentos del repositorio, contra la declaración que los genera.
 
@@ -1454,6 +1539,7 @@ def main():
     sub.add_parser("api", help="la API sólo se toca por la puerta (tools/ + uri), no a mano")
     sub.add_parser("docs", help="los documentos son el render de la declaración, no copia a mano")
     sub.add_parser("routeros", help="ningún equipo con ruta por defecto dinámica tras converger (ADR 0003)")
+    sub.add_parser("guests", help="la plataforma no tiene invitados del lab fuera de la declaración")
     rf = sub.add_parser("refs", help="índice inverso: qué documentos citan una ruta del repo")
     rf.add_argument("ruta", nargs="?", default=None)
     args = parser.parse_args()
@@ -1480,6 +1566,8 @@ def main():
         return docs_check()
     if args.mode == "routeros":
         return routeros_check()
+    if args.mode == "guests":
+        return guests_check()
     if args.mode == "refs":
         return refs(args.ruta)
     parser.print_help()
