@@ -174,21 +174,39 @@
                        + (rem_listing.results[1].json.data | default([]) | map('combine', {'kind': 'qemu'}) | list) }}"
 
     - name: Identify exactly one guest
+      vars:
+        # La declaracion de ESTE laboratorio es la que manda. El vmid es unico en
+        # la plataforma, pero el hostname NO: dos labs que comparten
+        # `infra-bootstrap` (uno por sede) hacian que el verbo viera DOS
+        # coincidencias y se negara a borrar ninguna. El vmid de la declaracion
+        # desambigua; si el hostname no esta declarado aqui, se busca por nombre
+        # en toda la plataforma como antes.
+        declared_all: >-
+          {{ (pve_containers | default([])) + (pve_vms | default([])) + (pve_config_targets | default([])) }}
       ansible.builtin.set_fact:
         found: >-
           {%- set out = [] -%}
+          {%- set lab_vmids = [] -%}
+          {%- set declared_hosts = [] -%}
+          {%- for d in declared_all -%}
+          {%- set _ = lab_vmids.append(d.vmid | string) -%}
+          {%- set _ = declared_hosts.append(d.hostname | default(d.name | default('')) | string) -%}
+          {%- endfor -%}
           {%- for g in all_guests -%}
           {#- El vmid es único en la plataforma; el nombre NO. Cuando se da vmid se
-              resuelve por vmid y sólo por vmid: si se sumara el nombre, dos
-              laboratorios que comparten `infra-bootstrap` devolvían DOS
-              coincidencias y el verbo se negaba a destruir ninguno. El par sigue
-              siendo lo que desambigua, pero el vmid manda. -#}
+              resuelve por vmid y sólo por vmid. Con hostname, si ese nombre está
+              declarado en este laboratorio se exige además que el vmid sea uno de
+              los suyos; si no lo está, se cae al nombre en toda la plataforma. -#}
           {%- if (target_vmid | length > 0) -%}
           {%- if (g.vmid | string) == (target_vmid | string) -%}
           {%- set _ = out.append(g) -%}
           {%- endif -%}
-          {%- elif (target_hostname | length > 0) and (g.name | default('') == target_hostname) -%}
+          {%- elif (target_hostname | length > 0) -%}
+          {%- if (g.name | default('') == target_hostname) -%}
+          {%- if (target_hostname not in declared_hosts) or ((g.vmid | string) in lab_vmids) -%}
           {%- set _ = out.append(g) -%}
+          {%- endif -%}
+          {%- endif -%}
           {%- endif -%}
           {%- endfor -%}
           {{- out | to_json -}}
