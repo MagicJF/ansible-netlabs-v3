@@ -1239,6 +1239,26 @@ def api_check():
     say(f"PASS: la API sólo se toca por la puerta; {len(_puertas_api())} puertas, 0 fugas")
 
 
+def _punteros(texto):
+    """Los enlaces markdown de un documento que apuntan a una ruta del repo.
+
+    Un documento que explica un MECANISMO no debe repetirlo: apunta al fichero que
+    lo explica (su comentario de cabecera). Un puntero a una ruta que ya no existe
+    es una instruccion que lleva a tocar lo que no es, y se detecta sin leer prosa.
+    Se ignoran los enlaces externos (http/https/mailto) y los anclajes internos.
+    """
+    import re
+    fuera = []
+    for m in re.finditer(r"\[[^\]]*\]\(([^)]+)\)", texto):
+        t = m.group(1).strip()
+        if not t or t.startswith("#"):
+            continue
+        if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", t):  # esquema: http:, mailto:…
+            continue
+        fuera.append(t)
+    return fuera
+
+
 def docs_check():
     """Los documentos del repositorio, contra la declaración que los genera.
 
@@ -1263,6 +1283,22 @@ def docs_check():
     if malos:
         fail("hay documentos que no son el render de la declaración; "
              "ejecuta `python3 playbooks/tools/documentos.py`")
+    # --- punteros: el doc apunta al código que explica el mecanismo ----------
+    rotos = []
+    for _plantilla, salida in _doc.DOCUMENTOS:
+        ruta = os.path.join(REPO, salida)
+        if not os.path.exists(ruta):
+            continue
+        for t in _punteros(open(ruta, encoding="utf-8").read()):
+            objetivo = t.split("#", 1)[0]
+            if objetivo and not os.path.exists(os.path.join(REPO, objetivo)):
+                rotos.append((salida, t))
+    if rotos:
+        for salida, t in rotos:
+            say(f"  PUNTERO ROTO: {salida} -> {t}")
+        fail("hay documentos que apuntan a rutas que no existen; "
+             "un puntero roto lleva a tocar lo que no es")
+    say("  punteros  : todas las rutas citadas por los documentos existen")
     say("\nPASS: los documentos son el render de la declaración, no una copia a mano.")
     return 0
 

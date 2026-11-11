@@ -683,27 +683,14 @@ dirección**, y como VM no puede tomar una del servidor DHCP del host: la oferta
 llega con un checksum UDP sin resolver y el kernel del invitado la descarta. Sin
 dirección su API no existe, así que no hay con qué configurarlo.
 
-`{{ bootstrap[0].n }}` (vmid {{ bootstrap[0].vmid }}) es la máquina que entrega esa única dirección. Vive en
-el mismo segmento que la pata de gestión del router y corre dnsmasq atado a esa MAC,
-con `ethtool -K eth0 tx off gso off tso off` — sin lo cual su propia oferta llevaría
-el mismo checksum roto.
-
-El mismo defecto que bloquea al servidor del host es lo que hace esto determinista:
-el router sólo ve esta única oferta, así que no hay carrera entre dos servidores
-DHCP. Después de que el router haya tomado la dirección, el contenedor no interviene
-nunca más — todo lo demás es REST. Es un bootstrap, no una segunda vía de
-configuración.
-
-**Ese cliente DHCP de fábrica deja además una ruta por defecto que la API no puede
-borrar.** La convergencia lo desactiva, pero RouterOS conserva la ruta que instaló
-con su lease: queda como dinámica, con el mismo `distance` que la estática
-declarada, y el balanceo ECMP manda la mitad de las respuestas por la puerta de
-gestión. La API se niega a tocarla ("cannot modify dynamic route created by a
-different owner", medido), así que el rol reinicia el equipo una vez —con el cliente
-ya desactivado— y vuelve a leer. Si tras el reinicio la ruta sigue ahí, el `site`
-falla a propósito: significa que el CHR nace con el cliente activo y hay que crear
-el equipo sin él. El reinicio sólo ocurre cuando esa ruta existe, así que un `site`
-posterior es idempotente.
+Ese hueco lo cubre `{{ bootstrap[0].n }}` (vmid {{ bootstrap[0].vmid }}): entrega la
+única primera dirección y, en cuanto el router la toma, se retira — es un bootstrap,
+no una segunda vía de configuración. **El mecanismo, sus porqués medidos y la ruta
+residual que deja el DHCP de fábrica viven en el código y en las decisiones, no
+aquí:** [el rol bootstrap](configure/roles/bootstrap/tasks/main.yml),
+[el rol routeros](configure/roles/routeros/tasks/main.yml),
+[ADR 0002](docs/decisiones/0002-bootstrap-existe.md) y
+[ADR 0003](docs/decisiones/0003-reinicio-purga-ruta-dhcp.md).
 
 ### Por qué no los installers de community-scripts
 
