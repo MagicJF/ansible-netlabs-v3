@@ -1264,6 +1264,54 @@ def _punteros(texto):
     return fuera
 
 
+def _documentos_rastreables():
+    """Los documentos donde vive un puntero: los generados + los de prosa del repo.
+
+    No se rastrean los comentarios del código: el puntero va del DOC al CÓDIGO, así
+    que la pregunta «¿quién cita esta ruta?» se responde mirando los documentos.
+    """
+    fuera = ["README.md", "EL-LABORATORIO.md", ".hermes.md"]
+    d = os.path.join(REPO, "docs")
+    if os.path.isdir(d):
+        for raiz, _dirs, ficheros in os.walk(d):
+            for f in ficheros:
+                if f.endswith(".md"):
+                    fuera.append(os.path.relpath(os.path.join(raiz, f), REPO))
+    return [f for f in fuera if os.path.exists(os.path.join(REPO, f))]
+
+
+def refs(ruta=None):
+    """Índice inverso: qué documentos citan una ruta (o el mapa puntero -> documentos).
+
+    Un puntero va del documento al código. Al cambiar un fichero de mecanismo hay que
+    saber qué documentos lo citan, y eso no lo dice el fichero: lo dice el conjunto.
+    `framework_check.py refs playbooks/apply.yml` lista los documentos que lo nombran.
+    Sin argumento, imprime el mapa de todos los destinos enlazados.
+    """
+    docs = _documentos_rastreables()
+    if ruta is None:
+        say("== refs: mapa puntero -> documentos ==")
+        mapa = {}
+        for f in docs:
+            for t in _punteros(open(os.path.join(REPO, f), encoding="utf-8").read()):
+                objetivo = t.split("#", 1)[0]
+                mapa.setdefault(objetivo, []).append(f)
+        for objetivo in sorted(mapa):
+            say(f"  {objetivo}  <-  {', '.join(sorted(set(mapa[objetivo])))}")
+        return 0
+    objetivo = ruta.lstrip("./")
+    say(f"== refs: quién cita «{objetivo}» ==")
+    hallado = False
+    for f in docs:
+        for n, linea in enumerate(open(os.path.join(REPO, f), encoding="utf-8"), 1):
+            if objetivo in linea:
+                hallado = True
+                say(f"  {f}:{n}: {linea.strip()[:120]}")
+    if not hallado:
+        say("  (ningún documento cita esa ruta)")
+    return 0
+
+
 def docs_check():
     """Los documentos del repositorio, contra la declaración que los genera.
 
@@ -1332,6 +1380,8 @@ def main():
                     help="imprimir el mapa en stdout, sin escribir en lab-check.sh")
     sub.add_parser("api", help="la API sólo se toca por la puerta (tools/ + uri), no a mano")
     sub.add_parser("docs", help="los documentos son el render de la declaración, no copia a mano")
+    rf = sub.add_parser("refs", help="índice inverso: qué documentos citan una ruta del repo")
+    rf.add_argument("ruta", nargs="?", default=None)
     args = parser.parse_args()
 
     if args.mode == "invariant":
@@ -1354,6 +1404,8 @@ def main():
         return api_check()
     if args.mode == "docs":
         return docs_check()
+    if args.mode == "refs":
+        return refs(args.ruta)
     parser.print_help()
     return 2
 
