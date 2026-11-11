@@ -25,4 +25,6 @@ imágenes CHR de fábrica; no se fabrica ninguna ISO.
   elimina.
 
 ## Dónde se aplica
-`configure/roles/routeros/tasks/main.yml`; prosa en el README (plantilla `docs/README.md.j2`).
+El rol `configure/roles/routeros/tasks/main.yml`; la comprobación
+[`framework_check.py routeros`](playbooks/tools/framework_check.py), que falla si algún
+equipo conserva la ruta; y la prosa en el README (plantilla `docs/README.md.j2`).

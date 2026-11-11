@@ -1312,6 +1312,74 @@ def refs(ruta=None):
     return 0
 
 
+def routeros_check():
+    """Tras converger, NINGÚN equipo puede quedar con una ruta por defecto DINÁMICA.
+
+    Un CHR nace con un cliente DHCP de fábrica cuyo lease instala `0.0.0.0/0 via …`
+    dinámica. Compite con la ruta declarada (mismo distance) y el balanceo ECMP manda
+    la mitad del tráfico de vuelta por la puerta de gestión — alcance parcial cross-sede.
+    El rol la purga con un reinicio controlado (ADR 0003). Esto lo COMPRUEBA: si algún
+    equipo conserva esa ruta después de un `site`, el ADR 0003 ha dejado de cumplirse.
+    """
+    say("== routeros: ningún equipo con ruta por defecto DINÁMICA (ADR 0003) ==")
+    manifest = manifiesto()
+    defaults = yaml.safe_load(open(ROUTEROS_DEFAULTS)) or {}
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import entorno as _entorno
+
+    user = defaults.get("routeros_user", "admin")
+    password = _entorno.maquina().get("pve_routeros_password", "")
+    scheme = defaults.get("routeros_scheme", "http")
+    port = defaults.get("routeros_port", 80)
+
+    # La PRIMERA entrada de `addresses` es la de gestión; las demás pueden traer
+    # plantillas, que aquí no se resuelven.
+    devices = []
+    for v in (manifest.get("pve_vms") or []):
+        ros = ((v.get("config") or {}).get("routeros") or {})
+        addrs = ros.get("addresses") or []
+        if not addrs:
+            continue
+        host = str(addrs[0].get("address", "")).split("/")[0]
+        if not host or "{{" in host:
+            continue
+        devices.append((ros.get("identity") or v.get("name") or str(v.get("vmid")), host))
+    if not devices:
+        fail("la declaración no tiene ningún equipo RouterOS con dirección de gestión")
+
+    session = requests.Session()
+    session.auth = (user, password)
+    culpables, inalcanzables = [], []
+    for name, host in devices:
+        base = f"{scheme}://{host}:{port}/rest"
+        try:
+            r = session.get(f"{base}/ip/route", timeout=15)
+            r.raise_for_status()
+            rutas = r.json()
+        except Exception as e:
+            inalcanzables.append((name, host, type(e).__name__))
+            continue
+        # La ruta del lease lleva `dhcp: "true"`; una ruta CONECTADA dinámica no tiene
+        # dst 0.0.0.0/0, así que el filtro por destino ya la excluye.
+        dyn = [x for x in rutas
+               if str(x.get("dst-address", "")) == "0.0.0.0/0"
+               and str(x.get("dhcp", "")).lower() == "true"]
+        if dyn:
+            culpables.append((name, host, [str(x.get("gateway", "?")) for x in dyn]))
+
+    if inalcanzables:
+        for n, h, e in inalcanzables:
+            say(f"  INALCANZABLE: {n} ({h}) — {e}")
+        fail("no se pudo comprobar algún equipo RouterOS; revisa la ruta de control")
+    if culpables:
+        for n, h, gws in culpables:
+            say(f"  RUTA DINÁMICA: {n} ({h}) via {', '.join(gws)}")
+        fail("algún equipo conserva la ruta por defecto dinámica del DHCP de fábrica (ADR 0003)")
+    say(f"  {len(devices)} equipo(s): ninguno con ruta por defecto dinámica")
+    say("\nPASS: la ruta del DHCP de fábrica está purgada en todos los equipos (ADR 0003).")
+    return 0
+
+
 def docs_check():
     """Los documentos del repositorio, contra la declaración que los genera.
 
@@ -1385,6 +1453,7 @@ def main():
                     help="imprimir el mapa en stdout, sin escribir en lab-check.sh")
     sub.add_parser("api", help="la API sólo se toca por la puerta (tools/ + uri), no a mano")
     sub.add_parser("docs", help="los documentos son el render de la declaración, no copia a mano")
+    sub.add_parser("routeros", help="ningún equipo con ruta por defecto dinámica tras converger (ADR 0003)")
     rf = sub.add_parser("refs", help="índice inverso: qué documentos citan una ruta del repo")
     rf.add_argument("ruta", nargs="?", default=None)
     args = parser.parse_args()
@@ -1409,6 +1478,8 @@ def main():
         return api_check()
     if args.mode == "docs":
         return docs_check()
+    if args.mode == "routeros":
+        return routeros_check()
     if args.mode == "refs":
         return refs(args.ruta)
     parser.print_help()

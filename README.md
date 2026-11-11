@@ -923,6 +923,12 @@ cada documento con su render desde las plantillas (`docs/*.md.j2`). Un documento
 a mano es una segunda fuente de verdad, y la que nadie relee: aquí, si un documento
 difiere de su render, la comprobación falla en vez de dejar que envejezca.
 
+**¿Se purgó la ruta del DHCP de fábrica?** `framework_check.py routeros` pregunta a
+cada equipo RouterOS declarado por su tabla de rutas y falla si alguno conserva una
+`0.0.0.0/0` marcada `dhcp: true` — la que deja el lease de fábrica y compite con la
+declarada por ECMP. Es lo que hace CUMPLIR el [ADR 0003](docs/decisiones/0003-reinicio-purga-ruta-dhcp.md)
+después de un `site`: sin ella, esa decisión vivía sólo en la prosa del rol.
+
 **`ansible-lint` sigue en verde.** `.ansible-lint` fuerza las reglas que importan y
 deja escrito por qué se saltan las demás. Un linter con hallazgos permanentes te enseña
 a ignorarlo, que es peor que no tenerlo. Es un trinquete de convención, no una puerta de
@@ -938,6 +944,7 @@ python3 playbooks/tools/framework_check.py notas
 python3 playbooks/tools/framework_check.py labmap --check
 python3 playbooks/tools/framework_check.py api
 python3 playbooks/tools/framework_check.py docs
+python3 playbooks/tools/framework_check.py routeros
 python3 playbooks/tools/framework_check.py invariant --verb configure/site.yml
 python3 playbooks/tools/framework_check.py drill
 ```
