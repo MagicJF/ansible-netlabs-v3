@@ -1338,13 +1338,18 @@ def docs_check():
              "ejecuta `python3 playbooks/tools/documentos.py`")
     # --- punteros: el doc apunta al código que explica el mecanismo ----------
     rotos = []
-    for _plantilla, salida in _doc.DOCUMENTOS:
+    for salida in _documentos_rastreables():
         ruta = os.path.join(REPO, salida)
         if not os.path.exists(ruta):
             continue
         for t in _punteros(open(ruta, encoding="utf-8").read()):
             objetivo = t.split("#", 1)[0]
-            if objetivo and not os.path.exists(os.path.join(REPO, objetivo)):
+            if not objetivo:
+                continue
+            # El enlace es relativo al DOCUMENTO; los docs de la raíz usan rutas desde
+            # la raíz, los de docs/decisiones/ desde su carpeta. Se prueban las dos.
+            candidatos = [os.path.join(os.path.dirname(salida), objetivo), objetivo]
+            if not any(os.path.exists(os.path.join(REPO, c)) for c in candidatos):
                 rotos.append((salida, t))
     if rotos:
         for salida, t in rotos:
