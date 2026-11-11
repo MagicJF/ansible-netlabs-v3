@@ -29,6 +29,8 @@ import os
 import re
 import sys
 
+import ipaddress
+
 import jinja2
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -48,22 +50,68 @@ DOCUMENTOS = [
 
 # El orden de los roles en las tablas: del que no enruta al que más hace.
 ORDEN_ROL = {"workstation": 0, "switch": 1, "router": 2, "firewall": 3, "bootstrap": 4}
-ROLES = [("pc-", "workstation"), ("sw-", "switch"), ("rt-", "router"), ("fw-", "firewall")]
 
 
-def rol(nombre):
-    for prefijo, r in ROLES:
-        if nombre.startswith(prefijo):
-            return r
-    return "bootstrap"
+def _en_red(ip, red):
+    """¿La dirección cae dentro de la red declarada? Se compara como DIRECCIÓN, no texto."""
+    try:
+        return ipaddress.ip_address(ip) in ipaddress.ip_network(red, strict=False)
+    except (ValueError, TypeError):
+        return False
 
 
-def _sede_de(nombre, ids):
-    """La sede sale del NOMBRE (`...-sN-...`), nunca de los tags."""
-    for i in ids:
-        if "-s%d-" % i in nombre:
-            return i
+def _dir_gestion(g, tipo):
+    """La dirección de gestión DECLARADA: el contenedor en `address`, el CHR en `ether1`."""
+    if tipo == "LXC":
+        if g.get("address"):
+            return g["address"]
+        mm = re.search(r"\bip=([\d.]+)/", (g.get("netif") or {}).get("net0", ""))
+        return mm.group(1) if mm else None
+    for a in ((g.get("config") or {}).get("routeros") or {}).get("addresses", []):
+        if a.get("interface") == "ether1":
+            return a["address"].split("/")[0]
     return None
+
+
+def _identidad(dir_gestion, man):
+    """(sede, rol) leídos de la DECLARACIÓN, nunca del nombre.
+
+    La sede y el papel de un invitado salen de las direcciones que la declaración ya
+    fija: la sede, por sus redes (`lab_sites[].red` para las estaciones y `.mgmt` para
+    los equipos de red); el borde y la infraestructura, por `lab_mgmt_otros`; y el
+    segundo segmento de gestión, por `lab_mgmt2`. Así un laboratorio con otra
+    convención de nombres —mini llama `pc-u1-01` y `rt-u1` a los suyos— se documenta
+    igual, sin que el motor conozca ningún esquema de nombres.
+    """
+    sites = {int(s["id"]): s for s in man.get("lab_sites") or []}
+    otros = man.get("lab_mgmt_otros") or {}
+    mgmt2 = man.get("lab_mgmt2") or {}
+    if dir_gestion:
+        if otros.get("borde") and dir_gestion == otros["borde"]:
+            return None, "firewall"
+        if otros.get("infra") and dir_gestion == otros["infra"]:
+            return None, "bootstrap"
+        if mgmt2.get("red") and _en_red(dir_gestion, mgmt2["red"]):
+            return None, "switch"
+    for sid, s in sites.items():
+        m = s.get("mgmt") or {}
+        if dir_gestion:
+            if dir_gestion == m.get("rt"):
+                return sid, "router"
+            if dir_gestion == m.get("fw"):
+                return sid, "firewall"
+            if dir_gestion in (m.get("sw") or []):
+                return sid, "switch"
+            if s.get("red") and _en_red(dir_gestion, s["red"]):
+                return sid, "workstation"
+    return None, None
+
+
+def _sitio(sede, rol, por_id):
+    """El sitio de un invitado, derivado de su sede y su papel declarados."""
+    if sede in por_id:
+        return por_id[sede]["tag"]
+    return "borde" if rol == "firewall" else "infra"
 
 
 def _patas(g, tipo):
@@ -87,50 +135,24 @@ def contexto(man):
     por_id = {s["id"]: s for s in sedes}
     hub_sede = por_id[hub]
 
-    def nombre(prefijo):
-        for v in man["pve_vms"]:
-            if v["name"].startswith(prefijo):
-                return v["name"]
-        return None
-
-    def sitio_de(nombre):
-        if nombre == "fw-wan-edge":
-            return "borde"
-        if nombre.startswith("infra-"):
-            return "infra"
-        s = _sede_de(nombre, ids)
-        return por_id[s]["tag"] if s else "infra"
-
-    # --- los invitados, con su dirección de gestión y su rol
+    # --- los invitados: su identidad sale de la declaración, no del nombre
     invitados = []
     for c in man["pve_containers"]:
-        e = _sede_de(c["hostname"], ids)
-        # Una workstation declara su dirección en `address`; el bootstrap no la
-        # declara ahí, la lleva dentro de su `net0` (`ip=...`): se lee por clave.
-        dir_cont = c.get("address")
-        if not dir_cont:
-            net0 = (c.get("netif") or {}).get("net0", "")
-            mm = re.search(r"\bip=([\d.]+)/", net0)
-            dir_cont = mm.group(1) if mm else None
+        d = _dir_gestion(c, "LXC")
+        sede, r = _identidad(d, man)
         invitados.append({
             "n": c["hostname"], "vmid": c["vmid"], "tipo": "LXC",
-            "rol": rol(c["hostname"]), "sede": e,
-            "sitio": sitio_de(c["hostname"]),
-            "gestion": dir_cont,
-            "direccion": dir_cont,
+            "rol": r, "sede": sede, "sitio": _sitio(sede, r, por_id),
+            "gestion": d, "direccion": d,
             "patas": _patas(c, "LXC"),
         })
     for v in man["pve_vms"]:
-        ros = (v.get("config") or {}).get("routeros") or {}
-        dir_mgmt = None
-        for a in ros.get("addresses", []):
-            if a.get("interface") == "ether1":
-                dir_mgmt = a["address"].split("/")[0]
-        e = _sede_de(v["name"], ids)
+        d = _dir_gestion(v, "CHR")
+        sede, r = _identidad(d, man)
         invitados.append({
             "n": v["name"], "vmid": v["vmid"], "tipo": "CHR",
-            "rol": rol(v["name"]), "sede": e, "sitio": sitio_de(v["name"]),
-            "gestion": dir_mgmt, "direccion": dir_mgmt,
+            "rol": r, "sede": sede, "sitio": _sitio(sede, r, por_id),
+            "gestion": d, "direccion": d,
             "patas": _patas(v, "CHR"),
         })
     invitados.sort(key=lambda x: (ORDEN_ROL.get(x["rol"], 9), x["n"]))
@@ -164,11 +186,11 @@ def contexto(man):
         de qué sede, de qué tipo) es dato: se deriva para que añadir un invitado
         no deje una fila sin escribir.
         """
-        if e["n"] == "fw-wan-edge":
+        if e["sitio"] == "borde":
             return "firewall de **borde**: filtrado **y NAT** (el único que sale a internet)"
         if e["rol"] == "bootstrap":
             return "da a cada equipo de red su **primera** dirección, una vez"
-        if e["n"].startswith("sw-mgmt"):
+        if e["sede"] is None and e["rol"] == "switch":
             return "switch del segundo segmento de gestión (OOB)"
         donde = corto[e["sede"]] if e["sede"] else "la red de gestión"
         if e["rol"] == "workstation":
@@ -181,18 +203,28 @@ def contexto(man):
             return "perímetro de %s: filtrado" % donde
         return e["rol"]
 
-    # --- el camino de una sede hasta internet (nombres, no direcciones)
+    def equipo(sid, rol_):
+        """El nombre del primer invitado de esa sede con ese papel — por la declaración."""
+        return next((x["n"] for x in invitados if x["sede"] == sid and x["rol"] == rol_), None)
+
+    # Las dos piezas que no cuelgan de ninguna sede: el firewall de borde y el
+    # switch del segundo segmento de gestión (OOB). Se RECONOCEN, no se nombran.
+    borde_fw = next((x["n"] for x in invitados if x["sitio"] == "borde"), None)
+    mgmt_sw = next((x["n"] for x in invitados
+                    if x["sede"] is None and x["rol"] == "switch"), None)
+
+    # --- el camino de una sede hasta internet (equipos declarados, no nombres)
     def camino(sid):
-        pc = next((x["n"] for x in de_sede(sid) if x["rol"] == "workstation"), None)
-        sw, rt, fw = (nombre("sw-s%d-" % sid), nombre("rt-s%d-" % sid), nombre("fw-s%d-" % sid))
+        pc, sw, rt, fw = (equipo(sid, "workstation"), equipo(sid, "switch"),
+                          equipo(sid, "router"), equipo(sid, "firewall"))
         if not all((pc, sw, rt, fw)):
             return []
         c = [pc, sw, rt, fw]
         if sid != hub:
-            fh = nombre("fw-s%d-" % hub)
+            fh = equipo(hub, "firewall")
             if fh:
                 c.append(fh)
-        return c + [nombre("fw-wan-edge") or "fw-wan-edge", "internet"]
+        return c + [borde_fw or "el firewall de borde", "internet"]
 
     ctx = {
         "man": man,
@@ -212,7 +244,8 @@ def contexto(man):
         "primer_pc": next((x for x in invitados
                            if x["rol"] == "workstation" and x["sede"] == hub), None),
         "lxc": [e for e in invitados if e["tipo"] == "LXC"],
-        "de_rol": de_rol, "de_sede": de_sede, "nombre": nombre,
+        "de_rol": de_rol, "de_sede": de_sede,
+        "equipo": equipo, "borde_fw": borde_fw, "mgmt_sw": mgmt_sw,
         "camino": camino, "bloque": bloque,
         "n_invitados": len(invitados),
         "n_equipos_red": len([e for e in invitados if e["tipo"] == "CHR"]),
@@ -220,7 +253,6 @@ def contexto(man):
         "n_bridges": len(man["pve_bridges"]),
         "bridges_rango": (lambda b: (b[0], b[-1]))(
             sorted((x["iface"] for x in man["pve_bridges"]), key=lambda x: int(x[4:]))),
-        "sitio_de": sitio_de,
     }
     return ctx
 

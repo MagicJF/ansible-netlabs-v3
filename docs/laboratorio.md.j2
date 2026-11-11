@@ -115,13 +115,13 @@ Las **{{ n_workstations }} workstations** y el bootstrap son **contenedores LXC*
 | Red de gestión (patas de administración) | `{{ man.lab_mgmt_network }}` | `{{ man.lab_mgmt_gateway }}` (el host Proxmox) |
 | Segundo segmento de gestión (OOB) | `{{ man.lab_mgmt2.red }}` | `{{ man.lab_mgmt2.puerta }}` (el host Proxmox) |
 {% for s in sedes %}
-| LAN de {{ corto[s.id] }} | `{{ s.red }}` | `{{ s.puerta }}` ({{ nombre('rt-s' ~ s.id ~ '-') }}) |
+| LAN de {{ corto[s.id] }} | `{{ s.red }}` | `{{ s.puerta }}` ({{ equipo(s.id, 'router') }}) |
 | Tránsito router ↔ su firewall ({{ corto[s.id] }}) | `{{ s.transito.red }}` | router `{{ s.transito.rt }}` ↔ firewall `{{ s.transito.fw }}` |
 {% endfor %}
 {% for s in sedes if s.id != hub %}
-| Enlace WAN {{ corto[hub] }} ↔ {{ corto[s.id] }} | `{{ s.wan.red }}` | `{{ nombre('fw-s' ~ hub ~ '-') }}` `{{ s.wan.hub }}` ↔ `{{ nombre('fw-s' ~ s.id ~ '-') }}` `{{ s.wan.spoke }}` |
+| Enlace WAN {{ corto[hub] }} ↔ {{ corto[s.id] }} | `{{ s.wan.red }}` | `{{ equipo(hub, 'firewall') }}` `{{ s.wan.hub }}` ↔ `{{ equipo(s.id, 'firewall') }}` `{{ s.wan.spoke }}` |
 {% endfor %}
-| Tránsito de borde | `{{ man.lab_edge_network }}` | `{{ nombre('fw-s' ~ hub ~ '-') }}` `{{ man.lab_edge_core }}` ↔ `fw-wan-edge` `{{ man.lab_edge_fw }}` |
+| Tránsito de borde | `{{ man.lab_edge_network }}` | `{{ equipo(hub, 'firewall') }}` `{{ man.lab_edge_core }}` ↔ `{{ borde_fw }}` `{{ man.lab_edge_fw }}` |
 
 Las direcciones de gestión se asignan **por bloques de función** dentro de
 `{{ man.lab_mgmt_network }}`, y el bloque de cada función sale de las direcciones
@@ -151,7 +151,7 @@ magia:
   traducen: dentro de la empresa las direcciones son las reales, y por eso existen
   las rutas de vuelta y no hay traducciones anidadas.
 
-Medido, no supuesto: desde `{{ nombre('fw-wan-edge') }}` responde `{{ man.lab_internet_dns }}`; desde la
+Medido, no supuesto: desde `{{ borde_fw }}` responde `{{ man.lab_internet_dns }}`; desde la
 LAN de la central y desde las delegaciones se llega a internet; y una
 workstation resuelve DNS y abre TCP/443 hacia fuera.
 
@@ -166,7 +166,7 @@ Una workstation de la central hablando con una de la delegación 2:
 {% set pc_o = de_sede(origen.id) | selectattr('rol','equalto','workstation') | first %}
 {% set pc_d = de_sede(destino.id) | selectattr('rol','equalto','workstation') | first %}
 ```
-  {{ pc_o.n }} ──({{ origen.puerta }})──▶ {{ nombre('rt-s' ~ origen.id ~ '-') }} ──({{ origen.transito.fw }})──▶ {{ nombre('fw-s' ~ origen.id ~ '-') }} ──({{ destino.wan.spoke }})──▶ {{ nombre('fw-s' ~ destino.id ~ '-') }} ──({{ pc_d.direccion }})──▶ {{ pc_d.n }}
+  {{ pc_o.n }} ──({{ origen.puerta }})──▶ {{ equipo(origen.id, 'router') }} ──({{ origen.transito.fw }})──▶ {{ equipo(origen.id, 'firewall') }} ──({{ destino.wan.spoke }})──▶ {{ equipo(destino.id, 'firewall') }} ──({{ pc_d.direccion }})──▶ {{ pc_d.n }}
 
   La respuesta vuelve por donde vino.
 ```
@@ -306,7 +306,7 @@ El mismo fichero sirve para todas: mira su propia dirección, deduce en qué sed
 está y quién debe ser su puerta de enlace.
 
 La prueba **OOB** va al revés que las demás: se espera que **falle**. El segundo
-segmento de gestión (`{{ man.lab_mgmt2.red }}`, donde vive `{{ nombre('sw-mgmt-') }}`) no es del dominio de
+segmento de gestión (`{{ man.lab_mgmt2.red }}`, donde vive `{{ mgmt_sw }}`) no es del dominio de
 producción —en un montaje físico es una isla con su propio switch y su propio DHCP—,
 así que una workstation no debe alcanzarlo. El test lo comprueba desde las estaciones
 (que **no** llegan) y desde el operador (que **sí** llega, por el túnel), que es lo

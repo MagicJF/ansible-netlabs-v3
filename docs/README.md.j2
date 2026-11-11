@@ -46,7 +46,7 @@ dirección por DHCP, como un PC de verdad), y la red se verifica **desde dentro 
 los propios equipos**, que es como lo haría un ingeniero.
 
 Hay además un **segundo segmento de gestión** (`{{ man.lab_mgmt2.red }}`, en
-`{{ man.lab_mgmt2.bridge }}`) con su propio switch (`{{ nombre('sw-mgmt-') }}`) y su pata del
+`{{ man.lab_mgmt2.bridge }}`) con su propio switch (`{{ mgmt_sw }}`) y su pata del
 bootstrap. **No es del dominio de producción**: en un montaje físico una red de gestión
 es una isla que se toca desde el lado del operador, no desde una workstation. Así que las
 estaciones no lo prueban como destino —comprueban que **no** llegan—, el operador sí lo
@@ -762,7 +762,7 @@ iteración de un `loop` es una ejecución, y por eso una tarea que recorre cinco
 invitados paga cinco veces. Esa es toda la palanca:
 
 - **`apply` es el verbo de iteración.** Lee, aplica y verifica por la API en una sola ejecución.
-- **Para iterar sobre UN invitado, `--limit` ya funciona — y es la única ejecución selectiva que sigue siendo honesta.** `ansible-playbook configure/site.yml --limit localhost,{{ nombre('rt-s' ~ hub ~ '-') }}` ejecuta el motor y converge exactamente ese invitado (medido: `{{ nombre('rt-s' ~ hub ~ '-') }} ok=24 changed=0`, mientras los plays de los demás informan `skipping: no hosts matched`). `localhost` es obligatorio, porque es el play que construye el inventario de destinos. Las etiquetas darían la misma comodidad invitando a ejecuciones que se saltan parte de la declaración de un invitado; un `--limit` nombra un invitado, y un invitado se converge entero o no se converge.
+- **Para iterar sobre UN invitado, `--limit` ya funciona — y es la única ejecución selectiva que sigue siendo honesta.** `ansible-playbook configure/site.yml --limit localhost,{{ equipo(hub, 'router') }}` ejecuta el motor y converge exactamente ese invitado (medido: `{{ equipo(hub, 'router') }} ok=24 changed=0`, mientras los plays de los demás informan `skipping: no hosts matched`). `localhost` es obligatorio, porque es el play que construye el inventario de destinos. Las etiquetas darían la misma comodidad invitando a ejecuciones que se saltan parte de la declaración de un invitado; un `--limit` nombra un invitado, y un invitado se converge entero o no se converge.
 - **No vuelvas a ejecutar sólo para demostrar idempotencia.** `apply` ya relee e imprime la comparación declarado-vs-vivo; una segunda ejecución dobla el tiempo de reloj por información que ya tienes. Reserva la repetición para cambios que toquen propiedades de creación o energía.
 - **La verificación no es lo que cuesta.** `validate:`, la sonda HTTP externa y el aserto del diario son casi gratis dentro de una tarea. Lo que cuesta es un segundo verbo, y una tarea —o una iteración de bucle— por elemento.
 
