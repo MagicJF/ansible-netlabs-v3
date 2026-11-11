@@ -936,6 +936,13 @@ declara una VMID que no está. No usa rangos de VMID —se solapan entre laborat
 listas a mano: usa la etiqueta que la propia declaración impone
 ([ADR 0004](docs/decisiones/0004-invitado-por-etiqueta.md)).
 
+**¿Se ha movido el código bajo un documento?** `framework_check.py caducidad` compara el
+hash actual de cada fichero citado con el que quedó grabado al revisar el documento
+(`docs/.refs-revisado.json`) y avisa de los documentos que citan algo que cambió desde
+entonces. No juzga la prosa —eso no lo ve un check—: sólo dice que ha dejado de estar
+revisada. Se vuelve a sellar con `framework_check.py refs --sellar [documento…]`, y el
+gancho `.githooks/pre-commit` lo imprime en cada commit.
+
 **`ansible-lint` sigue en verde.** `.ansible-lint` fuerza las reglas que importan y
 deja escrito por qué se saltan las demás. Un linter con hallazgos permanentes te enseña
 a ignorarlo, que es peor que no tenerlo. Es un trinquete de convención, no una puerta de
@@ -953,6 +960,7 @@ python3 playbooks/tools/framework_check.py api
 python3 playbooks/tools/framework_check.py docs
 python3 playbooks/tools/framework_check.py routeros
 python3 playbooks/tools/framework_check.py guests
+python3 playbooks/tools/framework_check.py caducidad
 python3 playbooks/tools/framework_check.py invariant --verb configure/site.yml
 python3 playbooks/tools/framework_check.py drill
 ```

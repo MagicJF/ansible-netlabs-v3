@@ -1,20 +1,26 @@
 #!/bin/sh
-# Pre-commit: si tocas un fichero de mecanismo, imprime qué DOCUMENTOS lo citan.
+# Pre-commit: dos recordatorios, ninguno bloquea (siempre exit 0).
 #
-# El puntero va del documento al código; el cambio va al revés, así que quien toca el
-# código es quien debe revisar los documentos que lo citan — pero el fichero no lo dice,
-# lo dice el conjunto. Esto lo saca a la luz en el mismo commit.
+#  1. caducidad — si commiteas algo (código o un documento), avisa de los documentos que
+#     citan un fichero que cambió desde su última revisión. Es la respuesta automática a
+#     «¿a qué documento afecta lo que he tocado?».
+#  2. refs — si lo que commiteas toca `configure/` o `playbooks/`, imprime qué documentos
+#     citan cada fichero. El puntero va del doc al código; el cambio va al revés.
 #
-# NO bloquea nada: siempre sale 0. Es un recordatorio, no un guardián. Para saltarlo,
-# `git commit --no-verify`.
+# Para saltarlo: `git commit --no-verify`.
 raiz=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 cd "$raiz" || exit 0
+
+echo "=========================================================="
+echo " caducidad — documentos que citan código que has movido"
+echo "=========================================================="
+python3 playbooks/tools/framework_check.py caducidad 2>/dev/null
+echo "=========================================================="
 
 citados=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null \
   | grep -E '^(configure/|playbooks/)' | grep -v '^playbooks/tools/framework_check\.py$')
 [ -z "$citados" ] && exit 0
 
-echo "=========================================================="
 echo " refs — documentos que citan lo que estás commiteando"
 echo "=========================================================="
 echo "$citados" | while read -r f; do

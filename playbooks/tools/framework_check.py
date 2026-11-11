@@ -46,6 +46,7 @@ Run it from anywhere:  python3 playbooks/tools/framework_check.py invariant
 
 import argparse
 import difflib
+import hashlib
 import ipaddress
 import json
 import os
@@ -1465,6 +1466,124 @@ def guests_check():
     return 0
 
 
+MANIFIESTO_REFS = os.path.join(REPO, "docs", ".refs-revisado.json")
+
+
+def _sha256(ruta):
+    h = hashlib.sha256()
+    with open(ruta, "rb") as f:
+        for bloque in iter(lambda: f.read(65536), b""):
+            h.update(bloque)
+    return h.hexdigest()
+
+
+def _resolver(doc, objetivo):
+    """Resuelve el destino de un puntero a una ruta del repo, o None si no existe.
+
+    El enlace es relativo al DOCUMENTO: los de la raíz usan rutas desde la raíz, los de
+    `docs/decisiones/` desde su carpeta. Se prueban las dos.
+    """
+    if not objetivo:
+        return None
+    for cand in (os.path.join(os.path.dirname(doc), objetivo), objetivo):
+        cand = os.path.normpath(cand)
+        if os.path.exists(os.path.join(REPO, cand)):
+            return cand
+    return None
+
+
+def _citas_por_doc():
+    """{doc: [rutas citadas]} — el destino de cada puntero de cada documento, deduplicado."""
+    out = {}
+    for doc in _documentos_rastreables():
+        texto = open(os.path.join(REPO, doc), encoding="utf-8").read()
+        citados = []
+        for t in _punteros(texto):
+            r = _resolver(doc, t.split("#", 1)[0])
+            if r and r not in citados:
+                citados.append(r)
+        out[doc] = sorted(citados)
+    return out
+
+
+def refs_sellar(docs=None):
+    """Sella las citas actuales: «estos documentos están revisados CONTRA este código».
+
+    El sello no juzga la prosa —eso no lo ve un check—: fija el punto de referencia. Cuando
+    el fichero citado cambie, `caducidad` dirá qué documentos toca revisar; tras revisarlos
+    (cambiando la frase o confirmando que sigue siendo cierta) se vuelve a sellar. `docs`
+    vacío sella todos; una lista sella sólo esos (para no borrar el aviso del resto).
+    """
+    actual = _citas_por_doc()
+    manif = json.load(open(MANIFIESTO_REFS, encoding="utf-8")) if os.path.exists(MANIFIESTO_REFS) else {}
+    sellados = []
+    for doc, citas in actual.items():
+        if docs and doc not in docs:
+            continue
+        manif[doc] = {c: _sha256(os.path.join(REPO, c)) for c in citas}
+        sellados.append(doc)
+    for doc in list(manif):                       # poda: documentos que ya no existen
+        if doc not in actual:
+            del manif[doc]
+    os.makedirs(os.path.dirname(MANIFIESTO_REFS), exist_ok=True)
+    with open(MANIFIESTO_REFS, "w", encoding="utf-8") as f:
+        json.dump(manif, f, indent=2, sort_keys=True, ensure_ascii=False)
+        f.write("\n")
+    say(f"== refs --sellar: {len(sellados)} documento(s) sellados contra el código actual ==")
+    for doc in sellados:
+        say(f"  {doc}: {len(manif[doc])} cita(s)")
+    return 0
+
+
+def caducidad_check():
+    """Dice CUÁNDO revisar un documento, no sólo dónde: el código citado se ha movido.
+
+    `refs` responde «qué documentos citan este fichero» cuando eres tú quien cambia el
+    código. Esto es el complemento: compara el hash actual de cada fichero citado con el
+    que quedó grabado al sellar, y avisa de los documentos que citan algo que cambió desde
+    su última revisión. La prosa no se puede comprobar; lo que SÍ se puede es saber que ha
+    dejado de estar revisada. Convierte «acuérdate de mirar» en un hecho del repo.
+    """
+    say("== caducidad: documentos que citan código cambiado desde su última revisión ==")
+    if not os.path.exists(MANIFIESTO_REFS):
+        fail("no hay docs/.refs-revisado.json; siémbralo con `framework_check.py refs --sellar`")
+    manif = json.load(open(MANIFIESTO_REFS, encoding="utf-8"))
+    actual = _citas_por_doc()
+
+    sin_sello, caducados, nuevas, huerfanas = [], [], [], []
+    for doc, citas in actual.items():
+        reg = manif.get(doc)
+        if reg is None:
+            sin_sello.append(doc)
+            continue
+        for c in citas:
+            if c not in reg:
+                nuevas.append((doc, c))
+            elif _sha256(os.path.join(REPO, c)) != reg[c]:
+                caducados.append((doc, c))
+        for c in reg:
+            if c not in citas:
+                huerfanas.append((doc, c))
+
+    for doc in sin_sello:
+        say(f"  SIN SELLO: {doc} no está en el manifiesto")
+    for doc, c in nuevas:
+        say(f"  CITA NUEVA: {doc} cita {c}, sin sellar")
+    for doc, c in caducados:
+        say(f"  CADUCADO: {doc} cita {c}, que cambió desde su última revisión")
+    for doc, c in huerfanas:
+        say(f"  HUÉRFANA: {doc} ya no cita {c} pero sigue sellada")
+
+    problemas = len(sin_sello) + len(nuevas) + len(caducados) + len(huerfanas)
+    if problemas:
+        say("")
+        fail(f"{problemas} aviso(s). Revisa esos documentos y vuelve a sellar "
+             f"(`framework_check.py refs --sellar [documento…]`). No es que la prosa esté "
+             f"mal: es que ha dejado de estar revisada.")
+    say(f"PASS: los {len(actual)} documento(s) con punteros están sellados contra el código actual.")
+    return 0
+
+
 def docs_check():
     """Los documentos del repositorio, contra la declaración que los genera.
 
@@ -1496,13 +1615,7 @@ def docs_check():
         if not os.path.exists(ruta):
             continue
         for t in _punteros(open(ruta, encoding="utf-8").read()):
-            objetivo = t.split("#", 1)[0]
-            if not objetivo:
-                continue
-            # El enlace es relativo al DOCUMENTO; los docs de la raíz usan rutas desde
-            # la raíz, los de docs/decisiones/ desde su carpeta. Se prueban las dos.
-            candidatos = [os.path.join(os.path.dirname(salida), objetivo), objetivo]
-            if not any(os.path.exists(os.path.join(REPO, c)) for c in candidatos):
+            if _resolver(salida, t.split("#", 1)[0]) is None:
                 rotos.append((salida, t))
     if rotos:
         for salida, t in rotos:
@@ -1540,8 +1653,11 @@ def main():
     sub.add_parser("docs", help="los documentos son el render de la declaración, no copia a mano")
     sub.add_parser("routeros", help="ningún equipo con ruta por defecto dinámica tras converger (ADR 0003)")
     sub.add_parser("guests", help="la plataforma no tiene invitados del lab fuera de la declaración")
-    rf = sub.add_parser("refs", help="índice inverso: qué documentos citan una ruta del repo")
+    rf = sub.add_parser("refs", help="índice inverso de citas; con --sellar, fija el punto de revisión")
     rf.add_argument("ruta", nargs="?", default=None)
+    rf.add_argument("--sellar", nargs="*", default=None,
+                    help="sella las citas actuales (sin nombres: todos los documentos)")
+    sub.add_parser("caducidad", help="documentos que citan código cambiado desde su última revisión")
     args = parser.parse_args()
 
     if args.mode == "invariant":
@@ -1569,7 +1685,11 @@ def main():
     if args.mode == "guests":
         return guests_check()
     if args.mode == "refs":
+        if args.sellar is not None:
+            return refs_sellar(args.sellar or None)
         return refs(args.ruta)
+    if args.mode == "caducidad":
+        return caducidad_check()
     parser.print_help()
     return 2
 
