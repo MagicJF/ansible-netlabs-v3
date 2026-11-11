@@ -22,52 +22,58 @@ El número de un invitado pasa a OCHO dígitos, en CUATRO campos de dos:
 
     LL SS TT NN
 
-- **LL — laboratorio.** Dos dígitos, **desde 10** (nunca con cero a la izquierda, para
-  que el número no pierda cifras al leerse como entero). El laboratorio tiene además un
-  nombre: `10 netlab-v2`, `11 mini`, `12 coworking`.
-- **SS — sede.** Dos dígitos que se LEEN como dos letras `AA`..`JJ`, con `A=0 … J=9`
-  (`AA`=00, `AF`=05, `AJ`=09, `BA`=10, `JJ`=99: cien sedes). La letra es la forma legible
-  y el dígito la del número.
-- **TT — clase.** Dos dígitos. La clase describe **el tipo de equipo y el papel juntos**
-  (un firewall perimetral no es «firewall» más «perimetral»: es una clase). Cien clases.
-- **NN — índice.** Dos dígitos, dentro de la sede y la clase.
+**Ningún campo empieza por cero** (todos valen 10..99). Un campo con cero inicial se lee
+como un índice disfrazado (`08`), y la regla es que ninguna parte del número parezca lo
+que no es.
+
+- **LL — laboratorio.** Dos dígitos, **desde 10**. El laboratorio tiene además un nombre:
+  `10 netlab-v2`, `11 mini`, `12 coworking`.
+- **SS — sede.** Dos dígitos que se LEEN como dos letras, con `A=1 … I=9` (`AA`=11,
+  `AB`=12, `AC`=13, `AF`=16, `AI`=19, `BA`=21, `II`=99). La letra J NO se usa: no hay
+  cero en una sede, que es justo lo que se pide. Noventa sedes.
+- **TT — clase.** Dos dígitos, **agrupados por familia**: la decena dice la familia y la
+  unidad la variante dentro de ella. Una clase describe el tipo de equipo y el papel
+  juntos (un firewall perimetral no es «firewall» más «perimetral»: es una clase).
+- **NN — índice.** Dos dígitos, dentro de sede y clase, desde 10.
 
 El **nombre espeja el número**, en el mismo orden:
 
-    <LL>-<SS como letras>-<clase como token>-<NN>        p. ej.  10-AB-swac-01
+    <LL>-<SS como letras>-<clase como token>-<NN>        p. ej.  10-AB-swac-10
 
-| Número   | Nombre          | Qué es                                   |
-|----------|-----------------|------------------------------------------|
-| 10010301 | 10-AB-swac-01   | lab 10, sede 01, switch de acceso, el 1º |
-| 10010101 | 10-AB-fwpe-01   | lab 10, sede 01, firewall perimetral     |
-| 10010109 | 10-AJ-fwbo-01   | lab 10, sede 09 (borde), firewall de borde |
+| Número   | Nombre        | Qué es                                     |
+|----------|---------------|--------------------------------------------|
+| 10121110 | 10-AB-swac-10 | lab 10, sede 12 (central), switch acceso 1º |
+| 10128110 | 10-AB-fwpe-10 | lab 10, sede 12 (central), firewall perime. |
+| 10168210 | 10-AF-fwbo-10 | lab 10, sede 16 (borde), firewall de borde  |
 
-## Tabla de sedes (A=0 … J=9)
+## Tabla de sedes (A=1 … I=9; J no se usa)
 | Código | Nº | Sede                          |
 |--------|----|-------------------------------|
-| AA     | 00 | infraestructura (no es sede)  |
-| AB     | 01 | central / principal           |
-| AC     | 02 | delegación 2                  |
-| AD     | 03 | delegación 3                  |
-| AE     | 04 | gestión (segmento OOB)        |
-| AF     | 05 | (reserva)                     |
-| AG     | 06 | edificio                      |
-| AH     | 07 | inquilino A                   |
-| AI     | 08 | inquilino B                   |
-| AJ     | 09 | borde                         |
+| AA     | 11 | infraestructura (no es sede)  |
+| AB     | 12 | central / principal           |
+| AC     | 13 | delegación 2                  |
+| AD     | 14 | delegación 3                  |
+| AE     | 15 | gestión (segmento OOB)        |
+| AF     | 16 | borde                         |
+| AG     | 17 | edificio                      |
+| AH     | 18 | inquilino A                   |
+| AI     | 19 | inquilino B                   |
 
-## Tabla de clases (tipo + papel)
+## Tabla de clases (decena = familia, unidad = variante)
+Familias: **1x** conmutación · **2x** enrutamiento · **8x** seguridad · **9x** puestos ·
+**7x** apoyo · **3x–6x** reservado.
+
 | Nº | Token | Clase                    |
 |----|-------|--------------------------|
-| 01 | fwpe  | firewall perimetral      |
-| 02 | fwbo  | firewall de borde        |
-| 03 | rtco  | router de núcleo         |
-| 04 | rtbo  | router de borde          |
-| 05 | swac  | switch de acceso         |
-| 06 | swco  | switch de núcleo         |
-| 07 | swge  | switch de gestión        |
-| 08 | pc    | estación de trabajo      |
-| 09 | boot  | bootstrap (sala de partos) |
+| 11 | swac  | switch de acceso         |
+| 12 | swge  | switch de gestión        |
+| 13 | swco  | switch de núcleo         |
+| 21 | rtco  | router de núcleo         |
+| 22 | rtbo  | router de borde          |
+| 71 | boot  | bootstrap (sala de partos)|
+| 81 | fwpe  | firewall perimetral      |
+| 82 | fwbo  | firewall de borde        |
+| 91 | pc    | estación de trabajo      |
 
 ## Consecuencias
 - Dos laboratorios no pueden pisarse: el prefijo de laboratorio separa sus números y sus
