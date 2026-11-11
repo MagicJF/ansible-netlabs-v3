@@ -534,6 +534,33 @@
       no_log: true
       when: a.exists and (a.to_set | length > 0)
 
+    - name: Converger el escalon de arranque de las VMs donde el plan lo ve distinto
+      # Mismo hueco que en los contenedores y por la misma razon: `proxmox_kvm`
+      # documenta `startup` y lo acepta, pero aplicado sobre una VM que ya existe no
+      # lo escribe. El plan SI ve la diferencia, la tarea SI corre, y la VM se queda
+      # sin orden de arranque con `changed=0` — lo delata la verificacion final.
+      # Aqui se empuja por la API, que es la que si lo persiste (PUT qemu config).
+      ansible.builtin.uri:
+        url: "{{ pve_api }}/nodes/{{ pve_node }}/qemu/{{ ct.vmid }}/config"
+        method: PUT
+        body_format: form-urlencoded
+        body:
+          startup: "{{ ct.startup | default([], true) | join(',') }}"
+        headers:
+          Authorization: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
+        ca_path: "{{ pve_api_ca_path }}"
+        validate_certs: true
+        status_code: [200]
+        timeout: 30
+      loop: "{{ pve_vm_specs }}"
+      loop_control: *pve_loop
+      vars:
+        a: "{{ pve_plan[ct.vmid | string] }}"
+      when:
+        - a.exists
+        - "'startup' in a.to_set"
+      changed_when: true
+
     # ---- los discos importados, ANTES de la energia ----------------------
     # Un disco importado nace al tamano de la imagen y el resize lo lleva al
     # declarado. Va DELANTE de la energia a proposito: la energia es una
@@ -732,7 +759,7 @@
           # apagada se declara aparte, en voz alta, unas líneas más abajo.
           - (not b.power_drift) or (vmid in lab_estaciones_diferidas | map('string') | list)
         fail_msg: >-
-          VMID {{ vmid }} does not match labs/netlab-v2/inventory/group_vars/all.yml after apply:
+          VMID {{ vmid }} does not match {{ pve_lab }}/inventory/group_vars/all.yml after apply:
           mismatched={{ b.declared_subset | to_json }} vs live={{ b.actual_subset | to_json }},
           still present but declared absent={{ b.forbidden_present | join(', ') or '-' }},
           creation-time drift={{ b.creation_time_drift | join(', ') or '-' }},

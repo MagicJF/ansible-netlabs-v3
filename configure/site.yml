@@ -57,6 +57,22 @@
         l2_path_up: >-
           {{ l2_path_probe.results | rejectattr('failed') | list | length > 0 }}
 
+    - name: Note whether the declared tunnel interface is already up
+      # El túnel es el camino, no un destino: si su interfaz YA está arriba, no hay
+      # nada que converger aunque ningún invitado responda todavía (recién creados,
+      # arrancando). Sin esta comprobación, una recreación completa hacía que el
+      # bloque del túnel se lanzara contra el host con sudo y tumbara la capa 2
+      # entera por un problema que no existía.
+      ansible.builtin.command: "ip link show {{ pve_tunnel.name | default('') }}"
+      register: l2_tunnel_link
+      changed_when: false
+      failed_when: false
+      when: pve_tunnel.name | default('') | length > 0
+
+    - name: Record the tunnel's state
+      ansible.builtin.set_fact:
+        l2_tunnel_up: "{{ (l2_tunnel_link.rc | default(1)) == 0 }}"
+
     - name: Converge the declared tunnel when nothing answers
       # `apply:` rather than a task-level keyword: this ansible-core refuses
       # `become` as a direct attribute of a TaskInclude.
@@ -70,7 +86,9 @@
       # network the endpoint cannot route yet — so it fails the whole run. Reaching
       # those networks needs routes ON THE ENDPOINT (the one manual half), which
       # is documented in playbooks/tools/wg_endpoint_setup.sh.
-      when: not (l2_path_up | bool)
+      when:
+        - not (l2_path_up | bool)
+        - not (l2_tunnel_up | bool)
 
     - name: An unreachable guest LAN with no declared tunnel is a hard stop
       ansible.builtin.fail:
@@ -82,6 +100,7 @@
           node that is already on the guest LAN. Nothing was changed on the guests.
       when:
         - not (l2_path_up | bool)
+        - not (l2_tunnel_up | bool)
         - not (pve_tunnel.manage | default(false) | bool)
 
     - name: Report the layer 2 path
