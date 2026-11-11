@@ -8,7 +8,7 @@
     "playbooks/apply.yml": "9a86f180a8279523db31125e35b0f38f9671c28ddc06eada9981c1b186462b9f"
   },
   "README.md": {
-    "EL-LABORATORIO.md": "333022bd0030a0c9a3b6d82ef60fc9dd7394463e639e0c72d58c48cd9c323f79",
+    "EL-LABORATORIO.md": "f8d1a1d3ad312096ffe601958f5e1c4ed3fb66a74d52bef877cdf1e81f8b45ae",
     "ESFUERZO.md": "0943e0d04277e1cad94f5526bf57add8051d3eda340c1f48202b6e7ecea5fc19",
     "configure/roles/bootstrap/tasks/main.yml": "f546acac1bc4d3297b445817e78ad538b2f6971ecd704a27f2cefa16fe5d4658",
     "configure/roles/routeros/tasks/main.yml": "9e507fcc8aaa95dcb46e86fa1e5fdbf5d535583c6f349f0cf7f680912a757889",
