@@ -28,6 +28,7 @@ lab_mgmt_gateway: 10.10.10.1
 lab_mgmt_bridge: vmbr1
 lab_mgmt_otros:
   infra: 10.10.10.63
+lab_nombre: "una sola sede"
 lab_hub: 1
 lab_sites:
 - id: 1

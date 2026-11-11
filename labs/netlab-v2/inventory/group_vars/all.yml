@@ -100,6 +100,7 @@ lab_mgmt_bridge: "vmbr1"
 # delegaciones son spokes. Eso ES la topología, así que se declara; lo que se
 # deja de repetir es el direccionamiento.
 # ---------------------------------------------------------------------------
+lab_nombre: "una empresa de tres sedes"
 lab_hub: 1
 
 lab_sites:

@@ -2,8 +2,7 @@
      No editar a mano: edita la plantilla docs/laboratorio.md.j2 y regenera. -->
 # El laboratorio: una empresa de tres sedes
 
-Este repositorio despliega un laboratorio de red que simula **una empresa
-pequeña con una central y dos delegaciones**. No es un dibujo cómodo: está
+Este repositorio despliega un laboratorio de red que simula **una empresa de tres sedes**. No es un dibujo cómodo: está
 construido para comportarse como hardware de verdad, y todo lo que hay dentro
 —máquinas, cables, direcciones, rutas, reglas de firewall— vive declarado en un
 solo fichero.
@@ -62,11 +61,11 @@ Leído en palabras:
   sus 4 PCs comparten una sola red), un router que es la puerta de esa LAN y
   conoce todas las sedes, y **2 firewalls**: el de su sede, que la separa de la
   WAN, y el de **borde**, que es el único que sale a internet.
-- **En cada delegación** hay un switch (sus PCs), un router (puerta y DHCP de
+- **En cada una de las demás sedes** hay un switch (sus PCs), un router (puerta y DHCP de
   su LAN) y un firewall, que es la boca de la sede hacia fuera.
-- **Todo el tráfico entre sedes pasa por la central**, y el de una delegación
-  hacia internet cruza su firewall, la WAN y el firewall de la central antes de
-  llegar al de borde.
+- **Todo el tráfico entre sedes pasa por la central**, y el de una sede
+  hacia internet cruza su firewall, la WAN y el firewall de la central antes
+  de llegar al de borde.
 
 ---
 
@@ -104,13 +103,12 @@ es la sede, `T` el tipo de equipo y `NN` el índice.
 | | S = sede | | T = tipo |
 |---|---|---|---|
 | `0` | infraestructura | `1` | firewall |
-| `1` | central | `2` | router |
-| `2` | delegación 2 | `3` | switch |
-| `3` | delegación 3 | `4` | workstation |
+| `1` | central | 2 | router |
+| `2` | delegacion-2 | 3 | switch |
+| `3` | delegacion-3 | 4 | workstation |
 | `9` | borde | `9` | servicio |
 
-Así `1301` es "sede 1, switch, el primero" y `1401` "sede 1, workstation, la
-primera". No hay que consultar nada para saber qué es una máquina y dónde está.
+Así `1301` es "central, switch, el primero" y `1401` "central, workstation, la primera". No hay que consultar nada para saber qué es una máquina y dónde está.
 
 | Máquina | VMID | Tipo | Función | Dirección |
 |---|---|---|---|---|
@@ -186,7 +184,7 @@ magia:
   las rutas de vuelta y no hay traducciones anidadas.
 
 Medido, no supuesto: desde `fw-wan-edge` responde `1.1.1.1`; desde la
-LAN de la central y desde las delegaciones se llega a internet; y una
+LAN de la central y desde las demás sedes se llega a internet; y una
 workstation resuelve DNS y abre TCP/443 hacia fuera.
 
 ---
@@ -194,7 +192,6 @@ workstation resuelve DNS y abre TCP/443 hacia fuera.
 ## Por dónde va un paquete
 
 Una workstation de la central hablando con una de la delegación 2:
-
 ```
   pc-s1-01 ──(10.11.0.1)──▶ rt-s1-core ──(10.21.0.1)──▶ fw-s1-perim ──(10.99.1.2)──▶ fw-s2-perim ──(10.12.0.11)──▶ pc-s2-01
 
@@ -202,7 +199,7 @@ Una workstation de la central hablando con una de la delegación 2:
 ```
 Destino: la delegación 2 (10.12.0.0/24), a través del enlace WAN `10.99.1.0/30`.
 
-Y entre las dos delegaciones, el paquete **pasa por la central**, que es lo que
+Y entre dos sedes que no son la central, el paquete **pasa por la central**, que es lo que
 dice la topología. Ese detalle es una señal de que esto es hardware real: **el
 salto intermedio lo anuncia la interfaz del equipo que RECIBE el paquete**, no la
 del que lo envía.
@@ -345,7 +342,7 @@ fiel a lo que te encontrarías con hierro.
 
 Cada invitado lleva **tres etiquetas y ni una más**: quién lo gestiona (`ansible-managed`),
 qué es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`) y dónde está
-(`central`, `delegacion`, `borde`, `infra`). Nada de vocabulario que no responda a una
+(`central`, `delegacion`, `delegacion`, `borde`, `infra`). Nada de vocabulario que no responda a una
 de esas tres preguntas.
 
 Esas etiquetas están **coloreadas en el datacenter** (opción `tag-style`, declarada en

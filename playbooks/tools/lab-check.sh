@@ -44,6 +44,13 @@ fi
 gw_of() { printf '%s\n' "$GW" | awk -v s="$1" '{for(i=1;i<=NF;i+=2) if($i==s){print $(i+1); exit}}'; }
 rt_of() { printf '%s\n' "$RT" | awk -v s="$1" '{for(i=1;i<=NF;i+=2) if($i==s){print $(i+1); exit}}'; }
 es_mi_puerta() { [ "$1" = "$MY_GW" ] || [ "$1" = "$(rt_of "$MY_SITE")" ]; }
+es_aislado() {
+  # ¿la DECLARACIÓN separa mi sede de la del destino? Viene en el bloque DENY del
+  # mapa (lab_policy), así que la separación no se cablea aquí: se declara.
+  [ -z "${DENY:-}" ] && return 1
+  case ";$DENY;" in *";$1-$2;"*) return 0 ;; esac
+  return 1
+}
 
 # esperado <sede mía> <sede destino> -> saltos intermedios que predice la
 # topología. El destino NUNCA va aquí: el último salto del traceroute ES el
@@ -90,11 +97,31 @@ printf '%-4s %-14s %-4s %-5s %-8s %-9s %-7s %s\n' DISPO DIRECCIÓN SEDE TIPO ALC
 echo "---------------------------------------------------------------------------------------"
 
 total=0; ok_reach=0; ok_first=0; ok_path=0; exempt=0
+aisl_ok=0; aisl_total=0; aisl_fuga=""
 anomalias=""; por_tipo=""
 
 while read -r name ip site kind; do
   [ -z "${ip:-}" ] && continue
   [ "$ip" = "$MY_IP" ] && continue                 # yo no me pruebo
+
+  # --- POLÍTICA: los destinos que la declaración SEPARA se prueban al revés -----
+  # El caso de uso de este laboratorio es el aislamiento, así que aquí la prueba
+  # BUENA es que NO conteste. Es el OOB generalizado: en vez de una lista fija de
+  # destinos prohibidos, la pareja de sedes que la declaración marca en `lab_policy`.
+  # Sonda corta: el tráfico se descarta, así que no hay que esperar al traceroute.
+  if es_aislado "$MY_SITE" "$site"; then
+    aisl_total=$((aisl_total + 1))
+    if timeout 5 traceroute -n -q 1 -w 1 -m 3 "$ip" 2>/dev/null \
+         | awk 'NR>1 && $2!="*" && $2!="" {print $2}' | grep -qx "$ip"; then
+      aisl_fuga="${aisl_fuga}${name}(${ip}) "
+      printf '%-4s %-14s %-4s %-5s %-8s %-9s %-7s %s\n' "$name" "$ip" "$site" "$kind" "FUGA" "-" "n/a" "NO debe contestar"
+    else
+      aisl_ok=$((aisl_ok + 1))
+      printf '%-4s %-14s %-4s %-5s %-8s %-9s %-7s %s\n' "$name" "$ip" "$site" "$kind" "AISLADO" "-" "n/a" "separado por política"
+    fi
+    continue
+  fi
+
   total=$((total + 1))
 
   exp=$(esperado "$MY_SITE" "$site")
@@ -168,6 +195,10 @@ printf '  OOB aislado  : %d/%d inalcanzables (la gestion no se toca desde produc
 if [ -n "$oob_leak" ]; then
   echo "  FUGA OOB ---> $oob_leak una estacion NO debe llegar ahi"
 fi
+if [ "$aisl_total" -gt 0 ]; then
+  printf '  aislamiento  : %d/%d separados por lab_policy no contestan\n' "$aisl_ok" "$aisl_total"
+  [ -n "$aisl_fuga" ] && echo "  FUGA DE AISLAMIENTO ---> $aisl_fuga la declaracion los separa y se ven"
+fi
 for k in pc rt fw sw boot; do
   case "$k" in pc) lbl="workstations";; rt) lbl="routers     ";; fw) lbl="firewalls   ";; sw) lbl="switches    ";; boot) lbl="bootstrap   ";; esac
   tot=$(printf '%s' "$por_tipo" | awk -v k="$k" '$1==k' | wc -l)
@@ -199,6 +230,8 @@ for k in pc rt fw sw boot; do
 done
 echo "oob_aislado=$oob_ok/$oob_total"
 [ -n "$oob_leak" ] && echo "OOB_FUGA=$oob_leak"
+[ "$aisl_total" -gt 0 ] && echo "aislamiento=$aisl_ok/$aisl_total"
+[ -n "$aisl_fuga" ] && echo "AISLAMIENTO_FUGA=$aisl_fuga"
 printf '%s' "$anomalias" | sed 's/^/ANOM /'
 echo "### FIN ###"
 
@@ -207,4 +240,5 @@ echo "### FIN ###"
 # hacia el OOB es un fallo duro: la red de gestión no debe ser alcanzable desde
 # producción, así que si una estación llega, el test cae.
 malos=$(printf '%s' "$por_tipo" | awk '$1=="pc"||$1=="rt"||$1=="fw"' | grep -c NO)
-[ "$malos" = "0" ] && [ "$ok_first" = "$exigidos" ] && [ -z "$oob_leak" ] && exit 0 || exit 1
+[ "$malos" = "0" ] && [ "$ok_first" = "$exigidos" ] && [ -z "$oob_leak" ] \
+  && [ -z "$aisl_fuga" ] && exit 0 || exit 1

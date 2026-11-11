@@ -123,10 +123,29 @@ lab_mgmt_bridge: "vmbr1"
 # delegaciones son spokes. Eso ES la topología, así que se declara; lo que se
 # deja de repetir es el direccionamiento.
 # ---------------------------------------------------------------------------
-lab_hub: 1
+lab_nombre: "un edificio de oficinas compartidas"
+lab_hub: 6
+
+# ---------------------------------------------------------------------------
+# POLÍTICA DE ALCANCE ENTRE SEDES — lo que el test debe comprobar que NO se cruza
+# ---------------------------------------------------------------------------
+# El test deriva de la declaración que TODAS las estaciones se alcanzan; esto lo
+# NIEGA. Sin esto, un laboratorio cuyo PUNTO es la separación se verificaría al
+# revés: el test daría por bueno justo lo que el caso de uso tiene que impedir.
+# Las parejas son «desde -> hasta» (ids de sede), y el test las convierte en una
+# prueba NEGATIVA: el destino no debe contestar. Es el mismo mecanismo con el que
+# ya se vigila el segmento OOB, generalizado a cualquier pareja declarada.
+lab_policy:
+  deny:
+    - from: [7]
+      to: [8]
+      why: "el inquilino A no ve al inquilino B"
+    - from: [8]
+      to: [7]
+      why: "el inquilino B no ve al inquilino A"
 
 lab_sites:
-  - id: 1
+  - id: 6
     nombre: "edificio"
     etiqueta: "el edificio (infraestructura común)"
     red: "10.41.0.0/24"
@@ -135,7 +154,7 @@ lab_sites:
     transito: { red: "10.51.0.0/30", fw: "10.51.0.1", rt: "10.51.0.2" }
     mgmt: { sw: ["10.10.10.71", "10.10.10.72"], rt: "10.10.10.81", fw: "10.10.10.91" }
     tag: "edificio"
-  - id: 2
+  - id: 7
     nombre: "inquilino-a"
     etiqueta: "el inquilino A"
     red: "10.42.0.0/24"
@@ -145,7 +164,7 @@ lab_sites:
     wan: { red: "10.98.1.0/30", hub: "10.98.1.1", spoke: "10.98.1.2" }
     mgmt: { sw: ["10.10.10.73"], rt: "10.10.10.82", fw: "10.10.10.92" }
     tag: "inquilino-a"
-  - id: 3
+  - id: 8
     nombre: "inquilino-b"
     etiqueta: "el inquilino B"
     red: "10.43.0.0/24"
@@ -156,7 +175,7 @@ lab_sites:
     mgmt: { sw: ["10.10.10.74"], rt: "10.10.10.83", fw: "10.10.10.93" }
     tag: "inquilino-b"
 
-# Acceso por id: las declaraciones de equipo dicen lab_sede[2].red, no la IP.
+# Acceso por id: las declaraciones de equipo dicen lab_sede[7].red, no la IP.
 lab_sede: "{{ dict(lab_sites | map(attribute='id') | zip(lab_sites)) }}"
 
 # Las direcciones de gestion de lo que NO es una sede: el contenedor de
@@ -412,10 +431,10 @@ pve_containers:
         # ruta por defecto va al host y el host no enruta hacia el interior. El
         # gateway es el núcleo, que es el que conoce las tres sedes.
         routes:
-          - "{{ lab_sede[1].red }}"
-          - "{{ lab_sede[2].red }}"
-          - "{{ lab_sede[3].red }}"
-        route_gateway: "{{ lab_sede[1].mgmt.rt }}"   # rt-ed-core
+          - "{{ lab_sede[6].red }}"
+          - "{{ lab_sede[7].red }}"
+          - "{{ lab_sede[8].red }}"
+        route_gateway: "{{ lab_sede[6].mgmt.rt }}"   # rt-ed-core
         hosts: >-
           {%- set out = [] -%}
           {%- for v in pve_vms | selectattr('chr', 'defined') -%}
@@ -442,7 +461,7 @@ pve_containers:
 
   - vmid: 6401
     hostname: pc-ed-01
-    site: sede1
+    site: sede6
     address: "10.41.0.11"
     cores: 1
     memory: 256
@@ -461,7 +480,7 @@ pve_containers:
 
   - vmid: 6402
     hostname: pc-ed-02
-    site: sede1
+    site: sede6
     address: "10.41.0.12"
     cores: 1
     memory: 256
@@ -480,7 +499,7 @@ pve_containers:
 
   - vmid: 6403
     hostname: pc-ed-03
-    site: sede1
+    site: sede6
     address: "10.41.0.13"
     cores: 1
     memory: 256
@@ -499,7 +518,7 @@ pve_containers:
 
   - vmid: 6404
     hostname: pc-ed-04
-    site: sede1
+    site: sede6
     address: "10.41.0.14"
     cores: 1
     memory: 256
@@ -518,7 +537,7 @@ pve_containers:
 
   - vmid: 7401
     hostname: pc-ia-01
-    site: sede2
+    site: sede7
     address: "10.42.0.11"
     cores: 1
     memory: 256
@@ -537,7 +556,7 @@ pve_containers:
 
   - vmid: 7402
     hostname: pc-ia-02
-    site: sede2
+    site: sede7
     address: "10.42.0.12"
     cores: 1
     memory: 256
@@ -556,7 +575,7 @@ pve_containers:
 
   - vmid: 8401
     hostname: pc-ib-01
-    site: sede3
+    site: sede8
     address: "10.43.0.11"
     cores: 1
     memory: 256
@@ -575,7 +594,7 @@ pve_containers:
 
   - vmid: 8402
     hostname: pc-ib-02
-    site: sede3
+    site: sede8
     address: "10.43.0.12"
     cores: 1
     memory: 256
@@ -714,7 +733,7 @@ pve_vms:
       routeros:
         identity: sw-ed-acc-01
         addresses:
-          - address: "{{ lab_sede[1].mgmt.sw[0] }}/24"
+          - address: "{{ lab_sede[6].mgmt.sw[0] }}/24"
             interface: ether1
         bridges:
           - name: lan
@@ -725,7 +744,7 @@ pve_vms:
         # gestionable de verdad.
         routes:
           - dst_address: "0.0.0.0/0"
-            gateway: "{{ lab_sede[1].mgmt.rt }}"
+            gateway: "{{ lab_sede[6].mgmt.rt }}"
 
   # sw-ed-acc-02: segundo switch de acceso de la central. Cuelga del troncal
   # (mismo dominio L2, que es lo que hace que las cuatro workstations de la sede
@@ -742,7 +761,7 @@ pve_vms:
       routeros:
         identity: sw-ed-acc-02
         addresses:
-          - address: "{{ lab_sede[1].mgmt.sw[1] }}/24"
+          - address: "{{ lab_sede[6].mgmt.sw[1] }}/24"
             interface: ether1
         bridges:
           - name: lan
@@ -750,7 +769,7 @@ pve_vms:
         dhcp_client: false
         routes:
           - dst_address: "0.0.0.0/0"
-            gateway: "{{ lab_sede[1].mgmt.rt }}"
+            gateway: "{{ lab_sede[6].mgmt.rt }}"
 
   # sw-ia-acc-01: el switch de acceso de la delegación 2.
   - vmid: 7301
@@ -765,7 +784,7 @@ pve_vms:
       routeros:
         identity: sw-ia-acc-01
         addresses:
-          - address: "{{ lab_sede[2].mgmt.sw[0] }}/24"
+          - address: "{{ lab_sede[7].mgmt.sw[0] }}/24"
             interface: ether1
         bridges:
           - name: lan
@@ -773,7 +792,7 @@ pve_vms:
         dhcp_client: false
         routes:
           - dst_address: "0.0.0.0/0"
-            gateway: "{{ lab_sede[2].mgmt.rt }}"
+            gateway: "{{ lab_sede[7].mgmt.rt }}"
 
   # sw-ib-acc-01: el switch de acceso de la delegación 3.
   - vmid: 8301
@@ -788,7 +807,7 @@ pve_vms:
       routeros:
         identity: sw-ib-acc-01
         addresses:
-          - address: "{{ lab_sede[3].mgmt.sw[0] }}/24"
+          - address: "{{ lab_sede[8].mgmt.sw[0] }}/24"
             interface: ether1
         bridges:
           - name: lan
@@ -796,7 +815,7 @@ pve_vms:
         dhcp_client: false
         routes:
           - dst_address: "0.0.0.0/0"
-            gateway: "{{ lab_sede[3].mgmt.rt }}"
+            gateway: "{{ lab_sede[8].mgmt.rt }}"
 
   # ==========================================================================
   # ROUTERS (ST = 2S) — son la PUERTA DE ENLACE y el SERVIDOR DHCP de su LAN, y
@@ -820,30 +839,30 @@ pve_vms:
       routeros:
         identity: rt-ed-core
         addresses:
-          - address: "{{ lab_sede[1].mgmt.rt }}/24"
+          - address: "{{ lab_sede[6].mgmt.rt }}/24"
             interface: ether1
-          - address: "{{ lab_sede[1].puerta }}/24"
+          - address: "{{ lab_sede[6].puerta }}/24"
             interface: ether2
-          - address: "{{ lab_sede[1].transito.rt }}/30"
+          - address: "{{ lab_sede[6].transito.rt }}/30"
             interface: ether3
         dhcp_client: false
         routes:
           # Las delegaciones y la salida, por su firewall.
-          - dst_address: "{{ lab_sede[2].red }}"
-            gateway: "{{ lab_sede[1].transito.fw }}"
-          - dst_address: "{{ lab_sede[3].red }}"
-            gateway: "{{ lab_sede[1].transito.fw }}"
+          - dst_address: "{{ lab_sede[7].red }}"
+            gateway: "{{ lab_sede[6].transito.fw }}"
+          - dst_address: "{{ lab_sede[8].red }}"
+            gateway: "{{ lab_sede[6].transito.fw }}"
           - dst_address: "{{ lab_control_network }}"
             gateway: "{{ lab_mgmt_gateway }}"
           - dst_address: "0.0.0.0/0"
-            gateway: "{{ lab_sede[1].transito.fw }}"
+            gateway: "{{ lab_sede[6].transito.fw }}"
         # El DHCP lo sirve AQUÍ, no en el firewall: es el router de la sede.
         dhcp_servers:
-          - name: sede1
+          - name: sede6
             interface: ether2
-            address_pool: "{{ lab_sede[1].pool }}"
-            network: "{{ lab_sede[1].red }}"
-            gateway: "{{ lab_sede[1].puerta }}"
+            address_pool: "{{ lab_sede[6].pool }}"
+            network: "{{ lab_sede[6].red }}"
+            gateway: "{{ lab_sede[6].puerta }}"
             dns_server: "{{ lab_internet_dns }}"
             # Una reserva por workstation DE ESTA SEDE. Dirección y MAC salen de
             # la declaración de la propia workstation: aquí no se repite ningún
@@ -852,7 +871,7 @@ pve_vms:
               {%- set out = [] -%}
               {%- for c in pve_containers
                      | selectattr('site', 'defined')
-                     | selectattr('site', 'equalto', 'sede1') -%}
+                     | selectattr('site', 'equalto', 'sede6') -%}
               {%-   set _ = out.append({
                     'address': c.address,
                     'mac_address': (c.netif.net0.split(',') | select('match', '^hwaddr=') | first).split('=')[1],
@@ -874,30 +893,30 @@ pve_vms:
       routeros:
         identity: rt-ia-core
         addresses:
-          - address: "{{ lab_sede[2].mgmt.rt }}/24"
+          - address: "{{ lab_sede[7].mgmt.rt }}/24"
             interface: ether1
-          - address: "{{ lab_sede[2].puerta }}/24"
+          - address: "{{ lab_sede[7].puerta }}/24"
             interface: ether2
-          - address: "{{ lab_sede[2].transito.rt }}/30"
+          - address: "{{ lab_sede[7].transito.rt }}/30"
             interface: ether3
         dhcp_client: false
         routes:
           - dst_address: "0.0.0.0/0"
-            gateway: "{{ lab_sede[2].transito.fw }}"
+            gateway: "{{ lab_sede[7].transito.fw }}"
           - dst_address: "{{ lab_control_network }}"
             gateway: "{{ lab_mgmt_gateway }}"
         dhcp_servers:
-          - name: sede2
+          - name: sede7
             interface: ether2
-            address_pool: "{{ lab_sede[2].pool }}"
-            network: "{{ lab_sede[2].red }}"
-            gateway: "{{ lab_sede[2].puerta }}"
+            address_pool: "{{ lab_sede[7].pool }}"
+            network: "{{ lab_sede[7].red }}"
+            gateway: "{{ lab_sede[7].puerta }}"
             dns_server: "{{ lab_internet_dns }}"
             leases: >-
               {%- set out = [] -%}
               {%- for c in pve_containers
                      | selectattr('site', 'defined')
-                     | selectattr('site', 'equalto', 'sede2') -%}
+                     | selectattr('site', 'equalto', 'sede7') -%}
               {%-   set _ = out.append({
                     'address': c.address,
                     'mac_address': (c.netif.net0.split(',') | select('match', '^hwaddr=') | first).split('=')[1],
@@ -917,30 +936,30 @@ pve_vms:
       routeros:
         identity: rt-ib-core
         addresses:
-          - address: "{{ lab_sede[3].mgmt.rt }}/24"
+          - address: "{{ lab_sede[8].mgmt.rt }}/24"
             interface: ether1
-          - address: "{{ lab_sede[3].puerta }}/24"
+          - address: "{{ lab_sede[8].puerta }}/24"
             interface: ether2
-          - address: "{{ lab_sede[3].transito.rt }}/30"
+          - address: "{{ lab_sede[8].transito.rt }}/30"
             interface: ether3
         dhcp_client: false
         routes:
           - dst_address: "0.0.0.0/0"
-            gateway: "{{ lab_sede[3].transito.fw }}"
+            gateway: "{{ lab_sede[8].transito.fw }}"
           - dst_address: "{{ lab_control_network }}"
             gateway: "{{ lab_mgmt_gateway }}"
         dhcp_servers:
-          - name: sede3
+          - name: sede8
             interface: ether2
-            address_pool: "{{ lab_sede[3].pool }}"
-            network: "{{ lab_sede[3].red }}"
-            gateway: "{{ lab_sede[3].puerta }}"
+            address_pool: "{{ lab_sede[8].pool }}"
+            network: "{{ lab_sede[8].red }}"
+            gateway: "{{ lab_sede[8].puerta }}"
             dns_server: "{{ lab_internet_dns }}"
             leases: >-
               {%- set out = [] -%}
               {%- for c in pve_containers
                      | selectattr('site', 'defined')
-                     | selectattr('site', 'equalto', 'sede3') -%}
+                     | selectattr('site', 'equalto', 'sede8') -%}
               {%-   set _ = out.append({
                     'address': c.address,
                     'mac_address': (c.netif.net0.split(',') | select('match', '^hwaddr=') | first).split('=')[1],
@@ -972,26 +991,26 @@ pve_vms:
       routeros:
         identity: fw-ed-perim
         addresses:
-          - address: "{{ lab_sede[1].mgmt.fw }}/24"
+          - address: "{{ lab_sede[6].mgmt.fw }}/24"
             interface: ether1
-          - address: "{{ lab_sede[1].transito.fw }}/30"
+          - address: "{{ lab_sede[6].transito.fw }}/30"
             interface: ether2
-          - address: "{{ lab_sede[2].wan.hub }}/30"
+          - address: "{{ lab_sede[7].wan.hub }}/30"
             interface: ether3
-          - address: "{{ lab_sede[3].wan.hub }}/30"
+          - address: "{{ lab_sede[8].wan.hub }}/30"
             interface: ether4
           - address: "{{ lab_edge_core }}/30"
             interface: ether5
         dhcp_client: false
         routes:
           # Su propia sede, detrás del router.
-          - dst_address: "{{ lab_sede[1].red }}"
-            gateway: "{{ lab_sede[1].transito.rt }}"
+          - dst_address: "{{ lab_sede[6].red }}"
+            gateway: "{{ lab_sede[6].transito.rt }}"
           # Las delegaciones, por sus WAN.
-          - dst_address: "{{ lab_sede[2].red }}"
-            gateway: "{{ lab_sede[2].wan.spoke }}"
-          - dst_address: "{{ lab_sede[3].red }}"
-            gateway: "{{ lab_sede[3].wan.spoke }}"
+          - dst_address: "{{ lab_sede[7].red }}"
+            gateway: "{{ lab_sede[7].wan.spoke }}"
+          - dst_address: "{{ lab_sede[8].red }}"
+            gateway: "{{ lab_sede[8].wan.spoke }}"
           - dst_address: "{{ lab_control_network }}"
             gateway: "{{ lab_mgmt_gateway }}"
           # Y lo que sale de la empresa, por el borde.
@@ -1015,8 +1034,13 @@ pve_vms:
             - {chain: forward, action: accept, in_interface: ether5, out_interface: ether2}
             - {chain: forward, action: accept, in_interface: ether3, out_interface: ether5}
             - {chain: forward, action: accept, in_interface: ether4, out_interface: ether5}
-            - {chain: forward, action: accept, in_interface: ether3, out_interface: ether4}
-            - {chain: forward, action: accept, in_interface: ether4, out_interface: ether3}
+            # AISLAMIENTO (lab_policy): los dos inquilinos comparten el edificio y la
+            # salida, pero NO se ven. El edificio es el punto de cruce: aquí se corta lo
+            # que va de un inquilino al otro. El caso de uso completo vive en el bloque
+            # `lab_policy` de la declaración, y el test lo comprueba AL REVÉS (el destino
+            # no debe contestar), no como una simple ruta que falta.
+            - {chain: forward, action: drop, src_address: "{{ lab_sede[7].red }}", dst_address: "{{ lab_sede[8].red }}", comment: "AISLAMIENTO: inquilino A no alcanza al inquilino B"}
+            - {chain: forward, action: drop, src_address: "{{ lab_sede[8].red }}", dst_address: "{{ lab_sede[7].red }}", comment: "AISLAMIENTO: inquilino B no alcanza al inquilino A"}
             # Y las VUELTAS desde el borde hacia cada delegación. No basta con
             # `established,related`: el paquete que pregunta al borde por su
             # dirección de gestión va DIRECTO por la LAN de gestión (el router de
@@ -1044,24 +1068,24 @@ pve_vms:
       routeros:
         identity: fw-ia-perim
         addresses:
-          - address: "{{ lab_sede[2].mgmt.fw }}/24"
+          - address: "{{ lab_sede[7].mgmt.fw }}/24"
             interface: ether1
-          - address: "{{ lab_sede[2].transito.fw }}/30"
+          - address: "{{ lab_sede[7].transito.fw }}/30"
             interface: ether2
-          - address: "{{ lab_sede[2].wan.spoke }}/30"
+          - address: "{{ lab_sede[7].wan.spoke }}/30"
             interface: ether3
         dhcp_client: false
         routes:
-          - dst_address: "{{ lab_sede[2].red }}"
-            gateway: "{{ lab_sede[2].transito.rt }}"
-          - dst_address: "{{ lab_sede[1].red }}"
-            gateway: "{{ lab_sede[2].wan.hub }}"
-          - dst_address: "{{ lab_sede[3].red }}"
-            gateway: "{{ lab_sede[2].wan.hub }}"
+          - dst_address: "{{ lab_sede[7].red }}"
+            gateway: "{{ lab_sede[7].transito.rt }}"
+          - dst_address: "{{ lab_sede[6].red }}"
+            gateway: "{{ lab_sede[7].wan.hub }}"
+          - dst_address: "{{ lab_sede[8].red }}"
+            gateway: "{{ lab_sede[7].wan.hub }}"
           - dst_address: "{{ lab_control_network }}"
-            gateway: "{{ lab_sede[2].wan.hub }}"
+            gateway: "{{ lab_sede[7].wan.hub }}"
           - dst_address: "0.0.0.0/0"
-            gateway: "{{ lab_sede[2].wan.hub }}"
+            gateway: "{{ lab_sede[7].wan.hub }}"
         firewall:
           filter:
             - {chain: forward, action: accept, connection_state: "established,related"}
@@ -1084,24 +1108,24 @@ pve_vms:
       routeros:
         identity: fw-ib-perim
         addresses:
-          - address: "{{ lab_sede[3].mgmt.fw }}/24"
+          - address: "{{ lab_sede[8].mgmt.fw }}/24"
             interface: ether1
-          - address: "{{ lab_sede[3].transito.fw }}/30"
+          - address: "{{ lab_sede[8].transito.fw }}/30"
             interface: ether2
-          - address: "{{ lab_sede[3].wan.spoke }}/30"
+          - address: "{{ lab_sede[8].wan.spoke }}/30"
             interface: ether3
         dhcp_client: false
         routes:
-          - dst_address: "{{ lab_sede[3].red }}"
-            gateway: "{{ lab_sede[3].transito.rt }}"
-          - dst_address: "{{ lab_sede[1].red }}"
-            gateway: "{{ lab_sede[3].wan.hub }}"
-          - dst_address: "{{ lab_sede[2].red }}"
-            gateway: "{{ lab_sede[3].wan.hub }}"
+          - dst_address: "{{ lab_sede[8].red }}"
+            gateway: "{{ lab_sede[8].transito.rt }}"
+          - dst_address: "{{ lab_sede[6].red }}"
+            gateway: "{{ lab_sede[8].wan.hub }}"
+          - dst_address: "{{ lab_sede[7].red }}"
+            gateway: "{{ lab_sede[8].wan.hub }}"
           - dst_address: "{{ lab_control_network }}"
-            gateway: "{{ lab_sede[3].wan.hub }}"
+            gateway: "{{ lab_sede[8].wan.hub }}"
           - dst_address: "0.0.0.0/0"
-            gateway: "{{ lab_sede[3].wan.hub }}"
+            gateway: "{{ lab_sede[8].wan.hub }}"
         firewall:
           filter:
             - {chain: forward, action: accept, connection_state: "established,related"}
@@ -1133,11 +1157,11 @@ pve_vms:
         routes:
           - dst_address: "0.0.0.0/0"
             gateway: "{{ lab_internet_gateway }}"
-          - dst_address: "{{ lab_sede[1].red }}"
+          - dst_address: "{{ lab_sede[6].red }}"
             gateway: "{{ lab_edge_core }}"
-          - dst_address: "{{ lab_sede[2].red }}"
+          - dst_address: "{{ lab_sede[7].red }}"
             gateway: "{{ lab_edge_core }}"
-          - dst_address: "{{ lab_sede[3].red }}"
+          - dst_address: "{{ lab_sede[8].red }}"
             gateway: "{{ lab_edge_core }}"
           - dst_address: "{{ lab_control_network }}"
             gateway: "{{ lab_internet_gateway }}"

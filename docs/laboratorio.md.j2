@@ -1,9 +1,8 @@
 <!-- GENERADO por playbooks/tools/documentos.py desde {{ man_rel }}.
      No editar a mano: edita la plantilla docs/laboratorio.md.j2 y regenera. -->
-# El laboratorio: una empresa de tres sedes
+# El laboratorio: {{ man.lab_nombre }}
 
-Este repositorio despliega un laboratorio de red que simula **una empresa
-pequeña con una central y dos delegaciones**. No es un dibujo cómodo: está
+Este repositorio despliega un laboratorio de red que simula **{{ man.lab_nombre }}**. No es un dibujo cómodo: está
 construido para comportarse como hardware de verdad, y todo lo que hay dentro
 —máquinas, cables, direcciones, rutas, reglas de firewall— vive declarado en un
 solo fichero.
@@ -47,11 +46,11 @@ Leído en palabras:
   sus {{ de_rol('workstation') | selectattr('sede','equalto',hub) | list | length }} PCs comparten una sola red), un router que es la puerta de esa LAN y
   conoce todas las sedes, y **{{ de_rol('firewall') | selectattr('sede','equalto',hub) | list | length + 1 }} firewalls**: el de su sede, que la separa de la
   WAN, y el de **borde**, que es el único que sale a internet.
-- **En cada delegación** hay un switch (sus PCs), un router (puerta y DHCP de
+- **En cada una de las demás sedes** hay un switch (sus PCs), un router (puerta y DHCP de
   su LAN) y un firewall, que es la boca de la sede hacia fuera.
-- **Todo el tráfico entre sedes pasa por la central**, y el de una delegación
-  hacia internet cruza su firewall, la WAN y el firewall de la central antes de
-  llegar al de borde.
+- **Todo el tráfico entre sedes pasa por {{ corto[hub] }}**, y el de una sede
+  hacia internet cruza su firewall, la WAN y el firewall de {{ corto[hub] }} antes
+  de llegar al de borde.
 
 ---
 
@@ -89,13 +88,10 @@ es la sede, `T` el tipo de equipo y `NN` el índice.
 | | S = sede | | T = tipo |
 |---|---|---|---|
 | `0` | infraestructura | `1` | firewall |
-| `1` | central | `2` | router |
-| `2` | delegación 2 | `3` | switch |
-| `3` | delegación 3 | `4` | workstation |
-| `9` | borde | `9` | servicio |
+{% for s in sedes %}| `{{ s.id }}` | {{ s.nombre }} | {{ loop.index + 1 }} | {{ ['router','switch','workstation','servicio'][loop.index0] if loop.index0 < 4 else 'servicio' }} |
+{% endfor %}| `9` | borde | `9` | servicio |
 
-Así `1301` es "sede 1, switch, el primero" y `1401` "sede 1, workstation, la
-primera". No hay que consultar nada para saber qué es una máquina y dónde está.
+Así `{{ sedes[0].id }}301` es "{{ sedes[0].nombre }}, switch, el primero" y `{{ sedes[0].id }}401` "{{ sedes[0].nombre }}, workstation, la primera". No hay que consultar nada para saber qué es una máquina y dónde está.
 
 | Máquina | VMID | Tipo | Función | Dirección |
 |---|---|---|---|---|
@@ -152,17 +148,16 @@ magia:
   las rutas de vuelta y no hay traducciones anidadas.
 
 Medido, no supuesto: desde `{{ borde_fw }}` responde `{{ man.lab_internet_dns }}`; desde la
-LAN de la central y desde las delegaciones se llega a internet; y una
+LAN de {{ corto[hub] }} y desde las demás sedes se llega a internet; y una
 workstation resuelve DNS y abre TCP/443 hacia fuera.
 
 ---
 
 ## Por dónde va un paquete
 
-Una workstation de la central hablando con una de la delegación 2:
-
-{% set origen = sede_por_id[1] %}
-{% set destino = sede_por_id[2] %}
+{% set origen = sede_por_id[hub] %}
+{% set destino = sede_por_id[sedes | map(attribute='id') | reject('equalto', hub) | first] %}
+Una workstation de {{ corto[origen.id] }} hablando con una de {{ corto[destino.id] }}:
 {% set pc_o = de_sede(origen.id) | selectattr('rol','equalto','workstation') | first %}
 {% set pc_d = de_sede(destino.id) | selectattr('rol','equalto','workstation') | first %}
 ```
@@ -172,7 +167,7 @@ Una workstation de la central hablando con una de la delegación 2:
 ```
 Destino: {{ corto[destino.id] }} ({{ destino.red }}), a través del enlace WAN `{{ destino.wan.red }}`.
 
-Y entre las dos delegaciones, el paquete **pasa por la central**, que es lo que
+Y entre dos sedes que no son {{ corto[hub] }}, el paquete **pasa por {{ corto[hub] }}**, que es lo que
 dice la topología. Ese detalle es una señal de que esto es hardware real: **el
 salto intermedio lo anuncia la interfaz del equipo que RECIBE el paquete**, no la
 del que lo envía.
@@ -318,7 +313,7 @@ fiel a lo que te encontrarías con hierro.
 
 Cada invitado lleva **tres etiquetas y ni una más**: quién lo gestiona (`ansible-managed`),
 qué es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`) y dónde está
-(`central`, `delegacion`, `borde`, `infra`). Nada de vocabulario que no responda a una
+({% for s in sedes %}`{{ s.tag }}`{% if not loop.last %}, {% endif %}{% endfor %}, `borde`, `infra`). Nada de vocabulario que no responda a una
 de esas tres preguntas.
 
 Esas etiquetas están **coloreadas en el datacenter** (opción `tag-style`, declarada en

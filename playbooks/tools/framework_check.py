@@ -439,6 +439,10 @@ def declared_targets():
             continue
         nombre = v["name"]
         kind = "sw" if nombre.startswith("sw-") else "rt" if nombre.startswith("rt-") else "fw"
+        # La sede del equipo de red se queda en 0 A PROPÓSITO: su dirección de
+        # gestión vive en la LAN COMPARTIDA del nodo (todos los equipos del lab
+        # cuelgan de ella), así que la separación de la política es entre las LANs
+        # de sede —las estaciones— y no entre los planos de gestión.
         out.append({"name": nombre, "ip": ip, "site": 0, "kind": kind,
                     "vantage": _vantage(ip)})
     return out
@@ -510,6 +514,18 @@ def agree():
     for a in sorted(dobles):
         say(f"  EN LOS DOS MUNDOS: {a:<15} — no puede ser destino de estación Y de operador")
 
+    # La POLÍTICA: una pareja denegada que cita una sede que no existe no separa nada,
+    # y en el mapa quedaría como un destino que nunca se prueba.
+    ids = {int(s["id"]) for s in (manifiesto().get("lab_sites") or [])}
+    malas = []
+    for p in re.findall(r"(\d+)-(\d+)", _deny_block()):
+        a, b = int(p[0]), int(p[1])
+        if a not in ids or b not in ids:
+            malas.append(f"{a}-{b}")
+    for p in malas:
+        say(f"  POLÍTICA ROTA    : la pareja {p} cita una sede que la declaración no tiene")
+    if malas:
+        fail("la política de alcance cita sedes inexistentes")
     if missing or extra or oob_missing or oob_extra or dobles:
         fail("el mapa del test y la declaración no dicen lo mismo")
     say("\nPASS: el test prueba exactamente lo que la declaración declara — las\n"
@@ -1090,6 +1106,28 @@ def _oob_block():
     return "\n".join(lineas)
 
 
+def _deny_block():
+    """El bloque `DENY=` que el playbook entrega como fichero: qué parejas de sede NO
+    deben cruzarse.
+
+    Es la cara negativa del mapa (como OOB) GENERALIZADA: la separación no se cablea en
+    el test, la declara el laboratorio en `lab_policy`. El test la convierte en una
+    prueba que espera que el destino NO conteste. Sin esto, un laboratorio cuyo punto es
+    la separación se verificaría al revés: daría por bueno lo que hay que impedir.
+    """
+    m = manifiesto()
+    deny = ((m.get("lab_policy") or {}).get("deny")) or []
+    if not deny:
+        return '# (la declaración no declara parejas de sede que no deban cruzarse)'
+    pares, motivos = [], []
+    for d in deny:
+        for a in (d.get("from") or []):
+            for b in (d.get("to") or []):
+                pares.append(f"{int(a)}-{int(b)}")
+                motivos.append(f"{int(a)}-{int(b)}: {d.get('why', '')}".rstrip(": "))
+    return 'DENY="' + ";".join(pares) + '"\nDENY_WHY="' + ";".join(motivos) + '"'
+
+
 def _reescribe(texto, marca, nuevo):
     """Sustituye lo que hay entre los marcadores por `nuevo`. Devuelve (texto, igual)."""
     ini, fin = texto.find(marca[0]), texto.find(marca[1])
@@ -1122,7 +1160,7 @@ def labmap(check=False, emit=False):
         say("  el script no lleva topología incrustada: el mapa se pasa como fichero")
         say("\nPASS: el script no lleva el mapa dentro; el mapa se deriva de la declaración.")
         return 0
-    print("\n".join([_labmap_block(), _oob_block(), _topology_block()]))
+    print("\n".join([_labmap_block(), _oob_block(), _deny_block(), _topology_block()]))
     return 0
 
 
