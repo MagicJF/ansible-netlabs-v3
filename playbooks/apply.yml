@@ -461,6 +461,14 @@
         keyboard: "{{ ct.keyboard | default(omit, true) }}"
         onboot: "{{ ct.onboot | bool }}"
         boot: "{{ ct.boot }}"
+        # El escalon de arranque tambien viaja AL CREAR. El modulo lo escribe
+        # en la creacion, pero NO lo cambia luego sobre una VM que ya existe
+        # (por eso esta ademas el PUT de mas abajo, que si lo persiste).
+        # Faltaba aqui y el hueco era mudo: una recreacion dejaba a las 6 VM
+        # de red sin `order`, y la verificacion final las rechazaba por
+        # `startup` (declarado order=N vs vivo ""). Los contenedores no lo
+        # sufrian porque su tarea de creacion si lo declaraba.
+        startup: "{{ ct.startup | join(',') if (ct.startup | default([], true)) else omit }}"
         description: "{{ ct.description | default(omit, true) }}"
         tags: "{{ ct.tags | default(omit, true) }}"
         kvm: true
