@@ -1,4 +1,13 @@
 ---
+# PROPÓSITO: converger por API REST el estado declarado de un invitado RouterOS.
+# INVARIANTES: solo REST (nunca SSH ni la API binaria 8728); el servicio `www` no se
+#   cierra; la dirección declarada es estática, no un residuo dinámico; toda ruta
+#   declarada debe estar INSTALADA, no solo presente.
+# LÍMITES: RouterOS no borra una ruta ni una address dinámica huérfana («created by a
+#   different owner»): la ruta por defecto que deja el DHCP de fábrica se purga con un
+#   reinicio controlado (ADR 0003).
+# VER: docs/decisiones/0001-solo-api.md, 0002-bootstrap-existe.md, 0003-reinicio-purga-ruta-dhcp.md;
+#   comprobación: los asserts de este rol y framework_check.py.
 # ===========================================================================
 # routeros — converge the declared state of a MikroTik RouterOS guest over its
 # REST API. See the role's defaults for why REST and not the binary API.

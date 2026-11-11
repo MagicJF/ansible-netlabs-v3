@@ -1183,3 +1183,25 @@ se niega mientras el invitado siga declarado. Para el ciclo «destruir y recrear
 `-e destroy_declared=true`; la confirmación sigue siendo obligatoria. No quites
 recursos con comandos SSH, y no destruyas un invitado que el manifiesto aún declara sin
 esa bandera: el siguiente `apply` lo recrearía.
+
+## Documentación
+
+Este repositorio no documenta con un solo fichero: cada documento tiene un trabajo y una
+forma de envejecer. La regla que los separa es **«¿dónde mira quien empieza la tarea?»**.
+
+| Documento | Qué lleva | Cómo se mantiene |
+| --- | --- | --- |
+| `README.md` (este) | Qué hace el repo y cómo se opera | se genera desde `docs/README.md.j2` |
+| `EL-LABORATORIO.md` | La prosa del laboratorio: topología, direccionamiento, por qué | se genera desde `docs/laboratorio.md.j2` |
+| `ESFUERZO.md` | El recuento del trabajo | se genera con `esfuerzo.py` |
+| comentarios del código | El porqué de una implementación concreta, junto a su efecto | se lee al abrir el fichero; se actualiza en el mismo cambio |
+| `docs/decisiones/` | El porqué transversal (ADR), en el tiempo | se cita, no se copia; un ADR aceptado se sustituye |
+| `.hermes.md` | Las reglas que hay que obedecer | se lee siempre |
+
+- **Un documento con valores no se escribe a mano**: se edita su plantilla y se regenera.
+  `framework_check.py docs` falla si el fichero en disco difiere de su render.
+- **El porqué de una implementación va en el comentario de cabecera del fichero**, con
+  `PROPÓSITO · INVARIANTES · LÍMITES · VER`. El comentario y las comprobaciones mandan
+  sobre cualquier documento que los contradiga.
+- **Una decisión transversal se registra en `docs/decisiones/`**, y se cita desde el README
+  y desde el código en vez de repetirse.
