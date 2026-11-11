@@ -368,6 +368,86 @@
   when: l2_config.routeros.firewall is defined
   changed_when: false
 
+# --- purga de la ruta por defecto que deja el DHCP de fabrica ---------------
+# Un CHR nace con un cliente DHCP en ether1 (configuracion de fabrica de la
+# imagen). La convergencia lo desactiva, pero RouterOS NO borra la ruta por
+# defecto que ese cliente instalo: queda como dinamica, con el mismo distance
+# que la estatica declarada, y el balanceo ECMP manda la mitad del trafico de
+# vuelta por la puerta de gestion. Tampoco se puede borrar por API ("cannot
+# modify dynamic route created by a different owner", medido). El unico camino
+# es un reinicio: con el cliente ya desactivado, la ruta no vuelve. Se reinicia
+# solo cuando de verdad hay una ruta asi, asi que un `site` posterior es idempotente.
+- name: Detect the DHCP default route that only a reboot can purge
+  ansible.builtin.set_fact:
+    ros_stale_dhcp_route: >-
+      {%- set out = [] -%}
+      {%- for r in (ros_after.routes | default([])) -%}
+      {%- if (r.get('dst-address') | default('')) == '0.0.0.0/0' and (r.get('dhcp') | default('')) | string | lower == 'true' -%}
+      {%- set _ = out.append(r) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{- out -}}
+  changed_when: false
+
+- name: Announce the reboot that purges the stale DHCP route
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}: el DHCP de fabrica dejo {{ ros_stale_dhcp_route | length }}
+      ruta(s) por defecto dinamica(s) que la API no puede borrar. Se reinicia una vez
+      con el cliente ya desactivado; la ruta no vuelve.
+  when: ros_stale_dhcp_route | length > 0
+
+- name: Purge the stale DHCP route with a controlled reboot
+  ansible.builtin.uri:
+    url: "{{ routeros_base }}/system/reboot"
+    method: POST
+    url_username: "{{ routeros_user }}"
+    url_password: "{{ routeros_login_password }}"
+    force_basic_auth: true
+    status_code: [200, 204]
+    timeout: "{{ routeros_timeout }}"
+  when: ros_stale_dhcp_route | length > 0
+  changed_when: true
+  failed_when: false
+
+- name: Wait for the router to answer again after the reboot
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: "{{ routeros_port }}"
+    delay: 20
+    timeout: "{{ routeros_reboot_timeout | default(180) }}"
+    state: started
+  when: ros_stale_dhcp_route | length > 0
+
+- name: Read the router's state after the reboot
+  ansible.builtin.include_tasks: read.yml
+  when: ros_stale_dhcp_route | length > 0
+
+- name: Keep the reading after the reboot
+  ansible.builtin.set_fact:
+    ros_after_reboot: "{{ routeros_read_index }}"
+  when: ros_stale_dhcp_route | length > 0
+
+- name: The stale DHCP route must be gone after the reboot
+  ansible.builtin.assert:
+    that:
+      - stale | length == 0
+    fail_msg: >-
+      {{ inventory_hostname }} sigue con {{ stale | length }} ruta(s) por defecto
+      dinamica(s) tras el reinicio. El DHCP de fabrica volvio a instalarla: hay que
+      crear el CHR sin ese cliente, no basta con desactivarlo despues.
+    success_msg: "La ruta por defecto dinamica desaparecio con el reinicio; queda solo la declarada."
+  vars:
+    stale: >-
+      {%- set out = [] -%}
+      {%- for r in (ros_after_reboot.routes | default([])) -%}
+      {%- if (r.get('dst-address') | default('')) == '0.0.0.0/0' and (r.get('dhcp') | default('')) | string | lower == 'true' -%}
+      {%- set _ = out.append(r) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{- out -}}
+  when: ros_stale_dhcp_route | length > 0
+
 - name: Report the outcome
   ansible.builtin.debug:
     msg: >-

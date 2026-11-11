@@ -694,6 +694,17 @@ DHCP. Después de que el router haya tomado la dirección, el contenedor no inte
 nunca más — todo lo demás es REST. Es un bootstrap, no una segunda vía de
 configuración.
 
+**Ese cliente DHCP de fábrica deja además una ruta por defecto que la API no puede
+borrar.** La convergencia lo desactiva, pero RouterOS conserva la ruta que instaló
+con su lease: queda como dinámica, con el mismo `distance` que la estática
+declarada, y el balanceo ECMP manda la mitad de las respuestas por la puerta de
+gestión. La API se niega a tocarla ("cannot modify dynamic route created by a
+different owner", medido), así que el rol reinicia el equipo una vez —con el cliente
+ya desactivado— y vuelve a leer. Si tras el reinicio la ruta sigue ahí, el `site`
+falla a propósito: significa que el CHR nace con el cliente activo y hay que crear
+el equipo sin él. El reinicio sólo ocurre cuando esa ruta existe, así que un `site`
+posterior es idempotente.
+
 ### Por qué no los installers de community-scripts
 
 Scripts como los de `community-scripts.org` corren en el **host de PVE como root**,
