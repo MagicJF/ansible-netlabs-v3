@@ -884,9 +884,10 @@ def notas_check():
     # esta comprobación aprueba es exactamente lo que PVE va a recibir.
     sys.path.insert(0, os.path.join(REPO, "playbooks", "tools"))
     import pve_notas as _notas  # noqa: E402
-    _notas.man = {"pve_containers": man["pve_containers"], "pve_vms": man["pve_vms"],
-                  "lab_sites": man.get("lab_sites") or [],
-                  "lab_hub": man.get("lab_hub")}
+    # El manifiesto ENTERO: el generador deduce la identidad de las direcciones
+    # declaradas (`lab_mgmt_otros`, `lab_mgmt2`, `lab_sites[].mgmt`…), así que un
+    # subconjunto lo dejaría sin poder resolver el borde, la infra y el segmento OOB.
+    _notas.man = man
     _notas.preparar()
     generadas = {e["vmid"]: {"description": _notas.html(e), "tags": _notas.tags_de(e)}
                  for e in _notas.todos(_notas.man)}
@@ -896,25 +897,35 @@ def notas_check():
         for p in _patas_de(g, tipo):
             cables.setdefault(p["bridge"], []).append((nombre, p["pata"], p["mac"]))
 
-    roles = {"pc-": "workstation", "sw-": "switch", "rt-": "router", "fw-": "firewall"}
-    sitio = {"sede1": "central", "sede2": "delegacion", "sede3": "delegacion"}
-
-    def etiquetas_esperadas(nombre):
-        rol = next((r for p, r in roles.items() if nombre.startswith(p)), "bootstrap")
-        sede = next(("sede" + i for i in "123" if "-s%s-" % i in nombre), None)
-        donde = ("borde" if nombre == "fw-wan-edge"
-                 else "infra" if nombre.startswith("infra-")
-                 else sitio.get(sede, "infra"))
-        return sorted(["ansible-managed", rol, donde])
+    # El vocabulario válido sale de la DECLARACIÓN: los tags que la declaración pone
+    # a cada invitado (`pve_defaults`/`pve_vm_defaults`), los sitios que declara
+    # (`lab_sites[].tag`) más los dos sin sede, y los cinco papeles. No se re-deriva
+    # la identidad —eso ya lo hace el generador—: aquí se comprueba la FORMA de las
+    # etiquetas y que cada valor pertenezca al vocabulario declarado.
+    marcas = set()
+    for _clave in ("pve_defaults", "pve_vm_defaults"):
+        marcas |= {str(t) for t in ((man.get(_clave) or {}).get("tags") or [])}
+    sitios_ok = {s.get("tag") for s in (man.get("lab_sites") or [])} | {"infra", "borde"}
+    roles_ok = {"workstation", "switch", "router", "firewall", "bootstrap"}
 
     fallos = []
     for g, tipo, nombre in sorted(invitados, key=lambda x: x[0]["vmid"]):
         desc = generadas[g["vmid"]]["description"]
         if "{{" in desc or "{%" in desc:
             fallos.append(f"{nombre}: la nota se quedó con una referencia Jinja sin resolver")
-        live = sorted(t.strip() for t in generadas[g["vmid"]]["tags"] if t.strip())
-        if live != etiquetas_esperadas(nombre):
-            fallos.append(f"{nombre}: etiquetas {live}, esperadas {etiquetas_esperadas(nombre)}")
+        live = [t.strip() for t in generadas[g["vmid"]]["tags"] if t and t.strip()]
+        if len(live) != 3:
+            fallos.append(f"{nombre}: {len(live)} etiqueta(s); deben ser TRES "
+                          f"(quién lo gestiona, qué es y dónde está)")
+        else:
+            if live[0] not in marcas:
+                fallos.append(f"{nombre}: la etiqueta {live[0]!r} no está entre las "
+                              f"declaradas {sorted(marcas)}")
+            if live[1] not in roles_ok:
+                fallos.append(f"{nombre}: el papel {live[1]!r} no está en {sorted(roles_ok)}")
+            if live[2] not in sitios_ok:
+                fallos.append(f"{nombre}: el sitio {live[2]!r} no está entre los "
+                              f"declarados {sorted(sitios_ok)}")
         blk = re.search(r"<b>CONEXIONES</b>\s*<table>(.*?)</table>", desc, re.S)
         if not blk:
             fallos.append(f"{nombre}: la nota no tiene tabla de conexiones")

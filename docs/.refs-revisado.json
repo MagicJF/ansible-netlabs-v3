@@ -23,10 +23,10 @@
   "docs/decisiones/0001-solo-api.md": {},
   "docs/decisiones/0002-bootstrap-existe.md": {},
   "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": {
-    "playbooks/tools/framework_check.py": "f07e14916336e602dab4eb5720d42be78bfcf1c2887cbeb91f77eefda27ccc94"
+    "playbooks/tools/framework_check.py": "25022e8c5659667136cc45415946134db3c0346adabb38e7e38510a728425ce0"
   },
   "docs/decisiones/0004-invitado-por-etiqueta.md": {
-    "playbooks/tools/framework_check.py": "f07e14916336e602dab4eb5720d42be78bfcf1c2887cbeb91f77eefda27ccc94"
+    "playbooks/tools/framework_check.py": "25022e8c5659667136cc45415946134db3c0346adabb38e7e38510a728425ce0"
   },
   "docs/decisiones/README.md": {
     "docs/decisiones/0001-solo-api.md": "6fdde4c76fb63fdef6f5c8664d0f8b901761240009871453e1b72cd8a3b9485f",

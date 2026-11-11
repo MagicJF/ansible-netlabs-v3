@@ -41,6 +41,7 @@
 # Uso (inspección):  python3 playbooks/tools/pve_notas.py [--vmid NNNN] [ruta-del-manifiesto]
 # ===========================================================================
 import copy
+import ipaddress
 import json
 import os
 import re
@@ -85,8 +86,6 @@ def ros_de(g):
     return json.loads(ENV.from_string(json.dumps(crudo)).render(**dict(man)))
 
 
-ROLES = {"pc-": "workstation", "sw-": "switch", "rt-": "router", "fw-": "firewall"}
-
 # Las sedes salen de la TABLA del manifiesto (`lab_sites`), no de un diccionario
 # escrito a mano: anadir una sede es anadir una entrada, y ni la nota ni las
 # etiquetas se resienten. `tag` es el valor de la etiqueta de PVE (el color lo
@@ -103,21 +102,27 @@ NOMBRE_SITIO = {}
 
 def preparar():
     """Recalcula lo que depende del manifiesto. Hay que llamarla tras fijarlo."""
-    global SEDES, HUB, SITIO, NOMBRE_SITIO, CABLES, SEDE_POR_NOMBRE
+    global SEDES, HUB, SITIO, NOMBRE_SITIO, CABLES, SEDE_POR_NOMBRE, \
+        ROL_POR_NOMBRE, SITIO_POR_NOMBRE, BORDE_FW
     SEDES = {int(s["id"]): s for s in (man.get("lab_sites") or [])}
     HUB = int(man.get("lab_hub") or 1)
     SITIO = {"sede%d" % i: (s.get("tag") or s.get("nombre")) for i, s in SEDES.items()}
     NOMBRE_SITIO = {"sede%d" % i: (s.get("etiqueta") or s.get("nombre"))
                     for i, s in SEDES.items()}
     CABLES = cables(man)
-    SEDE_POR_NOMBRE = {e["n"]: sede_de(e) for e in todos(man)}
+    # La identidad de cada invitado se resuelve UNA vez desde la declaración y se
+    # reparte en mapas: el nombre sólo hace de clave.
+    ident = {e["n"]: identidad_de(e) for e in todos(man)}
+    SEDE_POR_NOMBRE = {n: s for n, (s, _r) in ident.items()}
+    ROL_POR_NOMBRE = {n: r for n, (_s, r) in ident.items()}
+    SITIO_POR_NOMBRE = {n: (("borde" if r == "firewall" else "infra") if not s else SITIO[s])
+                        for n, (s, r) in ident.items()}
+    BORDE_FW = next((n for n, t in SITIO_POR_NOMBRE.items() if t == "borde"), None)
 
 
 def rol(n):
-    for p, r in ROLES.items():
-        if n.startswith(p):
-            return r
-    return "bootstrap"
+    """El papel de un invitado, por la DECLARACIÓN (no por el prefijo del nombre)."""
+    return ROL_POR_NOMBRE.get(n)
 
 
 def todos(man):
@@ -129,26 +134,70 @@ def todos(man):
     return out
 
 
-def sede_de(e):
-    """La sede sale del NOMBRE ('...-s1-...'), no de los tags.
+def _en_red(ip, red):
+    """¿La dirección cae dentro de la red declarada? Como DIRECCIÓN, no como texto."""
+    try:
+        return ipaddress.ip_address(ip) in ipaddress.ip_network(red, strict=False)
+    except (ValueError, TypeError):
+        return False
 
-    Los tags los reescribe este mismo script, y en una segunda pasada ya no
-    llevan 'sede1/2/3': todos los invitados caían en 'infra' y el diagrama de
-    posición desaparecía sin dar ningún error. El nombre no cambia nunca.
-    """
-    n = e["n"]
-    for i in sorted(SEDES):
-        if "-s%d-" % i in n:
-            return "sede%d" % i
+
+def _dir_gestion(e):
+    """La dirección de gestión DECLARADA: el contenedor en `address`, el CHR en `ether1`."""
+    g, tipo = e["g"], e["tipo"]
+    if tipo == "LXC":
+        if g.get("address"):
+            return g["address"]
+        mm = re.search(r"\bip=([\d.]+)/", (g.get("netif") or {}).get("net0", ""))
+        return mm.group(1) if mm else None
+    for a in ((g.get("config") or {}).get("routeros") or {}).get("addresses", []):
+        if a.get("interface") == "ether1":
+            return a["address"].split("/")[0]
     return None
 
 
+def identidad_de(e):
+    """(sede 'sedeN'|None, rol) leídos de la DECLARACIÓN, no del nombre.
+
+    La sede sale de las direcciones que la declaración ya fija: sus redes
+    (`lab_sites[].red` para las estaciones, `.mgmt` para los equipos de red), el
+    borde y la infraestructura por `lab_mgmt_otros`, y el segundo segmento de
+    gestión por `lab_mgmt2`. Antes salía del NOMBRE (`-sN-`, prefijos `pc-/sw-/`),
+    un esquema que un laboratorio con otra convención (mini: `pc-u1-01`) no sigue;
+    además los tags los reescribe este mismo script, así que no servían de fuente.
+    """
+    d = _dir_gestion(e)
+    otros = man.get("lab_mgmt_otros") or {}
+    mgmt2 = man.get("lab_mgmt2") or {}
+    if d:
+        if otros.get("borde") and d == otros["borde"]:
+            return None, "firewall"
+        if otros.get("infra") and d == otros["infra"]:
+            return None, "bootstrap"
+        if mgmt2.get("red") and _en_red(d, mgmt2["red"]):
+            return None, "switch"
+    for i, s in SEDES.items():
+        m = s.get("mgmt") or {}
+        if d:
+            if d == m.get("rt"):
+                return "sede%d" % i, "router"
+            if d == m.get("fw"):
+                return "sede%d" % i, "firewall"
+            if d in (m.get("sw") or []):
+                return "sede%d" % i, "switch"
+            if s.get("red") and _en_red(d, s["red"]):
+                return "sede%d" % i, "workstation"
+    return None, None
+
+
+def sede_de(e):
+    """La sede declarada del invitado (por su dirección), no la que sugiera el nombre."""
+    return SEDE_POR_NOMBRE.get(e["n"])
+
+
 def sitio_de(e):
-    if e["n"] == "fw-wan-edge":
-        return "borde"
-    if e["n"].startswith("infra-"):
-        return "infra"
-    return SITIO.get(sede_de(e), "infra")
+    """Dónde está: el tag de su sede, o 'borde'/'infra' si no cuelga de ninguna."""
+    return SITIO_POR_NOMBRE.get(e["n"])
 
 
 # ---------------------------------------------------------------- los cables --
@@ -226,39 +275,42 @@ def camino_de(sede):
         return []
     sid = int(sede.replace("sede", ""))
 
-    def un(prefijo):
+    def equipo(side, r):
+        """El nombre del primer invitado de esa sede con ese papel — por la declaración."""
+        pref = "sede%d" % side
         for e in todos(man):
-            if e["n"].startswith(prefijo):
+            if SEDE_POR_NOMBRE.get(e["n"]) == pref and ROL_POR_NOMBRE.get(e["n"]) == r:
                 return e["n"]
         return None
 
-    pc = next((c["hostname"] for c in man["pve_containers"]
-               if str(c.get("site")) == "sede%d" % sid), None)
-    sw, fw = un("sw-s%d-" % sid), un("fw-s%d-" % sid)
-    rt = un("rt-s%d-" % sid)
+    pc = equipo(sid, "workstation")
+    sw, rt, fw = equipo(sid, "switch"), equipo(sid, "router"), equipo(sid, "firewall")
     if not all((pc, sw, rt, fw)):
         return []
     camino = [pc, sw, rt, fw]
     if sid != HUB:
-        fw_hub = un("fw-s%d-" % HUB)
+        fw_hub = equipo(HUB, "firewall")
         if fw_hub:
             camino.append(fw_hub)
-    return camino + ["fw-wan-edge", "internet"]
+    return camino + [BORDE_FW or "el firewall de borde", "internet"]
 
 
 SEDE_POR_NOMBRE = {}
+ROL_POR_NOMBRE = {}
+SITIO_POR_NOMBRE = {}
+BORDE_FW = None
 
 
 def diagrama(e):
     """La posición del invitado en el camino, con su nombre marcado."""
     n = e["n"]
-    if n == "fw-wan-edge":
+    if SITIO_POR_NOMBRE.get(n) == "borde":
         cadena = camino_de("sede%d" % HUB)
-    elif n.startswith("infra-"):
+    elif ROL_POR_NOMBRE.get(n) == "bootstrap":
         return ("<pre>\n"
-                "  infra-bootstrap ── vmbr1 (red de gestión) ──▶ todos los equipos\n"
+                "  %s ── %s (red de gestión) ──▶ todos los equipos\n"
                 "     «ESTE»            da la PRIMERA dirección a cada uno, una vez\n"
-                "</pre>")
+                "</pre>" % (n, man.get("lab_mgmt_bridge", "la red de gestión")))
     else:
         cadena = camino_de(SEDE_POR_NOMBRE.get(n))
     if not cadena:
