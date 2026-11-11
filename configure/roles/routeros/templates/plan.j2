@@ -106,6 +106,17 @@
     se quedo sin ruta por defecto al retirarle el cliente y dejo de contestar. Las
     que hoy solo existen como dinamicas se reponen DENTRO del intercambio atomico,
     que es lo que garantiza que vayan despues de retirar el cliente. -#}
+{#- La ruta por defecto DINAMICA que deja el cliente DHCP retirado NO se va sola:
+    RouterOS la mantiene en la tabla hasta el siguiente arranque. Convive con la
+    estatica declarada a distancia 1, asi que el router hace ECMP y la mitad del
+    trafico cross-sede sale por la puerta de gestion y no vuelve. Medido: tras una
+    recreacion el check del grande caia a 13/19 y volvia a 19/19 al reiniciar los
+    RouterOS. Se retira dentro del mismo guion atomico: es lo unico que corre DENTRO
+    del router y puede borrar una entrada que la API rechaza por ser de "otro
+    propietario". -#}
+{%- set residue_routes = ros.routes | default([])
+      | selectattr('dst-address', 'equalto', '0.0.0.0/0')
+      | selectattr('dynamic', 'defined') | selectattr('dynamic', 'equalto', 'true') | list -%}
 {%- set swap_needed = (cfg.dhcp_client | default(true) is false)
                       and (client_ifaces | length > 0 or swap_addresses | length > 0) -%}
 {%- set swap_routes = [] -%}
@@ -354,11 +365,16 @@
 {%- endif -%}
 
 {#- ---------- the swap, last and atomic ---------- -#}
-{%- if (cfg.dhcp_client | default(true) is false) and (client_ifaces | length > 0 or swap_addresses | length > 0) -%}
+{%- if (cfg.dhcp_client | default(true) is false) and (client_ifaces | length > 0 or swap_addresses | length > 0 or residue_routes | length > 0) -%}
 {%-   set lines = [] -%}
 {%-   for i in client_ifaces -%}
 {%-     set _ = lines.append('/ip dhcp-client remove [find interface=' ~ i ~ ']') -%}
 {%-   endfor -%}
+{#- La ruta por defecto del cliente retirado: se borra aqui, con el router
+    ejecutando el guion en su propio contexto, que es lo que permite tocarla. -#}
+{%-   if residue_routes | length > 0 -%}
+{%-     set _ = lines.append('/ip route remove [find dst-address=0.0.0.0/0 dynamic=yes]') -%}
+{%-   endif -%}
 {%-   for a in residue_addresses -%}
 {%-     set _ = lines.append('/ip address remove [find address=' ~ a.address ~ ' interface=' ~ a.interface ~ ' dynamic=yes]') -%}
 {%-   endfor -%}
