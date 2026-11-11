@@ -500,12 +500,10 @@ invitado. Lo que la hace alcanzable es que el host enruta y hace NAT del subnet 
 túnel hacia su bridge.
 
 Una LAN de sede, en cambio, **queda detrás de su router**, y el nodo de control no
-tiene ruta hasta ella. Medido en la v2, en vivo: `10.11.0.11` no contesta en el :22 y
-por el `infra-bootstrap` como `ProxyJump` **sí**. El salto se escribe desde la
-declaración —`configure/tasks/ssh_path.yml` lo deriva del invitado que declara
-`config.bootstrap`— como un bloque `Host` por destino, porque `ProxyJump` necesita la
-identidad de los DOS saltos y ssh no propaga el `-i` de la línea de comandos al host de
-salto: con el bloque, la clave llega a los dos.
+tiene ruta hasta ella: medido en vivo, la estación no contesta en el :22 y por el
+bootstrap como `ProxyJump` sí. El salto lo deriva de la declaración
+[`configure/tasks/ssh_path.yml`](configure/tasks/ssh_path.yml), que además explica por
+qué es un bloque `Host` y no un `-i` en la línea de comandos.
 
 Una red que vive **detrás de un router dentro del laboratorio** necesita una cosa
 más. El extremo alcanza al router —está en el bridge de invitados— pero no tiene
@@ -1009,22 +1007,12 @@ fresca. Un código de salida de tarea no se acepta como prueba. Los arranques va
 `pve_power_ready_timeout`): los equipos de red suben antes que las estaciones, con su
 margen entre escalones.
 
-La normalización es la parte sutil (`playbooks/pve_engine.j2`), porque PVE no guarda
-los valores tal cual:
-
-| Qué hace PVE | Cómo lo maneja el motor |
-| --- | --- |
-| reordena `tags` (`probe;manual` → `manual;probe`) | compara las etiquetas como conjunto ordenado |
-| añade un salto de línea a `description` | compara recortado |
-| reordena las propiedades dentro de un valor `netX`/`mpX` | canonicalizado por `pve_canon_attachments` |
-| añade `hwaddr=…` y `type=veth` a un valor `netX` | descarta los dos, o cada ejecución haría PUT para siempre |
-| resuelve la forma corta del volumen de un montaje (`local:5` → `local:167/vm-167-disk-0.raw` + `size=5G`) | compara el storage, el tamaño y la ruta del montaje |
-| añade un `size=` a un CD-ROM (el tamaño del fichero, p. ej. `size=1666190K` para una ISO de 1,6 GB) | se ignora en adjuntos respaldados por ISO |
-| mete la MAC generada de una NIC de VM dentro de la propiedad del modelo (`virtio=BC:24:…`) | compara `model=virtio`, la MAC se ignora |
-| informa un contenedor en marcha como `running`, mientras el vocabulario de energía del módulo es `started` | compara la energía en el vocabulario de la API |
-| devuelve números donde una plantilla produjo un int | fuerza `string` en los dos lados |
-
-Sin esa normalización el motor informa drift fantasma y deja de ser idempotente.
+La normalización es lo que hace idempotente al motor: PVE no guarda los valores tal
+cual (reordena `tags`, `features` y `startup`; añade un salto de línea a `description`;
+reescribe el orden y los ids de volumen en `netX`/`mpX`; mete la MAC generada dentro
+del modelo de la NIC; informa `running` donde el módulo dice `started`…). La lista
+completa, caso por caso y con su compensación, vive junto al código que la aplica:
+[`playbooks/pve_engine.j2`](playbooks/pve_engine.j2).
 
 El detalle fino —la semántica del PUT, `check_mode`, la idempotencia— vive en la
 cabecera de su verbo y de su plantilla, no aquí:

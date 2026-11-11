@@ -11,17 +11,30 @@
    the old per-guest set_fact loop cost a module execution per guest.
 
    The mapping logic is unchanged; only the packaging is. PVE does not store
-   values verbatim:
+   values verbatim, so BOTH sides are canonicalised before comparison — comparing
+   raw strings would report permanent phantom drift. The cases, and how the engine
+   compensates, are the AUTHORITATIVE list (the README only points here):
 
-     tags        -> reordered alphabetically, ';' separated
-     features    -> ',' separated, reordered
-     startup     -> ',' separated, reordered
-     description -> trailing newline appended
-     netX/mpX/scsiX -> property order, generated volume ids and MACs rewritten
-
-   Both sides are canonicalised before comparison; comparing raw strings would
-   report permanent phantom drift. Every value goes through `| string` on both
-   sides: a number handed back by Ansible would never equal the API's string.
+     tags            reordered alphabetically, ';' separated
+                     -> compare tags as an ordered set
+     features        ',' separated, reordered
+     startup         ',' separated, reordered
+     description     a trailing newline appended
+                     -> compare stripped
+     netX/mpX/scsiX  property order changed
+                     -> canonicalised by pve_canon_attachments
+     netX            'hwaddr=…' and 'type=veth' added
+                     -> dropped on both sides, or every run would PUT forever
+     mpX             short volume form ('local:5') resolved to the full path + size
+                     -> compare the storage, the size and the mount path
+     CD-ROM          a 'size=' added (the file size)
+                     -> ignored on ISO-backed attachments
+     NIC (VM)        generated MAC embedded in the model ('virtio=BC:24:…')
+                     -> compare 'model=virtio', ignore the MAC
+     power (ct)      API says 'running' where the module vocabulary says 'started'
+                     -> compare in the API's terms
+     ints            a template that produced an int vs the API's string
+                     -> string on both sides
    ========================================================================= -#}
 
 {#- ------------------------------------------------------------- PLAN ----- #}
