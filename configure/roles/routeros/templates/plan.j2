@@ -365,14 +365,19 @@
 {%- endif -%}
 
 {#- ---------- the swap, last and atomic ---------- -#}
-{%- if (cfg.dhcp_client | default(true) is false) and (client_ifaces | length > 0 or swap_addresses | length > 0 or residue_routes | length > 0) -%}
+{%- if (cfg.dhcp_client | default(true) is false) and (client_ifaces | length > 0 or swap_addresses | length > 0) -%}
 {%-   set lines = [] -%}
 {%-   for i in client_ifaces -%}
 {%-     set _ = lines.append('/ip dhcp-client remove [find interface=' ~ i ~ ']') -%}
 {%-   endfor -%}
 {#- La ruta por defecto del cliente retirado: se borra aqui, con el router
     ejecutando el guion en su propio contexto, que es lo que permite tocarla. -#}
-{%-   if residue_routes | length > 0 -%}
+{#- Opt-in: borrar la ruta residuo dentro del guion es lo correcto, pero MEDIDO en
+    vivo sobre un CHR recien creado el guion se queda sin direccion: RouterOS no
+    deja tocar la direccion dinamica heredada, el `address add` posterior choca y
+    el equipo pierde la suya (API muda). Por eso NO se hace por defecto: se activa
+    con `routeros_prune_dynamic_default=true` cuando se haya validado el caso. -#}
+{%-   if residue_routes | length > 0 and (routeros_prune_dynamic_default | default(false) | bool) -%}
 {%-     set _ = lines.append('/ip route remove [find dst-address=0.0.0.0/0 dynamic=yes]') -%}
 {%-   endif -%}
 {%-   for a in residue_addresses -%}
