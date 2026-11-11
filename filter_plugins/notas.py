@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.join(RAIZ, "playbooks", "tools"))
 import pve_notas as N  # noqa: E402
 
 
-def notas_map(cts, vms=None, sites=None, hub=None):
+def notas_map(cts, vms=None, sites=None, hub=None, otros=None, mgmt2=None):
     """{vmid: {"description": <html>, "tags": [tres]}} de toda la declaración.
 
     Los cuatro argumentos son los que el render necesita: la lista de
@@ -43,6 +43,8 @@ def notas_map(cts, vms=None, sites=None, hub=None):
         "pve_vms": vms or [],
         "lab_sites": sites or [],
         "lab_hub": hub,
+        "lab_mgmt_otros": otros or {},
+        "lab_mgmt2": mgmt2 or {},
     }
     N.preparar()
     out = {}

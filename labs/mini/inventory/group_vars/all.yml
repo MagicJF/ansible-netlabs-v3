@@ -28,11 +28,13 @@ lab_mgmt_gateway: 10.10.10.1
 lab_mgmt_bridge: vmbr1
 lab_mgmt_otros:
   infra: 10.10.10.63
+lab_numero: 11          # LL del número (ADR 0005)
 lab_nombre: "una sola sede"
 lab_hub: 1
 lab_sites:
 - id: 1
   nombre: unica
+  codigo: AB
   etiqueta: la única sede de este laboratorio
   red: 10.31.0.0/24
   puerta: 10.31.0.1
@@ -41,6 +43,23 @@ lab_sites:
     sw: []
     rt: 10.10.10.61
   tag: unica
+lab_clases:
+  11: { token: "swac", etiqueta: "switch de acceso" }
+  12: { token: "swge", etiqueta: "switch de gestión" }
+  13: { token: "swco", etiqueta: "switch de núcleo" }
+  20: { token: "rt",   etiqueta: "router genérico" }
+  21: { token: "rtco", etiqueta: "router de núcleo" }
+  22: { token: "rtbo", etiqueta: "router de borde" }
+  71: { token: "boot", etiqueta: "bootstrap" }
+  80: { token: "fw",   etiqueta: "firewall genérico" }
+  81: { token: "fwpe", etiqueta: "firewall perimetral" }
+  82: { token: "fwbo", etiqueta: "firewall de borde" }
+  90: { token: "pc",   etiqueta: "puesto genérico" }
+  91: { token: "pcws", etiqueta: "estación de trabajo" }
+lab_sedes_extra:
+  AA: "infra"
+  AE: "gestión"
+  AF: "borde"
 lab_sede: '{{ dict(lab_sites | map(attribute=''id'') | zip(lab_sites)) }}'
 lab_control_network: 10.99.99.0/24
 lab_control_via: 10.10.10.1
@@ -59,7 +78,7 @@ pve_tag_style:
   colors: ansible-managed:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;central:00838f:ffffff;delegacion:6d4c41:ffffff;borde:37474f:ffffff;infra:5e35b1:ffffff
 pve_bridges:
 - iface: vmbr31
-  comments: 'cable: rt-u1 ether2 <-> pc-u1-01 eth0'
+  comments: 'cable: 11-AB-rtco-10 ether2 <-> 11-AB-pcws-10 eth0'
 pve_defaults:
   template: local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst
   template_storage: local
@@ -90,8 +109,8 @@ pve_defaults:
   pubkey: '{{ lookup(''file'', pve_ssh_key_path ~ ''.pub'', errors=''ignore'') | default('''', true) |
     trim }}'
 pve_containers:
-- vmid: 2001
-  hostname: infra-bootstrap
+- vmid: 11117110
+  hostname: 11-AA-boot-10
   cores: 1
   memory: 1024
   rootfs_size: 4
@@ -119,8 +138,8 @@ pve_containers:
         \ mgmt = v.config.routeros.addresses\n                | selectattr('interface', 'equalto', 'ether1')\
         \ | first -%}\n{%-   set _ = out.append({'mac': mac,\n                          'address': mgmt.address.split('/')[0],\n\
         \                          'name': v.name}) -%}\n{%- endfor -%} {{ out }}"
-- vmid: 2021
-  hostname: pc-u1-01
+- vmid: 11129110
+  hostname: 11-AB-pcws-10
   site: sede1
   address: 10.31.0.11
   cores: 1
@@ -137,7 +156,7 @@ pve_containers:
         timeout: 300
         retry: 30
   netif:
-    net0: name=eth0,bridge=vmbr31,hwaddr=BC:24:21:00:61:01,ip=dhcp
+    net0: name=eth0,bridge=vmbr31,hwaddr=BC:24:11:00:61:01,ip=dhcp
 pve_vm_defaults:
   bios: seabios
   machine: q35
@@ -188,15 +207,15 @@ pve_chr_defaults:
   - red
   - ansible-managed
 pve_vms:
-- name: rt-u1
-  vmid: 2011
+- name: 11-AB-rtco-10
+  vmid: 11122110
   chr: true
   net:
-    net0: virtio=BC:24:21:00:51:01,bridge=vmbr1
-    net1: virtio=BC:24:21:00:51:02,bridge=vmbr31
+    net0: virtio=BC:24:11:00:51:01,bridge=vmbr1
+    net1: virtio=BC:24:11:00:51:02,bridge=vmbr31
   config:
     routeros:
-      identity: rt-u1
+      identity: 11-AB-rtco-10
       dhcp_client: false
       addresses:
       - address: '{{ lab_sede[1].mgmt.rt }}/24'
