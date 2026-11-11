@@ -1,4 +1,4 @@
-<!-- GENERADO por playbooks/tools/documentos.py desde {{ man_rel }}.
+<!-- GENERADO por playbooks/tools/documentos.py desde la declaración del laboratorio activo.
      No editar a mano: edita la plantilla docs/README.md.j2 y regenera. -->
 # Proxmox LXC y VM mediante Ansible
 
@@ -6,65 +6,34 @@ IaC declarativo para los contenedores LXC y las máquinas virtuales QEMU de Prox
 VE, gobernado **enteramente por la API HTTPS**. Ningún playbook entra por SSH en
 el hipervisor.
 
----
+Este repositorio es el **motor**, y el motor **no conoce ninguna topología**: ni un
+hostname, ni una dirección, ni un vmid. Lo que se despliega es una **declaración**, y una
+declaración es un **laboratorio**: `labs/<nombre>/inventory/group_vars/all.yml` (el estado
+deseado) y `labs/<nombre>/inventory/hosts.yml` (los hosts). El laboratorio es un
+**parámetro del verbo**, no una ruta fija:
 
-## El laboratorio: una empresa de tres sedes
-
-Lo que este repositorio despliega es un laboratorio de red que simula **una
-empresa con una central y dos delegaciones**: {{ n_workstations }} workstations, **{{ n_equipos_red }} equipos
-de red** MikroTik (RouterOS) —{{ de_rol('switch') | length }} switches, {{ de_rol('router') | length }} routers y {{ de_rol('firewall') | length }} firewalls— y
-los cables que los unen, todo declarado en un solo fichero y gobernado
-**exclusivamente por la API**.
-
-```
-        SEDE 1 — LA CENTRAL                      SEDE 2                SEDE 3
-   ┌──────────────────────────────────┐    ┌───────────────┐    ┌───────────────┐
-   │  pc-s1-01..04 (cuatro PCs)       │    │  pc-s2-01/02  │    │  pc-s3-01/02  │
-   │       │        │                 │    │      │        │    │       │       │
-   │  sw-s1-acc-01 ═══ sw-s1-acc-02   │    │ sw-s2-acc-01  │    │ sw-s3-acc-01  │
-   │       │       (troncal)          │    │      │        │    │       │       │
-   │       └───────────┬──────────────│    │      │        │    │       │       │
-   │             rt-s1-core           │    │  rt-s2-edge   │    │  rt-s3-edge   │
-   │                   │              │    │      │        │    │       │       │
-   │             fw-s1-perim ─────────┼────┼─ fw-s2-perim  │    │  fw-s3-perim  │
-   │                   │              │    │               │    │       │       │
-   │             fw-wan-edge ────▶ internet (NAT)          │    │       │       │
-   └──────────────────────────────────┘    └───────────────┘    └───────────────┘
-                                        ╰── WAN 1 ──╯  ╰───── WAN 2 ─────╯
+```bash
+bin/lab --lab <nombre> apply          # opera ese laboratorio
+HERMES_LAB=labs/<nombre> bin/lab check
+bin/lab apply                         # el del enlace labs/active
 ```
 
-En una frase: **{{ de_rol('switch') | length }} switches, {{ de_rol('router') | length }} routers y {{ de_rol('firewall') | length }} firewalls** RouterOS, y el
-camino de un paquete dentro de una sede es **`pc → sw → rt → fw → WAN`**. Los
-switches lo son por su configuración (patas de datos en un puente sin dirección,
-lo que los distingue de un router). **El router es la puerta y el servidor DHCP de
-su LAN**, no el switch ni el firewall: el DHCP es una difusión de capa 2 y no
-cruza un router, así que quien reparte tiene que estar en el mismo segmento que
-sus clientes (o un `ip helper-address` desde él, si el servidor está en otro
-sitio). Los firewalls **filtran el perímetro** y sólo el de borde hace **NAT**.
-Las **{{ n_workstations }} workstations no tienen ninguna vía de gestión** (una sola interfaz,
-dirección por DHCP, como un PC de verdad), y la red se verifica **desde dentro de
-los propios equipos**, que es como lo haría un ingeniero.
+Cambiar de laboratorio es repuntar `labs/active` (o pasar `--lab`); nunca se toca el
+motor. Dos laboratorios conviven en el mismo hipervisor sólo si su espacio —vmids, MACs,
+subredes, bridges— es **disjunto** del resto.
 
-Hay además un **segundo segmento de gestión** (`{{ man.lab_mgmt2.red }}`, en
-`{{ man.lab_mgmt2.bridge }}`) con su propio switch (`{{ mgmt_sw }}`) y su pata del
-bootstrap. **No es del dominio de producción**: en un montaje físico una red de gestión
-es una isla que se toca desde el lado del operador, no desde una workstation. Así que las
-estaciones no lo prueban como destino —comprueban que **no** llegan—, el operador sí lo
-comprueba (por el túnel, con `ansible.builtin.uri`), y el **borde** lo cierra con una
-regla de filtrado que corta el intento.
-
-**Guía completa, en castellano: [`EL-LABORATORIO.md`](EL-LABORATORIO.md)** — la
-topología explicada, el direccionamiento, por dónde va un paquete, las dos capas
-del despliegue, el orden de montaje y cómo se verifica.
+**El laboratorio activo** —su topología, qué papel juega cada máquina y por qué, su
+direccionamiento, por dónde va un paquete y cómo se verifica— tiene su propia guía:
+[`EL-LABORATORIO.md`](EL-LABORATORIO.md).
 
 ---
 
 ## Estructura
 
 ```text
-labs/active -> netlab-v2               # symlink: la topología VIVA. Cambiar de laboratorio = repuntarlo
-labs/netlab-v2/inventory/hosts.yml     #   los hosts, y el grupo pve_config_targets que llena la capa 2
-labs/netlab-v2/inventory/group_vars/all.yml  # EL estado deseado — el único fichero que cambia por petición
+labs/active -> <un-laboratorio>               # symlink: la topología VIVA. Cambiar de laboratorio = repuntarlo
+labs/<nombre>/inventory/hosts.yml     #   los hosts, y el grupo pve_config_targets que llena la capa 2
+labs/<nombre>/inventory/group_vars/all.yml  # EL estado deseado — el único fichero que cambia por petición
 playbooks/vars/entorno.example.yml    # LA PLANTILLA del entorno de la máquina: credenciales, puerto, rutas de claves
 bin/lab                                # el ÚNICO punto de entrada: verbos fijos, con ansible.cfg y el entorno resueltos
 ansible.cfg                            # pipelining, reutilización SSH, forks, rutas de plugins y log
@@ -105,7 +74,7 @@ logs/                                  # registros de ejecución, diario de la A
 La **capa 1** es un motor fijo con cuatro verbos —`preflight` (sólo lectura),
 `apply` (converge), `connect` (el camino) y `remove` (el destruir deliberado)—
 leyendo todos el mismo estado declarado. Una petición de cambio es una edición de
-`labs/netlab-v2/inventory/group_vars/all.yml` en una rama nueva, no un playbook nuevo: un
+`labs/<nombre>/inventory/group_vars/all.yml` en una rama nueva, no un playbook nuevo: un
 playbook por cambio dispersaría el estado real en ficheros que se pisan unos a
 otros. **La rama se corta de `main` y se fusiona cuando el trabajo está
 terminado** — `main` es donde vive lo acabado y sólo hay una. Cortar de la rama
@@ -225,25 +194,21 @@ ejecución. Lanza `preflight` cuando sospeches drift, no como paso rutinario —
 
 ## El estado declarado
 
-`labs/netlab-v2/inventory/group_vars/all.yml` contiene `pve_node`, un bloque `pve_defaults`,
+`labs/<nombre>/inventory/group_vars/all.yml` contiene `pve_node`, un bloque `pve_defaults`,
 `pve_containers` (los invitados LXC) y `pve_vms` (los invitados RouterOS CHR):
 **los únicos invitados que este repositorio gestiona**. Un invitado ausente de esas
 listas nunca se lee, se crea ni se modifica. Cualquier clave de `pve_defaults`
 puede sobrescribirse por invitado.
 
-El laboratorio v2 son **{{ n_invitados }} invitados** — {{ lxc | length }} contenedores y {{ equipos_red | length }} VMs CHR —
-numerados `STNN` (sede, tipo, índice):
-
-| vmid | hostname | qué es |
-| --- | --- | --- |
-{% for e in invitados %}
-| {{ e.vmid }} | `{{ e.n }}` | {{ funcion(e) }} |
-{% endfor %}
+El inventario concreto —cuántos invitados hay, sus vmids y qué es cada uno— es del
+**laboratorio**, y está en su guía: [`EL-LABORATORIO.md`](EL-LABORATORIO.md). Lo que el
+motor exige de él es una sola cosa, y no admite excepciones: que su espacio —vmids, MACs,
+subredes, bridges— sea **disjunto** del de cualquier otro laboratorio del nodo.
 
 El manifiesto de la v1 llevaba una segunda lista, `pve_config_targets`: invitados
 cuya **forma** no gestionaba pero cuyo **interior** sí. **La v2 no la usa como
 fuente de verdad** — cada invitado que configura es uno que también declara. El
-grupo sigue declarado vacío en `labs/netlab-v2/inventory/hosts.yml` por compatibilidad con los
+grupo sigue declarado vacío en `labs/<nombre>/inventory/hosts.yml` por compatibilidad con los
 playbooks de capa 2, que lo llenan con `add_host` desde la declaración; en la v2
 no contiene nada. Lo que la v1 adoptaba queda fuera de la declaración, así que la
 convergencia nunca lo lee, lo crea ni lo modifica.
@@ -355,7 +320,7 @@ Está deliberadamente fuera del fichero, no olvidado:
 - claves crudas `lxc.*` (límites de cgroup, bind mounts) — el módulo de la colección no las expone.
 - `cpus` (límite de CPU) — el módulo lo mapea a `cpuunits` al crear pero a `cpulimit` al actualizar, así que no puede tener un solo significado; declara `cpuunits`.
 
-## VMs QEMU: los {{ n_equipos_red }} equipos RouterOS
+## VMs QEMU: cómo se declara un equipo RouterOS
 
 `pve_vm_defaults` + `pve_chr_defaults` + `pve_vms` declaran las VMs con una
 diferencia estructural: **`proxmox_kvm` se niega a actualizar `net`, `scsi`,
@@ -368,7 +333,7 @@ esa VM con un mensaje explícito en vez de converger.
 Se convergen en sitio: `cores`, `sockets`, `memory`, `cpu`, `vga`, `boot`,
 `onboot`, `description`, `tags` y el estado de energía.
 
-**Qué hace que un CHR sea un CHR** (`pve_chr_defaults`, heredado por los {{ n_equipos_red }}):
+**Qué hace que un CHR sea un CHR** (`pve_chr_defaults`, heredado por cada CHR):
 
 | Clave | Valor | Por qué |
 | --- | --- | --- |
@@ -382,16 +347,10 @@ Se convergen en sitio: `cores`, `sockets`, `memory`, `cpu`, `vga`, `boot`,
 | `onboot` / `startup` | `true` / `order=2` | arrancan solos y en el escalón 2 |
 | `manage` | `true` | capa 2 los configura por su API REST |
 
-| VM | vmid | qué es |
-| --- | --- | --- |
-{% for e in equipos_red %}
-| `{{ e.n }}` | {{ e.vmid }} | {{ funcion(e) }} |
-{% endfor %}
-
-Ojo con el bridge: el de gestión (`{{ man.lab_mgmt_bridge }}`) es la LAN interna
-(`{{ man.lab_mgmt_network }}`) compartida con todos los invitados del laboratorio,
-mientras que `{{ man.pve_public_bridge }}` es el bridge **público** del nodo (su uplink
-real). Poner un invitado del laboratorio ahí lo expone a internet.
+Ojo con el bridge: el de **gestión** es la LAN interna compartida con todos los invitados
+del laboratorio, mientras que el bridge **público** del nodo (su uplink real) es otra
+cosa. Poner un invitado del laboratorio ahí lo expone a internet; por eso cada invitado se
+cuelga del bridge de gestión que declara su pata, nunca del público.
 
 `preflight.yml` comprueba además que toda ISO que una VM declare esté realmente en
 el nodo antes de crear nada. Una VM que **importa una imagen de fabricante** en vez
@@ -411,7 +370,7 @@ dentro.
 
 La metodología, una línea por regla:
 
-- **Un estado declarado, dos capas.** `labs/netlab-v2/inventory/group_vars/all.yml` sigue siendo
+- **Un estado declarado, dos capas.** `labs/<nombre>/inventory/group_vars/all.yml` sigue siendo
   la única fuente de verdad: la capa 1 lee la forma del invitado, la capa 2 lee su
   bloque `config:`. Las direcciones nunca se duplican — la capa 2 deriva el destino
   SSH de la declaración de la interfaz con el filtro `pve_declared_ipv4`, o del
@@ -423,7 +382,7 @@ La metodología, una línea por regla:
   control, sin SSH. El `kind` del destino (`ssh` o `api`) se deriva del bloque que
   el invitado declara, y cada kind tiene su propio play, porque los dos no pueden
   compartir conexión.
-- **Un invitado puede no tener `config:` en absoluto.** Las {{ n_workstations }} workstations
+- **Un invitado puede no tener `config:` en absoluto.** Las workstations
   declaran sólo una forma: son PCs cuyo interior nadie configura, así que no son
   destinos de capa 2. Lo que necesitan —una dirección— se lo da el router, y el
   router la declara.
@@ -596,74 +555,14 @@ Dos decisiones que conviene conocer:
   decisión de exposición explícita en el manifiesto y se espera que el invitado esté
   detrás de una red que no sea pública.
 
-### La red de tres sedes, descrita en un solo fichero
+### El laboratorio declarado
 
-El laboratorio declarado ahora es una red de empresa —una sede central y dos
-delegaciones— y está ahí para ejercitar el marco con algo que **no** es una lista
-plana de invitados idénticos:
-
-```text
-SEDE 1 (central)                     SEDE 2                SEDE 3
-  pc-s1-01..04                       pc-s2-01/02           pc-s3-01/02
-     │        │                          │                      │
-  sw-s1-acc-01 ═══ sw-s1-acc-02     sw-s2-acc-01           sw-s3-acc-01
-     │                                  │                      │
-   rt-s1-core                       rt-s2-edge             rt-s3-edge
-     │                                  │                      │
-   fw-s1-perim ── WAN 1 ── fw-s2-perim │ ── WAN 2 ── fw-s3-perim
-     │
-   fw-wan-edge ──▶ internet (NAT)
-```
-
-**{{ n_equipos_red }} invitados RouterOS y {{ n_workstations }} PCs**, todo en `labs/netlab-v2/inventory/group_vars/all.yml`:
-
-- **Los {{ de_rol('switch') | length }} switches, y son L2 puros.** Meten sus patas de datos en un bridge de
-  RouterOS y **no ponen ninguna dirección en él**. Eso es lo que los hace switches
-  y no routers: su dirección vive sólo en su pata de gestión (`ether1` → `vmbr1`).
-  Un switch con dirección en su bridge empieza a enrutar, y la topología deja de
-  ser la del diagrama sin que nadie se entere.
-- **{{ de_rol('router') | length }} routers** que enrutan *y* sirven: la LAN de su sede en una pata —donde
-  corren el **servidor DHCP** y sus reservas— y la WAN en otra. Son la puerta de la
-  LAN, no el firewall, porque el DHCP es una difusión de capa 2 y no cruza un
-  router: su servidor tiene que estar (o tener un relay) en el mismo segmento que
-  sus clientes. El diseño es **jerárquico** —el
-  router de la central conoce las dos redes remotas y los de las delegaciones
-  llevan una ruta por defecto a su firewall— así que añadir una cuarta sede es una
-  entrada y una ruta, no una malla de ellas.
-- **{{ de_rol('firewall') | length }} firewalls** que filtran el perímetro y no enrutan nada entre sedes. El
-  filtrado es **posicional** (el ORDEN de las reglas decide), así que la
-  verificación lee la tabla de vuelta y comprueba el orden, no sólo el conjunto. El
-  NAT vive sólo en `fw-wan-edge`: dentro de la empresa las direcciones son reales,
-  que es por lo que existen las rutas de retorno y no se anida ninguna traducción.
-  Y un firewall de sede debe permitir que sus patas **exteriores** hablen entre sí —
-  así es como una delegación alcanza el borde, y omitirlo mete el tráfico saliente
-  de la delegación directamente en el `drop`.
-- **{{ n_workstations }} workstations, cada una un PC**: una sola NIC, **sin interfaz de gestión y
-  sin bloque `config:` en absoluto**, así que la capa 2 nunca entra en ellas. Así se
-  hace en una empresa: un escritorio tiene una interfaz, toma su dirección por DHCP,
-  y la gestión de flota es un agente que llama HACIA FUERA, nunca una conexión
-  entrante. Su dirección sale del router de su sede como reserva DHCP atada a su
-  MAC, y el `address:` de su entrada **ES** esa reserva — el router la deriva de
-  allí, así que las dos no pueden separarse.
-- **La verificación no entra en ellas; viene de los routers**, que es como un
-  ingeniero de red prueba una red: `/ping`, `/tool/traceroute`, `/ip/arp`,
-  `/ip/dhcp-server/lease` y `/interface/bridge/host`. Como segunda vista
-  independiente, la API de PVE lee las interfaces del propio contenedor
-  (`GET /nodes/<node>/lxc/<id>/interfaces`) — esa es la vista del hipervisor, no una
-  vía de gestión dentro del invitado. Se usaron las dos, y coinciden.
-
-El direccionamiento, para que un lector pueda seguir los pings: gestión
-`{{ man.lab_mgmt_network }}` **en bloques por función** ({% for r, n in [('switch','switches'),('router','routers'),('firewall','firewalls'),('bootstrap','el bootstrap')] %}`{{ bloque_txt(r) }}` {{ n }}{{ ', ' if not loop.last else '' }}{% endfor %} — la regla de la v1 "el último octeto es el
-vmid" no cabe en cuatro dígitos). La dirección **concreta** de cada equipo no está en
-su ficha: está en la tabla de sedes (`mgmt:`) y en `lab_mgmt_otros`, y las fichas la
-citan. Las sedes {% for s in sedes %}`{{ s.red }}`{{ ', ' if not loop.last else '' }}{% endfor %}, el tránsito
-`router↔firewall` de cada sede como un `/30` ({% for s in sedes %}`{{ s.transito.red }}`{{ ', ' if not loop.last else '' }}{% endfor %}), los
-enlaces entre firewalls de sede como `/30`s ({{ sedes | rejectattr('id','equalto',hub) | map(attribute='wan') | map(attribute='red') | join(' y ') }}) y el
-tránsito de borde `{{ man.lab_edge_network }}`. **{{ n_bridges }} bridges sin puertos** (`{{ bridges_rango[0] }}`…`{{ bridges_rango[1] }}`),
-**uno por cable** — el nombre del bridge aparece literalmente en sus dos extremos, y
-el validador de estado se niega ante un nombre citado pero nunca declarado, así que
-una errata no puede producir un cable de un solo extremo.
-
+Qué topología es, qué papel juega cada máquina y por qué, su direccionamiento y por dónde
+va un paquete: todo eso es del **laboratorio**, y vive en su guía
+([`EL-LABORATORIO.md`](EL-LABORATORIO.md) — *la topología*, *qué es cada pieza*, *el
+direccionamiento*, *por dónde va un paquete*, *cómo se despliega*). Aquí, en el README del
+motor, sólo queda lo que es del motor: los verbos, las dos capas y las reglas que valen
+para cualquier topología.
 **Un despliegue limpio deja las workstations sin dirección hasta que se reinician.**
 Su cliente DHCP corre cuando se crea el contenedor, cuando el servidor DHCP de su
 sede todavía no existe, y no reintenta para siempre. Los routers las sirven en
@@ -681,7 +580,7 @@ dirección**, y como VM no puede tomar una del servidor DHCP del host: la oferta
 llega con un checksum UDP sin resolver y el kernel del invitado la descarta. Sin
 dirección su API no existe, así que no hay con qué configurarlo.
 
-Ese hueco lo cubre `{{ bootstrap[0].n }}` (vmid {{ bootstrap[0].vmid }}): entrega la
+Ese hueco lo cubre el **bootstrap** del laboratorio: entrega la
 única primera dirección y, en cuanto el router la toma, se retira — es un bootstrap,
 no una segunda vía de configuración. **El mecanismo, sus porqués medidos y la ruta
 residual que deja el DHCP de fábrica viven en el código y en las decisiones, no
@@ -712,7 +611,7 @@ ningún paso manual:
 - **Las VMs** no tienen equivalente, así que la misma clave viaja por cloud-init:
   `ciuser` más `sshkeys` y una unidad cloud-init (`<storage>:cloudinit`). Está
   activo por defecto (`pve_vm_defaults.cloudinit: true`) y se apaga por invitado para
-  una imagen que no ejecute cloud-init. **Los {{ n_equipos_red }} CHR lo apagan**
+  una imagen que no ejecute cloud-init. **Los CHR lo apagan**
   (`pve_chr_defaults.cloudinit: false`): RouterOS no ejecuta cloud-init y su acceso
   es por la API REST, no por SSH.
 
@@ -762,7 +661,7 @@ iteración de un `loop` es una ejecución, y por eso una tarea que recorre cinco
 invitados paga cinco veces. Esa es toda la palanca:
 
 - **`apply` es el verbo de iteración.** Lee, aplica y verifica por la API en una sola ejecución.
-- **Para iterar sobre UN invitado, `--limit` ya funciona — y es la única ejecución selectiva que sigue siendo honesta.** `ansible-playbook configure/site.yml --limit localhost,{{ equipo(hub, 'router') }}` ejecuta el motor y converge exactamente ese invitado (medido: `{{ equipo(hub, 'router') }} ok=24 changed=0`, mientras los plays de los demás informan `skipping: no hosts matched`). `localhost` es obligatorio, porque es el play que construye el inventario de destinos. Las etiquetas darían la misma comodidad invitando a ejecuciones que se saltan parte de la declaración de un invitado; un `--limit` nombra un invitado, y un invitado se converge entero o no se converge.
+- **Para iterar sobre UN invitado, `--limit` ya funciona — y es la única ejecución selectiva que sigue siendo honesta.** `ansible-playbook configure/site.yml --limit localhost,<invitado>` ejecuta el motor y converge exactamente ese invitado (medido: `<invitado> ok=24 changed=0`, mientras los plays de los demás informan `skipping: no hosts matched`). `localhost` es obligatorio, porque es el play que construye el inventario de destinos. Las etiquetas darían la misma comodidad invitando a ejecuciones que se saltan parte de la declaración de un invitado; un `--limit` nombra un invitado, y un invitado se converge entero o no se converge.
 - **No vuelvas a ejecutar sólo para demostrar idempotencia.** `apply` ya relee e imprime la comparación declarado-vs-vivo; una segunda ejecución dobla el tiempo de reloj por información que ya tienes. Reserva la repetición para cambios que toquen propiedades de creación o energía.
 - **La verificación no es lo que cuesta.** `validate:`, la sonda HTTP externa y el aserto del diario son casi gratis dentro de una tarea. Lo que cuesta es un segundo verbo, y una tarea —o una iteración de bucle— por elemento.
 
@@ -951,8 +850,8 @@ HERMES_LAB=labs/delegacion-4 python3 playbooks/tools/framework_check.py plan
 HERMES_LAB=labs/delegacion-4 python3 playbooks/tools/framework_check.py notas
 ```
 
-Se copia en vez de escribirse de cero porque un manifiesto de {{ n_invitados }} invitados lleva
-{{ n_bridges }} bridges y un direccionamiento coherente
+Se copia en vez de escribirse de cero porque un manifiesto lleva decenas de invitados,
+sus cables y un direccionamiento coherente
 entre sedes. Copiar arrastra lo que de verdad cuesta acertar; lo que se edita después
 es la topología.
 
@@ -1038,8 +937,8 @@ cruzó el cable, un objeto JSON por línea. Es **uno solo para las dos APIs** (P
 RouterOS) y cada línea lleva un campo `api` para poder separarlas:
 
 ```json
-{"ts": "...", "event": "api_call", "api": "proxmox", "method": "PUT", "url": "https://…/nodes/Proxmox/lxc/1401/config",
- "request_body": {"cores": 1, "delete": "net0", "tags": "ansible-managed;workstation;central", "hostname": "pc-s1-01"},
+{"ts": "…", "event": "api_call", "api": "proxmox", "method": "PUT", "url": "https://…/nodes/<nodo>/lxc/<vmid>/config",
+ "request_body": {"cores": 1, "delete": "net0", "tags": "…;workstation;…", "hostname": "<invitado>"},
  "status": 200, "response_body": "{\"data\":null}", "seconds": 0.186, "pid": 2457156}
 ```
 
