@@ -303,7 +303,7 @@ pve_tag_style:
   shape: full
   # Forma que almacena PVE (comprobada contra la API):
   #   color-map=<tag>:<color-de-fondo>[:<color-del-texto>];<tag>:...
-  colors: "ansible:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;Ca:00838f:ffffff;Sa:6d4c41:ffffff;Sb:8d6e63:ffffff;Ia:5e35b1:ffffff;Ga:8e24aa:ffffff;Ba:37474f:ffffff;Lab-10:827717:ffffff"
+  colors: "ansible:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;ca:00838f:ffffff;sa:6d4c41:ffffff;sb:8d6e63:ffffff;ia:5e35b1:ffffff;ga:8e24aa:ffffff;ba:37474f:ffffff;lab-10:827717:ffffff"
 
 pve_bridges:
   # ---- SEDE 1 (central) -----------------------------------------------------

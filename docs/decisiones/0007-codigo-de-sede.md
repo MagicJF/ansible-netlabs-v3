@@ -37,7 +37,10 @@ orden**, en `lab_familias` (su posición es la decena); los códigos de sede en
 ## Consecuencias
 
 - La **etiqueta de sitio** (la tercera del invitado) es el MISMO código: nombre,
-  número y etiqueta dicen lo mismo. El vocabulario lo fija la [ADR 0006](0006-vocabulario-etiquetas.md).
+  número y etiqueta dicen lo mismo, con una diferencia que impone PVE: la etiqueta
+  viaja en MINÚSCULAS (`ca`) porque PVE las normaliza al guardarlas, mientras el
+  nombre conserva la caja (`11-Ca-rtco-10`). Ver la corrección del
+  [ADR 0006](0006-vocabulario-etiquetas.md). El vocabulario lo fija la [ADR 0006](0006-vocabulario-etiquetas.md).
 - Se **renumeraron** los tres laboratorios existentes (nombres y vmids): netlab-v2
   (central `Ca`, delegaciones `Sa`/`Sb`), coworking (edificio `Ca`, inquilinos
   `Sa`/`Sb`) y mini (su única sede, `Ca`). Cambiar un vmid obliga a **recrear** el

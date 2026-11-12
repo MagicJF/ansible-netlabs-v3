@@ -31,13 +31,20 @@ sys.path.insert(0, os.path.join(RAIZ, "playbooks", "tools"))
 import pve_notas as N  # noqa: E402
 
 
-def notas_map(cts, vms=None, sites=None, hub=None, otros=None, mgmt2=None, lab_numero=None):
+def notas_map(cts, vms=None, sites=None, hub=None, otros=None, mgmt2=None, lab_numero=None,
+              sedes_extra=None):
     """{vmid: {"description": <html>, "tags": [cuatro]}} de toda la declaración.
 
     Los argumentos son los que el render necesita: la lista de contenedores y de
     VMs (para saber quién es vecino de quién por los cables), la tabla de sedes
     con el hub (para el diagrama de posición y la sede) y el número declarado del
-    laboratorio (`lab_numero`, para la etiqueta «Lab-NN»).
+    laboratorio (`lab_numero`, para la etiqueta «lab-NN») y `lab_sedes_extra`, sin el
+    cual las familias que no alojan estaciones (infraestructura, gestión, borde) no
+    resuelven su sitio y se quedan con TRES etiquetas: el bootstrap, el switch de
+    gestión y el firewall de borde. Se omite la etiqueta en vez de reventar (una
+    lista con None tumba el `sort` del motor), así que la falta no se ve en el
+    verbo, sino en el árbol del datacenter; `framework_check.py notas` sí la ve,
+    porque monta el manifiesto entero.
     """
     N.man = {
         "pve_containers": cts,
@@ -47,6 +54,7 @@ def notas_map(cts, vms=None, sites=None, hub=None, otros=None, mgmt2=None, lab_n
         "lab_mgmt_otros": otros or {},
         "lab_mgmt2": mgmt2 or {},
         "lab_numero": lab_numero,
+        "lab_sedes_extra": sedes_extra or {},
     }
     N.preparar()
     out = {}

@@ -15,12 +15,14 @@ laboratorio crezca.
 
 ## Decisión
 El discriminante es la **etiqueta que la propia declaración pone a todos sus invitados**
-(`pve_defaults.tags` y `pve_vm_defaults.tags`, hoy `netlab` y `ansible-managed`). Un
+(`pve_defaults.tags` y `pve_vm_defaults.tags`, hoy `netlab` y `ansible`; ver
+[ADR 0006](0006-vocabulario-etiquetas.md)). Un
 invitado de la plataforma pertenece al laboratorio si lleva alguna de esas etiquetas; los
 del host (100 hermesagent, 101 caddy, 105 netbox) no las llevan y quedan fuera del juicio.
 `framework_check.py guests` compara entonces el conjunto declarado por TODOS los
 laboratorios contra los invitados etiquetados de la plataforma: falla si hay uno
-etiquetado sin declarar («extra») o si el laboratorio activo declara una VMID ausente
+etiquetado sin declarar («extra») o si el laboratorio ACTIVO —el que apunta
+`HERMES_LAB`, no el enlace `labs/active` si se está validando otro— declara una VMID ausente
 («falta»).
 
 ## Consecuencias

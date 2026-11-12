@@ -86,7 +86,7 @@ lab_edge_core: 10.29.0.1
 lab_edge_fw: 10.29.0.2
 pve_tag_style:
   shape: full
-  colors: ansible:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;Ca:00838f:ffffff;Ia:5e35b1:ffffff;Ga:8e24aa:ffffff;Ba:37474f:ffffff;Lab-11:827717:ffffff
+  colors: ansible:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;ca:00838f:ffffff;ia:5e35b1:ffffff;ga:8e24aa:ffffff;ba:37474f:ffffff;lab-11:827717:ffffff
 pve_bridges:
 - iface: vmbr31
   comments: 'cable: 11-Ca-rtco-10 ether2 <-> 11-Ca-pcws-10 eth0'

@@ -32,6 +32,18 @@ JSONSchema) y un espacio lo rechaza con «invalid characters in tag»; por eso
 siendo el marcador de la declaración; lo que se publica en cada invitado es la
 lista derivada, no la base.
 
+**Corrección medida el 2026-11-12 (misma decisión, un detalle que faltaba).** La
+etiqueta de PVE se guarda **en minúsculas**: el `create` acepta `Ca` y `Lab-11`
+—responde 200— y la relectura de la API devuelve `ca` y `lab-11`. El esquema que
+esta misma decisión cita ya no admitía mayúsculas, así que la derivación pasa a
+emitir las cuatro en minúsculas (`ansible`, el rol, `ca`, `lab-11`); el código de
+sede y el del laboratorio siguen con mayúscula en el NOMBRE del invitado
+(`11-Ca-rtco-10`) y en la prosa. Sin esto la etiqueta no converge nunca: se
+reescribe en cada pasada y la verificación la da por desajustada — lo destapó la
+primera puesta en marcha de un invitado con la cuarta etiqueta ya declarada. La
+paleta (`pve_tag_style.colors`) usa la misma clave en minúsculas, porque la clave
+del color es la etiqueta **tal como PVE la guarda**.
+
 ## Consecuencias
 
 - El árbol de PVE dice de un vistazo a qué laboratorio pertenece cada invitado.

@@ -253,7 +253,7 @@ Declarado por contenedor, heredado de `pve_defaults` salvo que se sobrescriba:
 | `cmode` | `shell` | sí |
 | `timezone` | `host` | sí |
 | `description` | **DERIVADA**: la nota HTML la calcula `filter_plugins/notas.py` al construir la especificación. NO está en el manifiesto: una copia guardada es una caché dentro de la fuente de verdad, y se queda vieja | sí |
-| `tags` | **DERIVADAS**: `[ansible, <rol>, <sede>, Lab-<numero>]`, cuatro ni una más, por el mismo filtro | sí |
+| `tags` | **DERIVADAS**: `[ansible, <rol>, <sede>, lab-<numero>]`, cuatro ni una más, por el mismo filtro | sí |
 | `features`, `startup` | `[]` (no deben existir) | sí — se borran si están |
 | `netif` | `{}` por defecto; declarado por invitado | sí — se crean las interfaces declaradas y se borran las que no lo estén |
 | `mounts`, `mount_devices` | `{}`, `[]` (no deben existir) | sí — se borran si están |

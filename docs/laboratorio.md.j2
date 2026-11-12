@@ -314,7 +314,7 @@ fiel a lo que te encontrarías con hierro.
 Cada invitado lleva **cuatro etiquetas y ni una más**: quién lo gestiona (`ansible`),
 qué es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`), dónde está
 ({% for s in sedes %}`{{ s.codigo }}`{% if not loop.last %}, {% endif %}{% endfor %}{% for c in codigos_extra %}, `{{ c }}`{% endfor %}) y de qué laboratorio es
-(`Lab-{{ man.lab_numero }}`). Nada de vocabulario que no responda a una de esas cuatro
+(`lab-{{ man.lab_numero }}`). Nada de vocabulario que no responda a una de esas cuatro
 preguntas.
 
 Esas etiquetas están **coloreadas en el datacenter** (opción `tag-style`, declarada en

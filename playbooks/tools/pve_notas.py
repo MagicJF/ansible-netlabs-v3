@@ -536,7 +536,7 @@ def html(e):
 
 
 def tag_lab():
-    r"""El tag del laboratorio: 'Lab-<numero>', del número declarado en `lab_numero`.
+    r"""El tag del laboratorio: 'lab-<numero>', del número declarado en `lab_numero`.
 
     No lleva espacio a propósito: PVE valida el tag con
     `[a-z0-9_][a-z0-9_\-\+\.]*` (pve-common, JSONSchema) y un espacio lo rechaza
@@ -545,19 +545,28 @@ def tag_lab():
     sin número falla en voz alta en vez de publicar `Lab-None`.
     """
     n = man.get("lab_numero")
-    return "Lab-%s" % n if n else None
+    return "lab-%s" % n if n else None
 
 
 def tags_de(e):
     """Cuatro etiquetas y ni una más: quién lo gestiona, qué es, dónde está y de qué
     laboratorio.
 
+    En MINÚSCULAS, y no por gusto de estilo: la etiqueta de PVE es un identificador,
+    y PVE lo normaliza a minúsculas al guardarlo (creado con `Ca`/`Lab-11`, su API
+    devuelve `ca`/`lab-11` — medido: el `create` responde 200 y la relectura viene
+    abajo). Una etiqueta declarada en mayúsculas no converge nunca: el motor la
+    reescribe en cada pasada y la verificación la da por desajustada. El código de
+    sede (`Ca`) y el del laboratorio (`Lab-11`) siguen así en el NOMBRE y en la
+    prosa; lo que se publica como etiqueta va en minúsculas. El esquema que cita el
+    ADR 0006 ya lo decía: sólo minúsculas, dígitos, guion, más y punto.
+
     El papel, la sede y el laboratorio salen de la DECLARACIÓN; si un invitado aún no
     resuelve (dirección plantillada sin renderizar), se omite la etiqueta en vez de
     devolver None: una lista con None revienta el `sort` del motor y tumba el
     preflight de TODOS los laboratorios, no sólo el de ese invitado.
     """
-    return [t for t in ("ansible", rol(e["n"]), sitio_de(e), tag_lab()) if t]
+    return [str(t).lower() for t in ("ansible", rol(e["n"]), sitio_de(e), tag_lab()) if t]
 
 
 # ------------------------------------------------------------------- CLI -

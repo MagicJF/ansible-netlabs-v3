@@ -922,10 +922,10 @@ def notas_check():
     marcas = set()
     for _clave in ("pve_defaults", "pve_vm_defaults"):
         marcas |= {str(t) for t in ((man.get(_clave) or {}).get("tags") or [])}
-    sitios_ok = ({s.get("codigo") for s in (man.get("lab_sites") or [])}
-                 | set(man.get("lab_sedes_extra") or {}))
+    sitios_ok = ({str(s.get("codigo")).lower() for s in (man.get("lab_sites") or [])}
+                 | {str(k).lower() for k in (man.get("lab_sedes_extra") or {})})
     roles_ok = {"workstation", "switch", "router", "firewall", "bootstrap"}
-    lab_ok = "Lab-%s" % man.get("lab_numero")
+    lab_ok = "lab-%s" % man.get("lab_numero")
 
     fallos = []
     for g, tipo, nombre in sorted(invitados, key=lambda x: x[0]["vmid"]):
@@ -1487,7 +1487,11 @@ def guests_check():
     if not marcas:
         fail("la declaración no define pve_defaults.tags: no hay forma de reconocer sus invitados")
 
-    activo = os.path.basename(os.path.realpath(os.path.join(REPO, "labs", "active")))
+    # El laboratorio ACTIVO es el que se está operando, y eso lo dice `LAB`, que
+    # respeta HERMES_LAB: leer el manifiesto de uno y exigir los invitados del
+    # enlace `active` es juzgar a un laboratorio con el censo de otro (pasó:
+    # validar `mini` en frío denunciaba ausentes los 21 de `netlab-v2`).
+    activo = os.path.basename(os.path.realpath(os.path.join(REPO, LAB)))
     manifest = manifiesto()
     node = manifest.get("pve_node")
     if not node:

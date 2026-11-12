@@ -5,43 +5,44 @@
   "EL-LABORATORIO.md": {
     "ESFUERZO.md": "0943e0d04277e1cad94f5526bf57add8051d3eda340c1f48202b6e7ecea5fc19",
     "configure/site.yml": "59f4b1a265c56a573f08f172ea004bfac895238d50fb388d739c89d530dac7f7",
-    "playbooks/apply.yml": "362590dd75caca62b4ada60fff433d3a75f6f687369c600689d28b189848ff8b"
+    "playbooks/apply.yml": "ed84a2aaf81462cc154301f0408467bcd3d25321ca01c316a0a8467bf2f1f486"
   },
   "README.md": {
-    "EL-LABORATORIO.md": "3a09312ace0c024d3a168775d595947dc8bb8a4b30be7c711c84f2dd68d99de4",
+    "EL-LABORATORIO.md": "8bcfe2dc51aab87d03e4560e0612216169874edf761704fccd22917ce95ec4bb",
     "ESFUERZO.md": "0943e0d04277e1cad94f5526bf57add8051d3eda340c1f48202b6e7ecea5fc19",
     "configure/roles/bootstrap/tasks/main.yml": "f546acac1bc4d3297b445817e78ad538b2f6971ecd704a27f2cefa16fe5d4658",
     "configure/roles/routeros/tasks/main.yml": "9e507fcc8aaa95dcb46e86fa1e5fdbf5d535583c6f349f0cf7f680912a757889",
     "configure/tasks/ssh_path.yml": "3d55bea03b963f1c66570f81a6400f13b17d2c10cea6d1026f4342a637582b42",
     "docs/decisiones/0002-bootstrap-existe.md": "267cb2feabdc60a9cca1e2f21a28fdaf884746b3d483bc4ab32a0d25e35b9535",
     "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": "14af559a3fdd6f3a5569b7e2770e6be43ec2b3b38ca7069d4fd02379f78d5804",
-    "docs/decisiones/0004-invitado-por-etiqueta.md": "9836f07945fb9bc938bfa00f9733f28899648132a4a17d9feec3d8f51336774a",
-    "playbooks/apply.yml": "362590dd75caca62b4ada60fff433d3a75f6f687369c600689d28b189848ff8b",
-    "playbooks/preflight.yml": "47740b538887f4f6268b278574a3ef721be5ab9304fecc5aa192f745e82221a7",
+    "docs/decisiones/0004-invitado-por-etiqueta.md": "02773901b8f98d266a6055936d51542143fe230de273fbeefdf1bd6d84344912",
+    "playbooks/apply.yml": "ed84a2aaf81462cc154301f0408467bcd3d25321ca01c316a0a8467bf2f1f486",
+    "playbooks/preflight.yml": "a05bc887394c150d9d2fea9d728ffe5a49ea53abbf463f3fe168c1b2aadab22e",
     "playbooks/pve_engine.j2": "532533398250f7d858c55495b24fa433dc792fa8ff28b6b34bbbff9efe321fbe"
   },
   "docs/decisiones/0001-solo-api.md": {},
   "docs/decisiones/0002-bootstrap-existe.md": {},
   "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": {
-    "playbooks/tools/framework_check.py": "ce40f7d23f005be786fda7b74fcdf2a8d2c71039a4a0d3cb990373017f99aee5"
+    "playbooks/tools/framework_check.py": "4dfcf0073587c8cc54fc7b9527ee3966e7258d0818ff0c0e950c22c5b21d575a"
   },
   "docs/decisiones/0004-invitado-por-etiqueta.md": {
-    "playbooks/tools/framework_check.py": "ce40f7d23f005be786fda7b74fcdf2a8d2c71039a4a0d3cb990373017f99aee5"
+    "docs/decisiones/0006-vocabulario-etiquetas.md": "e40c35f62ac9768f62be97bba666450bcc6e3f2ff0dfc38fa72b7c89f2e0dbb8",
+    "playbooks/tools/framework_check.py": "4dfcf0073587c8cc54fc7b9527ee3966e7258d0818ff0c0e950c22c5b21d575a"
   },
   "docs/decisiones/0005-numero-compuesto.md": {},
   "docs/decisiones/0006-vocabulario-etiquetas.md": {
-    "docs/decisiones/0007-codigo-de-sede.md": "fd67753144eaeb920a1724b889b172be57defc3040f2f4de124a883be3bd20f9"
+    "docs/decisiones/0007-codigo-de-sede.md": "2a57d5f5a48e66bb282a15d71afb9c1022623f13d584eaf0f8acf0f1c9e4812f"
   },
   "docs/decisiones/0007-codigo-de-sede.md": {
-    "docs/decisiones/0006-vocabulario-etiquetas.md": "f7921cb10a70c7e80f06435839a85fda2812b18c3241076a57ee8d29028979c7"
+    "docs/decisiones/0006-vocabulario-etiquetas.md": "e40c35f62ac9768f62be97bba666450bcc6e3f2ff0dfc38fa72b7c89f2e0dbb8"
   },
   "docs/decisiones/README.md": {
     "docs/decisiones/0001-solo-api.md": "6fdde4c76fb63fdef6f5c8664d0f8b901761240009871453e1b72cd8a3b9485f",
     "docs/decisiones/0002-bootstrap-existe.md": "267cb2feabdc60a9cca1e2f21a28fdaf884746b3d483bc4ab32a0d25e35b9535",
     "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": "14af559a3fdd6f3a5569b7e2770e6be43ec2b3b38ca7069d4fd02379f78d5804",
-    "docs/decisiones/0004-invitado-por-etiqueta.md": "9836f07945fb9bc938bfa00f9733f28899648132a4a17d9feec3d8f51336774a",
+    "docs/decisiones/0004-invitado-por-etiqueta.md": "02773901b8f98d266a6055936d51542143fe230de273fbeefdf1bd6d84344912",
     "docs/decisiones/0005-numero-compuesto.md": "e47dea0b6a7c598e6df4c184c272358ac89abf8c760ddafefffb751058268db4",
-    "docs/decisiones/0006-vocabulario-etiquetas.md": "f7921cb10a70c7e80f06435839a85fda2812b18c3241076a57ee8d29028979c7",
-    "docs/decisiones/0007-codigo-de-sede.md": "fd67753144eaeb920a1724b889b172be57defc3040f2f4de124a883be3bd20f9"
+    "docs/decisiones/0006-vocabulario-etiquetas.md": "e40c35f62ac9768f62be97bba666450bcc6e3f2ff0dfc38fa72b7c89f2e0dbb8",
+    "docs/decisiones/0007-codigo-de-sede.md": "2a57d5f5a48e66bb282a15d71afb9c1022623f13d584eaf0f8acf0f1c9e4812f"
   }
 }

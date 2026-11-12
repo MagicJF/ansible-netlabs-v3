@@ -343,7 +343,7 @@ fiel a lo que te encontrarías con hierro.
 Cada invitado lleva **cuatro etiquetas y ni una más**: quién lo gestiona (`ansible`),
 qué es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`), dónde está
 (`Ca`, `Sa`, `Sb`, `Ia`, `Ga`, `Ba`) y de qué laboratorio es
-(`Lab-10`). Nada de vocabulario que no responda a una de esas cuatro
+(`lab-10`). Nada de vocabulario que no responda a una de esas cuatro
 preguntas.
 
 Esas etiquetas están **coloreadas en el datacenter** (opción `tag-style`, declarada en
