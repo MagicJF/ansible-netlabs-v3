@@ -41,7 +41,7 @@
 #         II = índice             dentro de sede y clase, desde 10
 #      Ningún campo empieza por cero. Así `12171110` se lee "lab 12, edificio,
 #      switch de acceso, el primero"; el número y el nombre dicen lo MISMO, en el
-#      mismo orden: `12-AG-swac-10`. Ver docs/decisiones/0005-numero-compuesto.md.
+#      mismo orden: `12-Ca-swac-10`. Ver docs/decisiones/0007-codigo-de-sede.md.
 #
 #   2. DISTINCIÓN DE FUNCIONES POR MÁQUINA. En la v1 cada sede tenía un router
 #      que lo hacía todo. Aquí cada función es un equipo:
@@ -61,7 +61,7 @@
 #      y por eso la LAN cuelga del router y el firewall se pone DESPUÉS.
 #
 #   3. SALIDA A INTERNET. La v1 era una red cerrada a propósito. Aquí el firewall
-#      de borde (`12-AF-fwbo-10`) sale por la red de gestión hacia el host Proxmox
+#      de borde (`12-Ba-fwbo-10`) sale por la red de gestión hacia el host Proxmox
 #      (10.10.10.1) — el único gateway real del nodo, y está MEDIDO que da salida
 #      — y hace NAT (masquerade) para toda la empresa. NO se pone ningún invitado
 #      en vmbr0 (el bridge público): la salida va por la LAN de gestión, nunca
@@ -69,8 +69,8 @@
 #      borde: los firewalls de sede filtran pero no traducen, así que dentro de la
 #      empresa las direcciones son las reales y las rutas de vuelta existen.
 #
-#   4. NOMBRES DESCRIPTIVOS: 12-AG-swac-10, 12-AH-rtco-10, 12-AI-fwpe-10, 12-AG-pc-10,
-#      12-AF-fwbo-10, 12-AA-boot-10. El nombre dice el tipo, la sede y la
+#   4. NOMBRES DESCRIPTIVOS: 12-Ca-swac-10, 12-Sa-rtco-10, 12-Sb-fwpe-10, 12-Ca-pc-10,
+#      12-Ba-fwbo-10, 12-Ia-boot-10. El nombre dice el tipo, la sede y la
 #      función; no hay que consultar nada para saber qué es cada máquina.
 # ============================================================================
 
@@ -131,6 +131,18 @@ lab_nombre: "un edificio de oficinas compartidas"
 lab_hub: 6
 
 # ---------------------------------------------------------------------------
+# FAMILIAS DE SEDE — la primera letra del código. El número que va al vmid es la
+# POSICIÓN de la familia (1..5) y la segunda letra (minúscula) es el índice
+# dentro de ella. Ver docs/decisiones/0007-codigo-de-sede.md.
+# ---------------------------------------------------------------------------
+lab_familias:
+  - { letra: "C", nombre: "central" }          # 1x
+  - { letra: "S", nombre: "sedes" }            # 2x
+  - { letra: "I", nombre: "infraestructura" }  # 3x
+  - { letra: "G", nombre: "gestión" }          # 4x
+  - { letra: "B", nombre: "borde" }            # 5x
+
+# ---------------------------------------------------------------------------
 # POLÍTICA DE ALCANCE ENTRE SEDES — lo que el test debe comprobar que NO se cruza
 # ---------------------------------------------------------------------------
 # El test deriva de la declaración que TODAS las estaciones se alcanzan; esto lo
@@ -151,17 +163,16 @@ lab_policy:
 lab_sites:
   - id: 6
     nombre: "edificio"
-    codigo: "AG"          # 17: la sede dentro del número
+    codigo: "Ca"          # familia C (central) + a
     etiqueta: "el edificio (infraestructura común)"
     red: "10.41.0.0/24"
     puerta: "10.41.0.1"
     pool: "10.41.0.100-10.41.0.199"
     transito: { red: "10.51.0.0/30", fw: "10.51.0.1", rt: "10.51.0.2" }
     mgmt: { sw: ["10.10.10.71", "10.10.10.72"], rt: "10.10.10.81", fw: "10.10.10.91" }
-    tag: "edificio"
   - id: 7
     nombre: "inquilino-a"
-    codigo: "AH"          # 18
+    codigo: "Sa"          # familia S (sedes) + a
     etiqueta: "el inquilino A"
     red: "10.42.0.0/24"
     puerta: "10.42.0.1"
@@ -169,10 +180,9 @@ lab_sites:
     transito: { red: "10.52.0.0/30", fw: "10.52.0.1", rt: "10.52.0.2" }
     wan: { red: "10.98.1.0/30", hub: "10.98.1.1", spoke: "10.98.1.2" }
     mgmt: { sw: ["10.10.10.73"], rt: "10.10.10.82", fw: "10.10.10.92" }
-    tag: "inquilino-a"
   - id: 8
     nombre: "inquilino-b"
-    codigo: "AI"          # 19
+    codigo: "Sb"          # familia S (sedes) + b
     etiqueta: "el inquilino B"
     red: "10.43.0.0/24"
     puerta: "10.43.0.1"
@@ -180,7 +190,6 @@ lab_sites:
     transito: { red: "10.53.0.0/30", fw: "10.53.0.1", rt: "10.53.0.2" }
     wan: { red: "10.98.2.0/30", hub: "10.98.2.1", spoke: "10.98.2.2" }
     mgmt: { sw: ["10.10.10.74"], rt: "10.10.10.83", fw: "10.10.10.93" }
-    tag: "inquilino-b"
 
 # ---------------------------------------------------------------------------
 # TABLA DE CLASES (CC del número)
@@ -196,9 +205,9 @@ lab_sites:
 # (el switch de gestión) y el borde. Se declaran aquí porque también ocupan un
 # código de sede en el número, aunque no alojen estaciones.
 lab_sedes_extra:
-  AA: "infraestructura"
-  AE: "gestión"
-  AF: "borde"
+  Ia: "infraestructura"
+  Ga: "gestión"
+  Ba: "borde"
 
 lab_clases:
   11: { token: "swac", nombre: "switch de acceso" }
@@ -321,52 +330,52 @@ pve_tunnel:
 # ---------------------------------------------------------------------------
 pve_tag_style:
   # full dibuja la etiqueta entera en el árbol; circle y dense la abrevian, y
-  # none la esconde. Con tres tags por invitado, "full" es lo que se lee.
+  # none la esconde. Con cuatro tags por invitado, "full" es lo que se lee.
   shape: full
   # Forma que almacena PVE (comprobada contra la API):
   #   color-map=<tag>:<color-de-fondo>[:<color-del-texto>];<tag>:...
-  colors: "ansible-managed:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;central:00838f:ffffff;delegacion:6d4c41:ffffff;borde:37474f:ffffff;infra:5e35b1:ffffff"
+  colors: "ansible:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;Ca:00838f:ffffff;Sa:6d4c41:ffffff;Sb:8d6e63:ffffff;Ia:5e35b1:ffffff;Ga:8e24aa:ffffff;Ba:37474f:ffffff;Lab-12:827717:ffffff"
 
 pve_bridges:
   # ---- SEDE 1 (central) -----------------------------------------------------
   - iface: vmbr50
-    comments: "cable: 12-AG-pc-10 eth0 <-> 12-AG-swac-10 ether2"
+    comments: "cable: 12-Ca-pc-10 eth0 <-> 12-Ca-swac-10 ether2"
   - iface: vmbr51
-    comments: "cable: 12-AG-pc-11 eth0 <-> 12-AG-swac-10 ether3"
+    comments: "cable: 12-Ca-pc-11 eth0 <-> 12-Ca-swac-10 ether3"
   - iface: vmbr52
-    comments: "cable: 12-AG-pc-12 eth0 <-> 12-AG-swac-11 ether2"
+    comments: "cable: 12-Ca-pc-12 eth0 <-> 12-Ca-swac-11 ether2"
   - iface: vmbr53
-    comments: "cable: 12-AG-pc-13 eth0 <-> 12-AG-swac-11 ether3"
+    comments: "cable: 12-Ca-pc-13 eth0 <-> 12-Ca-swac-11 ether3"
   - iface: vmbr54
-    comments: "cable: 12-AG-swac-10 ether4 <-> 12-AG-swac-11 ether4 (troncal L2)"
+    comments: "cable: 12-Ca-swac-10 ether4 <-> 12-Ca-swac-11 ether4 (troncal L2)"
   - iface: vmbr55
-    comments: "cable: 12-AG-swac-10 ether5 <-> 12-AG-rtco-10 ether2 (LA LAN DE LA SEDE 1, 10.41.0.0/24)"
+    comments: "cable: 12-Ca-swac-10 ether5 <-> 12-Ca-rtco-10 ether2 (LA LAN DE LA SEDE 1, 10.41.0.0/24)"
   - iface: vmbr56
-    comments: "cable: 12-AG-rtco-10 ether3 <-> 12-AG-fwpe-10 ether2 (transito 10.51.0.0/30)"
+    comments: "cable: 12-Ca-rtco-10 ether3 <-> 12-Ca-fwpe-10 ether2 (transito 10.51.0.0/30)"
   - iface: vmbr57
-    comments: "WAN 1: 12-AG-fwpe-10 ether3 <-> 12-AH-fwpe-10 ether3 (10.98.1.0/30)"
+    comments: "WAN 1: 12-Ca-fwpe-10 ether3 <-> 12-Sa-fwpe-10 ether3 (10.98.1.0/30)"
   - iface: vmbr58
-    comments: "WAN 2: 12-AG-fwpe-10 ether4 <-> 12-AI-fwpe-10 ether3 (10.98.2.0/30)"
+    comments: "WAN 2: 12-Ca-fwpe-10 ether4 <-> 12-Sb-fwpe-10 ether3 (10.98.2.0/30)"
   - iface: vmbr59
-    comments: "cable: 12-AG-fwpe-10 ether5 <-> 12-AF-fwbo-10 ether2 (transito de borde 10.59.0.0/30)"
+    comments: "cable: 12-Ca-fwpe-10 ether5 <-> 12-Ba-fwbo-10 ether2 (transito de borde 10.59.0.0/30)"
   # ---- SEDE 2 (delegacion) --------------------------------------------------
   - iface: vmbr60
-    comments: "cable: 12-AH-pc-10 eth0 <-> 12-AH-swac-10 ether2"
+    comments: "cable: 12-Sa-pc-10 eth0 <-> 12-Sa-swac-10 ether2"
   - iface: vmbr61
-    comments: "cable: 12-AH-pc-11 eth0 <-> 12-AH-swac-10 ether3"
+    comments: "cable: 12-Sa-pc-11 eth0 <-> 12-Sa-swac-10 ether3"
   - iface: vmbr62
-    comments: "cable: 12-AH-swac-10 ether4 <-> 12-AH-rtco-10 ether2 (LA LAN DE LA SEDE 2, 10.42.0.0/24)"
+    comments: "cable: 12-Sa-swac-10 ether4 <-> 12-Sa-rtco-10 ether2 (LA LAN DE LA SEDE 2, 10.42.0.0/24)"
   - iface: vmbr63
-    comments: "cable: 12-AH-rtco-10 ether3 <-> 12-AH-fwpe-10 ether2 (transito 10.52.0.0/30)"
+    comments: "cable: 12-Sa-rtco-10 ether3 <-> 12-Sa-fwpe-10 ether2 (transito 10.52.0.0/30)"
   # ---- SEDE 3 (delegacion) --------------------------------------------------
   - iface: vmbr64
-    comments: "cable: 12-AI-pc-10 eth0 <-> 12-AI-swac-10 ether2"
+    comments: "cable: 12-Sb-pc-10 eth0 <-> 12-Sb-swac-10 ether2"
   - iface: vmbr65
-    comments: "cable: 12-AI-pc-11 eth0 <-> 12-AI-swac-10 ether3"
+    comments: "cable: 12-Sb-pc-11 eth0 <-> 12-Sb-swac-10 ether3"
   - iface: vmbr66
-    comments: "cable: 12-AI-swac-10 ether4 <-> 12-AI-rtco-10 ether2 (LA LAN DE LA SEDE 3, 10.43.0.0/24)"
+    comments: "cable: 12-Sb-swac-10 ether4 <-> 12-Sb-rtco-10 ether2 (LA LAN DE LA SEDE 3, 10.43.0.0/24)"
   - iface: vmbr67
-    comments: "cable: 12-AI-rtco-10 ether3 <-> 12-AI-fwpe-10 ether2 (transito 10.53.0.0/30)"
+    comments: "cable: 12-Sb-rtco-10 ether3 <-> 12-Sb-fwpe-10 ether2 (transito 10.53.0.0/30)"
   - iface: vmbr68
     comments: "SEGUNDO SEGMENTO DE GESTION (OOB): la puerta es el host 10.40.40.1/24"
     address: "10.40.40.1/24"
@@ -398,7 +407,7 @@ pve_defaults:
   onboot: false
   description: "Managed by ansible-netlabs-v3. Declare changes in labs/coworking/inventory/group_vars/all.yml."
   # Etiqueta base; cada invitado AÑADE las suyas (sede y papel) a esta lista.
-  tags: [netlab, ansible-managed]
+  tags: [netlab, ansible]
   timezone: host
   cmode: shell
   features: []
@@ -428,12 +437,12 @@ pve_containers:
   # no un parque de aplicaciones.
   # ==========================================================================
 
-  # 12-AA-boot-10: concede a cada equipo de red su primera dirección por DHCP,
+  # 12-Ia-boot-10: concede a cada equipo de red su primera dirección por DHCP,
   # atada a su MAC, para que su API REST exista desde el primer arranque. Vive
   # en la LAN de gestión. Es la SALA DE PARTOS, no una dependencia de
   # funcionamiento: una vez cada equipo tiene su dirección, no interviene.
-  - vmid: 12117110
-    hostname: 12-AA-boot-10
+  - vmid: 12317110
+    hostname: 12-Ia-boot-10
     cores: 1
     memory: 1024
     rootfs_size: 4
@@ -470,7 +479,7 @@ pve_containers:
           - "{{ lab_sede[6].red }}"
           - "{{ lab_sede[7].red }}"
           - "{{ lab_sede[8].red }}"
-        route_gateway: "{{ lab_sede[6].mgmt.rt }}"   # 12-AG-rtco-10
+        route_gateway: "{{ lab_sede[6].mgmt.rt }}"   # 12-Ca-rtco-10
         hosts: >-
           {%- set out = [] -%}
           {%- for v in pve_vms | selectattr('chr', 'defined') -%}
@@ -495,8 +504,8 @@ pve_containers:
   # su MAC declarada aquí.
   # ==========================================================================
 
-  - vmid: 12179110
-    hostname: 12-AG-pc-10
+  - vmid: 12119110
+    hostname: 12-Ca-pc-10
     site: sede6
     address: "10.41.0.11"
     cores: 1
@@ -514,8 +523,8 @@ pve_containers:
     netif:
       net0: "name=eth0,bridge=vmbr50,hwaddr=BC:24:12:00:51:01,ip=dhcp"
 
-  - vmid: 12179111
-    hostname: 12-AG-pc-11
+  - vmid: 12119111
+    hostname: 12-Ca-pc-11
     site: sede6
     address: "10.41.0.12"
     cores: 1
@@ -533,8 +542,8 @@ pve_containers:
     netif:
       net0: "name=eth0,bridge=vmbr51,hwaddr=BC:24:12:00:51:02,ip=dhcp"
 
-  - vmid: 12179112
-    hostname: 12-AG-pc-12
+  - vmid: 12119112
+    hostname: 12-Ca-pc-12
     site: sede6
     address: "10.41.0.13"
     cores: 1
@@ -552,8 +561,8 @@ pve_containers:
     netif:
       net0: "name=eth0,bridge=vmbr52,hwaddr=BC:24:12:00:51:03,ip=dhcp"
 
-  - vmid: 12179113
-    hostname: 12-AG-pc-13
+  - vmid: 12119113
+    hostname: 12-Ca-pc-13
     site: sede6
     address: "10.41.0.14"
     cores: 1
@@ -571,8 +580,8 @@ pve_containers:
     netif:
       net0: "name=eth0,bridge=vmbr53,hwaddr=BC:24:12:00:51:04,ip=dhcp"
 
-  - vmid: 12189110
-    hostname: 12-AH-pc-10
+  - vmid: 12219110
+    hostname: 12-Sa-pc-10
     site: sede7
     address: "10.42.0.11"
     cores: 1
@@ -590,8 +599,8 @@ pve_containers:
     netif:
       net0: "name=eth0,bridge=vmbr60,hwaddr=BC:24:12:00:52:01,ip=dhcp"
 
-  - vmid: 12189111
-    hostname: 12-AH-pc-11
+  - vmid: 12219111
+    hostname: 12-Sa-pc-11
     site: sede7
     address: "10.42.0.12"
     cores: 1
@@ -609,8 +618,8 @@ pve_containers:
     netif:
       net0: "name=eth0,bridge=vmbr61,hwaddr=BC:24:12:00:52:02,ip=dhcp"
 
-  - vmid: 12199110
-    hostname: 12-AI-pc-10
+  - vmid: 12229110
+    hostname: 12-Sb-pc-10
     site: sede8
     address: "10.43.0.11"
     cores: 1
@@ -628,8 +637,8 @@ pve_containers:
     netif:
       net0: "name=eth0,bridge=vmbr64,hwaddr=BC:24:12:00:53:01,ip=dhcp"
 
-  - vmid: 12199111
-    hostname: 12-AI-pc-11
+  - vmid: 12229111
+    hostname: 12-Sb-pc-11
     site: sede8
     address: "10.43.0.12"
     cores: 1
@@ -668,7 +677,7 @@ pve_vm_defaults:
   onboot: false
   boot: "order=ide2;scsi0"
   description: "Nested Proxmox VE managed by ansible-netlabs-v3."
-  tags: [netlab, ansible-managed]
+  tags: [netlab, ansible]
 
   net: {}
   scsi: {}
@@ -728,17 +737,17 @@ pve_chr_defaults:
     serial0: socket
   vga: serial0
   description: "MikroTik RouterOS: una funcion de red, un equipo. Gestionado por REST."
-  tags: [netlab, routeros, red, ansible-managed]
+  tags: [netlab, routeros, red, ansible]
 
 pve_vms:
-  - vmid: 12151210
-    name: 12-AE-swge-10
+  - vmid: 12411210
+    name: 12-Ga-swge-10
     chr: true
     net:
       net0: "virtio=BC:24:12:00:20:01,bridge=vmbr68"
     config:
       routeros:
-        identity: 12-AE-swge-10
+        identity: 12-Ga-swge-10
         addresses:
           - address: "{{ lab_mgmt2.reserva }}/24"
             interface: ether1
@@ -753,21 +762,21 @@ pve_vms:
   # router al otro. Su única dirección es la de gestión.
   # ==========================================================================
 
-  # 12-AG-swac-10: primer switch de acceso de la central. Une 12-AG-pc-10 y 12-AG-pc-11
+  # 12-Ca-swac-10: primer switch de acceso de la central. Une 12-Ca-pc-10 y 12-Ca-pc-11
   # y entrega la sede a su router. El troncal hacia el segundo switch va por
   # ether4.
-  - vmid: 12171110
-    name: 12-AG-swac-10
+  - vmid: 12111110
+    name: 12-Ca-swac-10
     chr: true
     net:
       net0: "virtio=BC:24:12:00:31:01,bridge=vmbr1"    # ether1 gestion
-      net1: "virtio=BC:24:12:00:31:02,bridge=vmbr50"    # ether2 -> 12-AG-pc-10
-      net2: "virtio=BC:24:12:00:31:03,bridge=vmbr51"    # ether3 -> 12-AG-pc-11
-      net3: "virtio=BC:24:12:00:31:04,bridge=vmbr54"    # ether4 -> 12-AG-swac-11 (troncal)
-      net4: "virtio=BC:24:12:00:31:05,bridge=vmbr55"    # ether5 -> 12-AG-rtco-10 (la LAN de la sede)
+      net1: "virtio=BC:24:12:00:31:02,bridge=vmbr50"    # ether2 -> 12-Ca-pc-10
+      net2: "virtio=BC:24:12:00:31:03,bridge=vmbr51"    # ether3 -> 12-Ca-pc-11
+      net3: "virtio=BC:24:12:00:31:04,bridge=vmbr54"    # ether4 -> 12-Ca-swac-11 (troncal)
+      net4: "virtio=BC:24:12:00:31:05,bridge=vmbr55"    # ether5 -> 12-Ca-rtco-10 (la LAN de la sede)
     config:
       routeros:
-        identity: 12-AG-swac-10
+        identity: 12-Ca-swac-10
         addresses:
           - address: "{{ lab_sede[6].mgmt.sw[0] }}/24"
             interface: ether1
@@ -782,20 +791,20 @@ pve_vms:
           - dst_address: "0.0.0.0/0"
             gateway: "{{ lab_sede[6].mgmt.rt }}"
 
-  # 12-AG-swac-11: segundo switch de acceso de la central. Cuelga del troncal
+  # 12-Ca-swac-11: segundo switch de acceso de la central. Cuelga del troncal
   # (mismo dominio L2, que es lo que hace que las cuatro workstations de la sede
   # compartan una sola red).
-  - vmid: 12171111
-    name: 12-AG-swac-11
+  - vmid: 12111111
+    name: 12-Ca-swac-11
     chr: true
     net:
       net0: "virtio=BC:24:12:00:32:01,bridge=vmbr1"    # ether1 gestion
-      net1: "virtio=BC:24:12:00:32:02,bridge=vmbr52"    # ether2 -> 12-AG-pc-12
-      net2: "virtio=BC:24:12:00:32:03,bridge=vmbr53"    # ether3 -> 12-AG-pc-13
-      net3: "virtio=BC:24:12:00:32:04,bridge=vmbr54"    # ether4 -> 12-AG-swac-10 (troncal)
+      net1: "virtio=BC:24:12:00:32:02,bridge=vmbr52"    # ether2 -> 12-Ca-pc-12
+      net2: "virtio=BC:24:12:00:32:03,bridge=vmbr53"    # ether3 -> 12-Ca-pc-13
+      net3: "virtio=BC:24:12:00:32:04,bridge=vmbr54"    # ether4 -> 12-Ca-swac-10 (troncal)
     config:
       routeros:
-        identity: 12-AG-swac-11
+        identity: 12-Ca-swac-11
         addresses:
           - address: "{{ lab_sede[6].mgmt.sw[1] }}/24"
             interface: ether1
@@ -807,18 +816,18 @@ pve_vms:
           - dst_address: "0.0.0.0/0"
             gateway: "{{ lab_sede[6].mgmt.rt }}"
 
-  # 12-AH-swac-10: el switch de acceso de la delegación 2.
-  - vmid: 12181110
-    name: 12-AH-swac-10
+  # 12-Sa-swac-10: el switch de acceso de la delegación 2.
+  - vmid: 12211110
+    name: 12-Sa-swac-10
     chr: true
     net:
       net0: "virtio=BC:24:12:00:33:01,bridge=vmbr1"    # ether1 gestion
-      net1: "virtio=BC:24:12:00:33:02,bridge=vmbr60"   # ether2 -> 12-AH-pc-10
-      net2: "virtio=BC:24:12:00:33:03,bridge=vmbr61"   # ether3 -> 12-AH-pc-11
-      net3: "virtio=BC:24:12:00:33:04,bridge=vmbr62"   # ether4 -> 12-AH-rtco-10 (la LAN de la sede)
+      net1: "virtio=BC:24:12:00:33:02,bridge=vmbr60"   # ether2 -> 12-Sa-pc-10
+      net2: "virtio=BC:24:12:00:33:03,bridge=vmbr61"   # ether3 -> 12-Sa-pc-11
+      net3: "virtio=BC:24:12:00:33:04,bridge=vmbr62"   # ether4 -> 12-Sa-rtco-10 (la LAN de la sede)
     config:
       routeros:
-        identity: 12-AH-swac-10
+        identity: 12-Sa-swac-10
         addresses:
           - address: "{{ lab_sede[7].mgmt.sw[0] }}/24"
             interface: ether1
@@ -830,18 +839,18 @@ pve_vms:
           - dst_address: "0.0.0.0/0"
             gateway: "{{ lab_sede[7].mgmt.rt }}"
 
-  # 12-AI-swac-10: el switch de acceso de la delegación 3.
-  - vmid: 12191110
-    name: 12-AI-swac-10
+  # 12-Sb-swac-10: el switch de acceso de la delegación 3.
+  - vmid: 12221110
+    name: 12-Sb-swac-10
     chr: true
     net:
       net0: "virtio=BC:24:12:00:34:01,bridge=vmbr1"    # ether1 gestion
-      net1: "virtio=BC:24:12:00:34:02,bridge=vmbr64"   # ether2 -> 12-AI-pc-10
-      net2: "virtio=BC:24:12:00:34:03,bridge=vmbr65"   # ether3 -> 12-AI-pc-11
-      net3: "virtio=BC:24:12:00:34:04,bridge=vmbr66"   # ether4 -> 12-AI-rtco-10 (la LAN de la sede)
+      net1: "virtio=BC:24:12:00:34:02,bridge=vmbr64"   # ether2 -> 12-Sb-pc-10
+      net2: "virtio=BC:24:12:00:34:03,bridge=vmbr65"   # ether3 -> 12-Sb-pc-11
+      net3: "virtio=BC:24:12:00:34:04,bridge=vmbr66"   # ether4 -> 12-Sb-rtco-10 (la LAN de la sede)
     config:
       routeros:
-        identity: 12-AI-swac-10
+        identity: 12-Sb-swac-10
         addresses:
           - address: "{{ lab_sede[8].mgmt.sw[0] }}/24"
             interface: ether1
@@ -862,18 +871,18 @@ pve_vms:
   # segmento. Por ether3 hablan con su firewall, que es la boca hacia fuera.
   # ==========================================================================
 
-  # 12-AG-rtco-10: el router de la central. Conoce las tres sedes (a través de su
+  # 12-Ca-rtco-10: el router de la central. Conoce las tres sedes (a través de su
   # firewall) y es el núcleo de la WAN interna.
-  - vmid: 12172110
-    name: 12-AG-rtco-10
+  - vmid: 12112110
+    name: 12-Ca-rtco-10
     chr: true
     net:
       net0: "virtio=BC:24:12:00:21:01,bridge=vmbr1"    # ether1 gestion
-      net1: "virtio=BC:24:12:00:21:02,bridge=vmbr55"    # ether2 -> 12-AG-swac-10 (LA LAN DE LA SEDE)
-      net2: "virtio=BC:24:12:00:21:03,bridge=vmbr56"   # ether3 -> 12-AG-fwpe-10 (transito)
+      net1: "virtio=BC:24:12:00:21:02,bridge=vmbr55"    # ether2 -> 12-Ca-swac-10 (LA LAN DE LA SEDE)
+      net2: "virtio=BC:24:12:00:21:03,bridge=vmbr56"   # ether3 -> 12-Ca-fwpe-10 (transito)
     config:
       routeros:
-        identity: 12-AG-rtco-10
+        identity: 12-Ca-rtco-10
         addresses:
           - address: "{{ lab_sede[6].mgmt.rt }}/24"
             interface: ether1
@@ -915,19 +924,19 @@ pve_vms:
               {%- endfor -%}
               {{ out }}
 
-  # 12-AH-rtco-10: el router de la delegación 2. Su LAN, su DHCP y una ruta por
+  # 12-Sa-rtco-10: el router de la delegación 2. Su LAN, su DHCP y una ruta por
   # defecto hacia su firewall: la configuración real de una delegación, que no
   # necesita saber qué hay al otro lado.
-  - vmid: 12182110
-    name: 12-AH-rtco-10
+  - vmid: 12212110
+    name: 12-Sa-rtco-10
     chr: true
     net:
       net0: "virtio=BC:24:12:00:22:01,bridge=vmbr1"    # ether1 gestion
-      net1: "virtio=BC:24:12:00:22:02,bridge=vmbr62"   # ether2 -> 12-AH-swac-10 (LA LAN DE LA SEDE)
-      net2: "virtio=BC:24:12:00:22:03,bridge=vmbr63"   # ether3 -> 12-AH-fwpe-10 (transito)
+      net1: "virtio=BC:24:12:00:22:02,bridge=vmbr62"   # ether2 -> 12-Sa-swac-10 (LA LAN DE LA SEDE)
+      net2: "virtio=BC:24:12:00:22:03,bridge=vmbr63"   # ether3 -> 12-Sa-fwpe-10 (transito)
     config:
       routeros:
-        identity: 12-AH-rtco-10
+        identity: 12-Sa-rtco-10
         addresses:
           - address: "{{ lab_sede[7].mgmt.rt }}/24"
             interface: ether1
@@ -960,17 +969,17 @@ pve_vms:
               {%- endfor -%}
               {{ out }}
 
-  # 12-AI-rtco-10: el router de la delegación 3, simétrico al anterior.
-  - vmid: 12192110
-    name: 12-AI-rtco-10
+  # 12-Sb-rtco-10: el router de la delegación 3, simétrico al anterior.
+  - vmid: 12222110
+    name: 12-Sb-rtco-10
     chr: true
     net:
       net0: "virtio=BC:24:12:00:23:01,bridge=vmbr1"    # ether1 gestion
-      net1: "virtio=BC:24:12:00:23:02,bridge=vmbr66"   # ether2 -> 12-AI-swac-10 (LA LAN DE LA SEDE)
-      net2: "virtio=BC:24:12:00:23:03,bridge=vmbr67"   # ether3 -> 12-AI-fwpe-10 (transito)
+      net1: "virtio=BC:24:12:00:23:02,bridge=vmbr66"   # ether2 -> 12-Sb-swac-10 (LA LAN DE LA SEDE)
+      net2: "virtio=BC:24:12:00:23:03,bridge=vmbr67"   # ether3 -> 12-Sb-fwpe-10 (transito)
     config:
       routeros:
-        identity: 12-AI-rtco-10
+        identity: 12-Sb-rtco-10
         addresses:
           - address: "{{ lab_sede[8].mgmt.rt }}/24"
             interface: ether1
@@ -1012,20 +1021,20 @@ pve_vms:
   # reales, así que las rutas de vuelta existen y no hay traducciones anidadas.
   # ==========================================================================
 
-  # 12-AG-fwpe-10: perímetro de la central. Por ether2 habla con su router; por
+  # 12-Ca-fwpe-10: perímetro de la central. Por ether2 habla con su router; por
   # ether3 y ether4 con las WAN de las delegaciones, y por ether5 con el borde.
-  - vmid: 12178110
-    name: 12-AG-fwpe-10
+  - vmid: 12118110
+    name: 12-Ca-fwpe-10
     chr: true
     net:
       net0: "virtio=BC:24:12:00:41:01,bridge=vmbr1"    # ether1 gestion
-      net1: "virtio=BC:24:12:00:41:02,bridge=vmbr56"   # ether2 -> 12-AG-rtco-10 (transito)
+      net1: "virtio=BC:24:12:00:41:02,bridge=vmbr56"   # ether2 -> 12-Ca-rtco-10 (transito)
       net2: "virtio=BC:24:12:00:41:03,bridge=vmbr57"   # ether3 -> WAN 1 (a la sede 2)
       net3: "virtio=BC:24:12:00:41:04,bridge=vmbr58"   # ether4 -> WAN 2 (a la sede 3)
-      net4: "virtio=BC:24:12:00:41:05,bridge=vmbr59"   # ether5 -> 12-AF-fwbo-10 (borde)
+      net4: "virtio=BC:24:12:00:41:05,bridge=vmbr59"   # ether5 -> 12-Ba-fwbo-10 (borde)
     config:
       routeros:
-        identity: 12-AG-fwpe-10
+        identity: 12-Ca-fwpe-10
         addresses:
           - address: "{{ lab_sede[6].mgmt.fw }}/24"
             interface: ether1
@@ -1092,17 +1101,17 @@ pve_vms:
             - {chain: input, action: accept, connection_state: "established,related"}
             - {chain: input, action: drop}
 
-  # 12-AH-fwpe-10: perímetro de la delegación 2. Su WAN la conecta con la central.
-  - vmid: 12188110
-    name: 12-AH-fwpe-10
+  # 12-Sa-fwpe-10: perímetro de la delegación 2. Su WAN la conecta con la central.
+  - vmid: 12218110
+    name: 12-Sa-fwpe-10
     chr: true
     net:
       net0: "virtio=BC:24:12:00:42:01,bridge=vmbr1"    # ether1 gestion
-      net1: "virtio=BC:24:12:00:42:02,bridge=vmbr63"   # ether2 -> 12-AH-rtco-10 (transito)
+      net1: "virtio=BC:24:12:00:42:02,bridge=vmbr63"   # ether2 -> 12-Sa-rtco-10 (transito)
       net2: "virtio=BC:24:12:00:42:03,bridge=vmbr57"   # ether3 -> WAN 1 (a la central)
     config:
       routeros:
-        identity: 12-AH-fwpe-10
+        identity: 12-Sa-fwpe-10
         addresses:
           - address: "{{ lab_sede[7].mgmt.fw }}/24"
             interface: ether1
@@ -1132,17 +1141,17 @@ pve_vms:
             - {chain: input, action: accept, connection_state: "established,related"}
             - {chain: input, action: drop}
 
-  # 12-AI-fwpe-10: perímetro de la delegación 3, simétrico por la WAN 2.
-  - vmid: 12198110
-    name: 12-AI-fwpe-10
+  # 12-Sb-fwpe-10: perímetro de la delegación 3, simétrico por la WAN 2.
+  - vmid: 12228110
+    name: 12-Sb-fwpe-10
     chr: true
     net:
       net0: "virtio=BC:24:12:00:43:01,bridge=vmbr1"    # ether1 gestion
-      net1: "virtio=BC:24:12:00:43:02,bridge=vmbr67"   # ether2 -> 12-AI-rtco-10 (transito)
+      net1: "virtio=BC:24:12:00:43:02,bridge=vmbr67"   # ether2 -> 12-Sb-rtco-10 (transito)
       net2: "virtio=BC:24:12:00:43:03,bridge=vmbr58"   # ether3 -> WAN 2 (a la central)
     config:
       routeros:
-        identity: 12-AI-fwpe-10
+        identity: 12-Sb-fwpe-10
         addresses:
           - address: "{{ lab_sede[8].mgmt.fw }}/24"
             interface: ether1
@@ -1172,18 +1181,18 @@ pve_vms:
             - {chain: input, action: accept, connection_state: "established,related"}
             - {chain: input, action: drop}
 
-  # 12-AF-fwbo-10: el firewall de BORDE, y el ÚNICO que traduce direcciones. Su
+  # 12-Ba-fwbo-10: el firewall de BORDE, y el ÚNICO que traduce direcciones. Su
   # pata exterior (ether1) es la red de gestión, donde vive el proveedor real (el
   # host Proxmox): NO hay un segmento "ISP" inventado.
-  - vmid: 12168210
-    name: 12-AF-fwbo-10
+  - vmid: 12518210
+    name: 12-Ba-fwbo-10
     chr: true
     net:
       net0: "virtio=BC:24:12:00:49:01,bridge=vmbr1"    # ether1 -> "proveedor" (red de gestion)
-      net1: "virtio=BC:24:12:00:49:02,bridge=vmbr59"   # ether2 -> 12-AG-fwpe-10 (transito de borde)
+      net1: "virtio=BC:24:12:00:49:02,bridge=vmbr59"   # ether2 -> 12-Ca-fwpe-10 (transito de borde)
     config:
       routeros:
-        identity: 12-AF-fwbo-10
+        identity: 12-Ba-fwbo-10
         addresses:
           - address: "{{ lab_mgmt_otros.borde }}/24"
             interface: ether1

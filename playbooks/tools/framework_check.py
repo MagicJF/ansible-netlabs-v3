@@ -871,7 +871,8 @@ def notas_check():
       3. en el segmento COMPARTIDO (la red de gestión), que NO nombre un vecino
          único: ahí cuelgan las patas de administración de todos los equipos
       4. que no se invente una MAC donde la declaración no declara ninguna
-      5. que las etiquetas sean exactamente las tres: quién, qué y dónde
+      5. que las etiquetas sean exactamente las cuatro: quién, qué, dónde y de
+         qué laboratorio
       6. que ninguna nota se haya quedado con una referencia Jinja sin resolver
 
     Y una cosa más, que es la regla: que NINGÚN invitado guarde `description` ni
@@ -914,15 +915,17 @@ def notas_check():
             cables.setdefault(p["bridge"], []).append((nombre, p["pata"], p["mac"]))
 
     # El vocabulario válido sale de la DECLARACIÓN: los tags que la declaración pone
-    # a cada invitado (`pve_defaults`/`pve_vm_defaults`), los sitios que declara
-    # (`lab_sites[].tag`) más los dos sin sede, y los cinco papeles. No se re-deriva
+    # a cada invitado (`pve_defaults`/`pve_vm_defaults`), los códigos de sitio que
+    # declara (`lab_sites[].codigo` y `lab_sedes_extra`) y los cinco papeles. No se re-deriva
     # la identidad —eso ya lo hace el generador—: aquí se comprueba la FORMA de las
     # etiquetas y que cada valor pertenezca al vocabulario declarado.
     marcas = set()
     for _clave in ("pve_defaults", "pve_vm_defaults"):
         marcas |= {str(t) for t in ((man.get(_clave) or {}).get("tags") or [])}
-    sitios_ok = {s.get("tag") for s in (man.get("lab_sites") or [])} | {"infra", "borde"}
+    sitios_ok = ({s.get("codigo") for s in (man.get("lab_sites") or [])}
+                 | set(man.get("lab_sedes_extra") or {}))
     roles_ok = {"workstation", "switch", "router", "firewall", "bootstrap"}
+    lab_ok = "Lab-%s" % man.get("lab_numero")
 
     fallos = []
     for g, tipo, nombre in sorted(invitados, key=lambda x: x[0]["vmid"]):
@@ -930,9 +933,9 @@ def notas_check():
         if "{{" in desc or "{%" in desc:
             fallos.append(f"{nombre}: la nota se quedó con una referencia Jinja sin resolver")
         live = [t.strip() for t in generadas[g["vmid"]]["tags"] if t and t.strip()]
-        if len(live) != 3:
-            fallos.append(f"{nombre}: {len(live)} etiqueta(s); deben ser TRES "
-                          f"(quién lo gestiona, qué es y dónde está)")
+        if len(live) != 4:
+            fallos.append(f"{nombre}: {len(live)} etiqueta(s); deben ser CUATRO "
+                          f"(quién lo gestiona, qué es, dónde está y de qué laboratorio)")
         else:
             if live[0] not in marcas:
                 fallos.append(f"{nombre}: la etiqueta {live[0]!r} no está entre las "
@@ -942,6 +945,9 @@ def notas_check():
             if live[2] not in sitios_ok:
                 fallos.append(f"{nombre}: el sitio {live[2]!r} no está entre los "
                               f"declarados {sorted(sitios_ok)}")
+            if live[3] != lab_ok:
+                fallos.append(f"{nombre}: el laboratorio {live[3]!r} no es el declarado "
+                              f"({lab_ok!r})")
         blk = re.search(r"<b>CONEXIONES</b>\s*<table>(.*?)</table>", desc, re.S)
         if not blk:
             fallos.append(f"{nombre}: la nota no tiene tabla de conexiones")
@@ -976,7 +982,7 @@ def notas_check():
         fail(f"{len(fallos)} desacuerdo(s) entre las notas y la declaración")
     say(f"  {len(invitados)} invitados: una fila por pata, su bridge y su MAC, el vecino "
         "real de cada cable punto a punto,\n  el segmento de gestión contado como lo que "
-        "es, y las tres etiquetas (quién, qué, dónde).")
+        "es, y las cuatro etiquetas (quién, qué, dónde, laboratorio).")
     say("\nPASS: las notas no contradicen a la declaración.")
     return 0
 
@@ -1463,7 +1469,7 @@ def guests_check():
     """La plataforma no tiene invitados del lab fuera de la declaración.
 
     «Fuera de la declaración» se define por la ETIQUETA que la propia declaración pone
-    a todos sus invitados (`pve_defaults.tags` = netlab, ansible-managed), NO por rangos
+    a todos sus invitados (`pve_defaults.tags` = netlab, ansible), NO por rangos
     de VMID: los rangos se solapan entre laboratorios (mini usa 2xxx, netlab-v2 también)
     y una lista de VMID escrita a mano sería otra copia que envejece. Un invitado del
     host (hermesagent, caddy, netbox) no lleva esa etiqueta y queda fuera del juicio.
@@ -1677,17 +1683,23 @@ def docs_check():
 
 
 
-def _codigo_numero(codigo):
-    """El valor numérico de un código de sede de dos letras (A=1 .. I=9)."""
-    letras = "ABCDEFGHIJ"
-    return (letras.index(codigo[0]) + 1) * 10 + (letras.index(codigo[1]) + 1)
+def _codigo_numero(codigo, familias):
+    """El valor numérico del código de sede: familia (posición + 1) * 10 + índice.
+
+    El código son DOS letras: la primera es la FAMILIA, cuya POSICIÓN en
+    `lab_familias` da la decena; la segunda, minúscula, el índice dentro de ella
+    (`a`=1). Así `Ca`=11, `Sa`=21, `Sb`=22, `Ia`=31, `Ga`=41, `Ba`=51.
+    """
+    letras = [f["letra"] for f in familias]
+    return (letras.index(codigo[0]) + 1) * 10 + (ord(codigo[1].lower()) - ord("a") + 1)
 
 
 def numeracion_check():
     """El número de cada invitado se compone de su declaración, y su nombre lo espeja.
 
     Un VMID de 8 cifras es LL SS CC II: laboratorio, sede, clase, índice. La sede se
-    declara como dos letras (A=1 .. I=9); la clase como un número de la tabla
+    declara como dos letras —la familia (`lab_familias`) y su índice minúscula— y
+    su POSICIÓN en la tabla da la decena; la clase como un número de la tabla
     `lab_clases`; el nombre se compone como `LL-SS-token-II`. El check no adivina
     nada: comprueba que el número y el nombre de la MISMA declaración se componen
     de la misma forma. Si un invitado se numera a mano y se desvía, aquí se ve.
@@ -1698,10 +1710,13 @@ def numeracion_check():
     if lab is None:
         say("  SKIP: este laboratorio no declara lab_numero (migracion pendiente)")
         return 0
+    familias = man.get("lab_familias") or []
+    if not familias:
+        fail("este laboratorio no declara lab_familias: el codigo de sede no se puede leer")
     sedes = {s.get("codigo"): s for s in man.get("lab_sites", []) if s.get("codigo")}
     sedes.update({c: {"codigo": c} for c in (man.get("lab_sedes_extra") or {})})
     clases = {int(k): v for k, v in (man.get("lab_clases") or {}).items()}
-    sede_por_numero = {_codigo_numero(c): c for c in sedes}
+    sede_por_numero = {_codigo_numero(c, familias): c for c in sedes}
     invitados = list(man.get("pve_containers") or []) + list(man.get("pve_vms") or [])
     errores = []
     for g in invitados:

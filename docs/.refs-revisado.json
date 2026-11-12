@@ -5,10 +5,10 @@
   "EL-LABORATORIO.md": {
     "ESFUERZO.md": "0943e0d04277e1cad94f5526bf57add8051d3eda340c1f48202b6e7ecea5fc19",
     "configure/site.yml": "59f4b1a265c56a573f08f172ea004bfac895238d50fb388d739c89d530dac7f7",
-    "playbooks/apply.yml": "f63eb8ad3d3a8e66cd2755489f3d311c004b6e1385cd35d599410d98e6cc0367"
+    "playbooks/apply.yml": "362590dd75caca62b4ada60fff433d3a75f6f687369c600689d28b189848ff8b"
   },
   "README.md": {
-    "EL-LABORATORIO.md": "f8d1a1d3ad312096ffe601958f5e1c4ed3fb66a74d52bef877cdf1e81f8b45ae",
+    "EL-LABORATORIO.md": "3a09312ace0c024d3a168775d595947dc8bb8a4b30be7c711c84f2dd68d99de4",
     "ESFUERZO.md": "0943e0d04277e1cad94f5526bf57add8051d3eda340c1f48202b6e7ecea5fc19",
     "configure/roles/bootstrap/tasks/main.yml": "f546acac1bc4d3297b445817e78ad538b2f6971ecd704a27f2cefa16fe5d4658",
     "configure/roles/routeros/tasks/main.yml": "9e507fcc8aaa95dcb46e86fa1e5fdbf5d535583c6f349f0cf7f680912a757889",
@@ -16,23 +16,32 @@
     "docs/decisiones/0002-bootstrap-existe.md": "267cb2feabdc60a9cca1e2f21a28fdaf884746b3d483bc4ab32a0d25e35b9535",
     "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": "14af559a3fdd6f3a5569b7e2770e6be43ec2b3b38ca7069d4fd02379f78d5804",
     "docs/decisiones/0004-invitado-por-etiqueta.md": "9836f07945fb9bc938bfa00f9733f28899648132a4a17d9feec3d8f51336774a",
-    "playbooks/apply.yml": "f63eb8ad3d3a8e66cd2755489f3d311c004b6e1385cd35d599410d98e6cc0367",
-    "playbooks/preflight.yml": "7ff3a61321b60801ad604ceca2687a47449ddf966619a34451859daed8d2db8f",
+    "playbooks/apply.yml": "362590dd75caca62b4ada60fff433d3a75f6f687369c600689d28b189848ff8b",
+    "playbooks/preflight.yml": "47740b538887f4f6268b278574a3ef721be5ab9304fecc5aa192f745e82221a7",
     "playbooks/pve_engine.j2": "532533398250f7d858c55495b24fa433dc792fa8ff28b6b34bbbff9efe321fbe"
   },
   "docs/decisiones/0001-solo-api.md": {},
   "docs/decisiones/0002-bootstrap-existe.md": {},
   "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": {
-    "playbooks/tools/framework_check.py": "7a3a51c09c89c947308092219ac87f3cbef4408544bb7ca2f1a23e521a952928"
+    "playbooks/tools/framework_check.py": "ce40f7d23f005be786fda7b74fcdf2a8d2c71039a4a0d3cb990373017f99aee5"
   },
   "docs/decisiones/0004-invitado-por-etiqueta.md": {
-    "playbooks/tools/framework_check.py": "7a3a51c09c89c947308092219ac87f3cbef4408544bb7ca2f1a23e521a952928"
+    "playbooks/tools/framework_check.py": "ce40f7d23f005be786fda7b74fcdf2a8d2c71039a4a0d3cb990373017f99aee5"
   },
   "docs/decisiones/0005-numero-compuesto.md": {},
+  "docs/decisiones/0006-vocabulario-etiquetas.md": {
+    "docs/decisiones/0007-codigo-de-sede.md": "fd67753144eaeb920a1724b889b172be57defc3040f2f4de124a883be3bd20f9"
+  },
+  "docs/decisiones/0007-codigo-de-sede.md": {
+    "docs/decisiones/0006-vocabulario-etiquetas.md": "f7921cb10a70c7e80f06435839a85fda2812b18c3241076a57ee8d29028979c7"
+  },
   "docs/decisiones/README.md": {
     "docs/decisiones/0001-solo-api.md": "6fdde4c76fb63fdef6f5c8664d0f8b901761240009871453e1b72cd8a3b9485f",
     "docs/decisiones/0002-bootstrap-existe.md": "267cb2feabdc60a9cca1e2f21a28fdaf884746b3d483bc4ab32a0d25e35b9535",
     "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": "14af559a3fdd6f3a5569b7e2770e6be43ec2b3b38ca7069d4fd02379f78d5804",
-    "docs/decisiones/0004-invitado-por-etiqueta.md": "9836f07945fb9bc938bfa00f9733f28899648132a4a17d9feec3d8f51336774a"
+    "docs/decisiones/0004-invitado-por-etiqueta.md": "9836f07945fb9bc938bfa00f9733f28899648132a4a17d9feec3d8f51336774a",
+    "docs/decisiones/0005-numero-compuesto.md": "e47dea0b6a7c598e6df4c184c272358ac89abf8c760ddafefffb751058268db4",
+    "docs/decisiones/0006-vocabulario-etiquetas.md": "f7921cb10a70c7e80f06435839a85fda2812b18c3241076a57ee8d29028979c7",
+    "docs/decisiones/0007-codigo-de-sede.md": "fd67753144eaeb920a1724b889b172be57defc3040f2f4de124a883be3bd20f9"
   }
 }

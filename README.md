@@ -216,9 +216,10 @@ convergencia nunca lo lee, lo crea ni lo modifica.
 ### La tabla de sedes
 
 El direccionamiento **no se escribe dentro de cada ficha**: se declara una vez en la
-tabla `lab_sites` y cada equipo la cita. Una sede es una entrada con su `id` (el
-dígito `S` de la numeración), su `nombre`, su `etiqueta` (cómo se dice en prosa), su
-`tag` (el valor de la etiqueta de PVE), su LAN (`red`, `puerta`, `pool`), su tránsito
+tabla `lab_sites` y cada equipo la cita. Una sede es una entrada con su `id`, su
+`nombre`, su `etiqueta` (cómo se dice en prosa), su `codigo` (dos letras —la familia
+y su índice—, que es a la vez la etiqueta de PVE, el nombre y el número), su LAN
+(`red`, `puerta`, `pool`), su tránsito
 hacia el firewall (`transito`), su enlace WAN (`wan` — que no tiene la sede del hub,
 porque ella *es* el hub) y **sus direcciones de gestión** (`mgmt`: la lista de
 switches, el router y el firewall). Lo que no es una sede —el contenedor de
@@ -252,7 +253,7 @@ Declarado por contenedor, heredado de `pve_defaults` salvo que se sobrescriba:
 | `cmode` | `shell` | sí |
 | `timezone` | `host` | sí |
 | `description` | **DERIVADA**: la nota HTML la calcula `filter_plugins/notas.py` al construir la especificación. NO está en el manifiesto: una copia guardada es una caché dentro de la fuente de verdad, y se queda vieja | sí |
-| `tags` | **DERIVADAS**: `[ansible-managed, <rol>, <sede>]`, tres ni una más, por el mismo filtro | sí |
+| `tags` | **DERIVADAS**: `[ansible, <rol>, <sede>, Lab-<numero>]`, cuatro ni una más, por el mismo filtro | sí |
 | `features`, `startup` | `[]` (no deben existir) | sí — se borran si están |
 | `netif` | `{}` por defecto; declarado por invitado | sí — se crean las interfaces declaradas y se borran las que no lo estén |
 | `mounts`, `mount_devices` | `{}`, `[]` (no deben existir) | sí — se borran si están |
@@ -778,8 +779,8 @@ es tener una caché dentro de la fuente de verdad. Segundo **el contenido**: la 
 HTML que genera `filter_plugins/notas.py`, así que la comprobación la renderiza con el
 MISMO generador que usa el despliegue y exige que cuadre: una fila por pata declarada con su bridge y su MAC, el vecino real en cada
 cable punto a punto, el segmento de gestión compartido descrito como segmento
-compartido en vez de nombrar un vecino de doce, y exactamente las tres etiquetas (quién
-lo gestiona, qué es, dónde está). Nada más puede pillar esta clase de error: una nota
+compartido en vez de nombrar un vecino de doce, y exactamente las cuatro etiquetas (quién
+lo gestiona, qué es, dónde está y de qué laboratorio). Nada más puede pillar esta clase de error: una nota
 que nombra el puerto equivocado sigue siendo HTML perfectamente válido, y sólo se lee
 el día que alguien se fía de ella.
 

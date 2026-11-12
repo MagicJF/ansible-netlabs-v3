@@ -91,7 +91,8 @@
       {{ (pve_containers | to_json | from_json)
          | notas_map(pve_vms | to_json | from_json, lab_sites | to_json | from_json, lab_hub,
             (lab_mgmt_otros | default({})) | to_json | from_json,
-            (lab_mgmt2 | default({})) | to_json | from_json) }}
+            (lab_mgmt2 | default({})) | to_json | from_json,
+            lab_numero) }}
     # El entorno de ESTA máquina. La plantilla y el verificador viven en
     # tools/entorno.py: es el mismo fichero (y la misma precedencia) que usan las
     # herramientas, para que no haya dos verdades.

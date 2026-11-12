@@ -107,11 +107,23 @@ def _identidad(dir_gestion, man):
     return None, None
 
 
-def _sitio(sede, rol, por_id):
-    """El sitio de un invitado, derivado de su sede y su papel declarados."""
+def _clase_sitio(sede, rol):
+    """De dónde cuelga: 'sede', 'infra', 'gestion' o 'borde' (por su sede y su papel)."""
+    if sede is not None:
+        return "sede"
+    return {"bootstrap": "infra", "switch": "gestion", "firewall": "borde"}.get(rol)
+
+
+def _sitio(sede, rol, por_id, man):
+    """El CÓDIGO de sitio (familia + índice) de un invitado, de la declaración.
+
+    El de una sede es su `codigo`; el de quien no cuelga de ninguna sale de
+    `lab_sedes_extra` por su familia, según el papel.
+    """
     if sede in por_id:
-        return por_id[sede]["tag"]
-    return "borde" if rol == "firewall" else "infra"
+        return por_id[sede].get("codigo")
+    extra = {c[0]: c for c in (man.get("lab_sedes_extra") or {})}
+    return extra.get({"bootstrap": "I", "switch": "G", "firewall": "B"}.get(rol))
 
 
 def _patas(g, tipo):
@@ -142,7 +154,8 @@ def contexto(man):
         sede, r = _identidad(d, man)
         invitados.append({
             "n": c["hostname"], "vmid": c["vmid"], "tipo": "LXC",
-            "rol": r, "sede": sede, "sitio": _sitio(sede, r, por_id),
+            "rol": r, "sede": sede, "clase": _clase_sitio(sede, r),
+            "sitio": _sitio(sede, r, por_id, man),
             "gestion": d, "direccion": d,
             "patas": _patas(c, "LXC"),
         })
@@ -151,7 +164,8 @@ def contexto(man):
         sede, r = _identidad(d, man)
         invitados.append({
             "n": v["name"], "vmid": v["vmid"], "tipo": "CHR",
-            "rol": r, "sede": sede, "sitio": _sitio(sede, r, por_id),
+            "rol": r, "sede": sede, "clase": _clase_sitio(sede, r),
+            "sitio": _sitio(sede, r, por_id, man),
             "gestion": d, "direccion": d,
             "patas": _patas(v, "CHR"),
         })
@@ -186,7 +200,7 @@ def contexto(man):
         de qué sede, de qué tipo) es dato: se deriva para que añadir un invitado
         no deje una fila sin escribir.
         """
-        if e["sitio"] == "borde":
+        if e["clase"] == "borde":
             return "firewall de **borde**: filtrado **y NAT** (el único que sale a internet)"
         if e["rol"] == "bootstrap":
             return "da a cada equipo de red su **primera** dirección, una vez"
@@ -209,7 +223,7 @@ def contexto(man):
 
     # Las dos piezas que no cuelgan de ninguna sede: el firewall de borde y el
     # switch del segundo segmento de gestión (OOB). Se RECONOCEN, no se nombran.
-    borde_fw = next((x["n"] for x in invitados if x["sitio"] == "borde"), None)
+    borde_fw = next((x["n"] for x in invitados if x["clase"] == "borde"), None)
     mgmt_sw = next((x["n"] for x in invitados
                     if x["sede"] is None and x["rol"] == "switch"), None)
 
@@ -235,6 +249,7 @@ def contexto(man):
         "funcion": funcion,
         "bloque_txt": bloque_txt,
         "sedes": sedes, "hub": hub, "hub_sede": hub_sede,
+        "codigos_extra": list(man.get("lab_sedes_extra") or {}),
         "sede_por_id": por_id,
         "invitados": invitados,
         "workstations": de_rol("workstation"),

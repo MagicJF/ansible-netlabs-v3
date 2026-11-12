@@ -31,10 +31,22 @@ lab_mgmt_otros:
 lab_numero: 11          # LL del número (ADR 0005)
 lab_nombre: "una sola sede"
 lab_hub: 1
+
+# ---------------------------------------------------------------------------
+# FAMILIAS DE SEDE — la primera letra del código. El número que va al vmid es la
+# POSICIÓN de la familia (1..5) y la segunda letra (minúscula) es el índice
+# dentro de ella. Ver docs/decisiones/0007-codigo-de-sede.md.
+# ---------------------------------------------------------------------------
+lab_familias:
+  - { letra: "C", nombre: "central" }          # 1x
+  - { letra: "S", nombre: "sedes" }            # 2x
+  - { letra: "I", nombre: "infraestructura" }  # 3x
+  - { letra: "G", nombre: "gestión" }          # 4x
+  - { letra: "B", nombre: "borde" }            # 5x
 lab_sites:
 - id: 1
   nombre: unica
-  codigo: AB
+  codigo: Ca          # familia C (central) + a
   etiqueta: la única sede de este laboratorio
   red: 10.31.0.0/24
   puerta: 10.31.0.1
@@ -42,7 +54,6 @@ lab_sites:
   mgmt:
     sw: []
     rt: 10.10.10.61
-  tag: unica
 lab_clases:
   11: { token: "swac", etiqueta: "switch de acceso" }
   12: { token: "swge", etiqueta: "switch de gestión" }
@@ -57,9 +68,9 @@ lab_clases:
   90: { token: "pc",   etiqueta: "puesto genérico" }
   91: { token: "pcws", etiqueta: "estación de trabajo" }
 lab_sedes_extra:
-  AA: "infra"
-  AE: "gestión"
-  AF: "borde"
+  Ia: "infra"
+  Ga: "gestión"
+  Ba: "borde"
 lab_sede: '{{ dict(lab_sites | map(attribute=''id'') | zip(lab_sites)) }}'
 lab_control_network: 10.99.99.0/24
 lab_control_via: 10.10.10.1
@@ -75,10 +86,10 @@ lab_edge_core: 10.29.0.1
 lab_edge_fw: 10.29.0.2
 pve_tag_style:
   shape: full
-  colors: ansible-managed:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;central:00838f:ffffff;delegacion:6d4c41:ffffff;borde:37474f:ffffff;infra:5e35b1:ffffff
+  colors: ansible:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;Ca:00838f:ffffff;Ia:5e35b1:ffffff;Ga:8e24aa:ffffff;Ba:37474f:ffffff;Lab-11:827717:ffffff
 pve_bridges:
 - iface: vmbr31
-  comments: 'cable: 11-AB-rtco-10 ether2 <-> 11-AB-pcws-10 eth0'
+  comments: 'cable: 11-Ca-rtco-10 ether2 <-> 11-Ca-pcws-10 eth0'
 pve_defaults:
   template: local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst
   template_storage: local
@@ -95,7 +106,7 @@ pve_defaults:
   description: Managed by ansible-netlabs-v3. Declare changes in labs/netlab-v2/inventory/group_vars/all.yml.
   tags:
   - netlab
-  - ansible-managed
+  - ansible
   timezone: host
   cmode: shell
   features: []
@@ -109,8 +120,8 @@ pve_defaults:
   pubkey: '{{ lookup(''file'', pve_ssh_key_path ~ ''.pub'', errors=''ignore'') | default('''', true) |
     trim }}'
 pve_containers:
-- vmid: 11117110
-  hostname: 11-AA-boot-10
+- vmid: 11317110
+  hostname: 11-Ia-boot-10
   cores: 1
   memory: 1024
   rootfs_size: 4
@@ -138,8 +149,8 @@ pve_containers:
         \ mgmt = v.config.routeros.addresses\n                | selectattr('interface', 'equalto', 'ether1')\
         \ | first -%}\n{%-   set _ = out.append({'mac': mac,\n                          'address': mgmt.address.split('/')[0],\n\
         \                          'name': v.name}) -%}\n{%- endfor -%} {{ out }}"
-- vmid: 11129110
-  hostname: 11-AB-pcws-10
+- vmid: 11119110
+  hostname: 11-Ca-pcws-10
   site: sede1
   address: 10.31.0.11
   cores: 1
@@ -171,7 +182,7 @@ pve_vm_defaults:
   description: Nested Proxmox VE managed by ansible-netlabs-v3.
   tags:
   - netlab
-  - ansible-managed
+  - ansible
   net: {}
   scsi: {}
   sata: {}
@@ -205,17 +216,17 @@ pve_chr_defaults:
   - netlab
   - routeros
   - red
-  - ansible-managed
+  - ansible
 pve_vms:
-- name: 11-AB-rtco-10
-  vmid: 11122110
+- name: 11-Ca-rtco-10
+  vmid: 11112110
   chr: true
   net:
     net0: virtio=BC:24:11:00:51:01,bridge=vmbr1
     net1: virtio=BC:24:11:00:51:02,bridge=vmbr31
   config:
     routeros:
-      identity: 11-AB-rtco-10
+      identity: 11-Ca-rtco-10
       dhcp_client: false
       addresses:
       - address: '{{ lab_sede[1].mgmt.rt }}/24'

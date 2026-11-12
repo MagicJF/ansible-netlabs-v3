@@ -96,7 +96,7 @@ Así `{{ sedes[0].id }}301` es "{{ sedes[0].nombre }}, switch, el primero" y `{{
 | Máquina | VMID | Tipo | Función | Dirección |
 |---|---|---|---|---|
 {% for e in invitados %}
-| `{{ e.n }}` | {{ e.vmid }} | {{ e.tipo }} | {% if e.sitio == 'borde' %}**firewall de borde**: el único que sale a internet y el único que hace NAT{% elif e.rol == 'workstation' %}workstation de {{ corto[e.sede] }}: PC de usuario, sin vía de gestión{% else %}{{ e.rol }} de {{ corto[e.sede] if e.sede else 'la red de gestión' }}{% endif %} | `{{ e.gestion or '—' }}` |
+| `{{ e.n }}` | {{ e.vmid }} | {{ e.tipo }} | {% if e.clase == 'borde' %}**firewall de borde**: el único que sale a internet y el único que hace NAT{% elif e.rol == 'workstation' %}workstation de {{ corto[e.sede] }}: PC de usuario, sin vía de gestión{% else %}{{ e.rol }} de {{ corto[e.sede] if e.sede else 'la red de gestión' }}{% endif %} | `{{ e.gestion or '—' }}` |
 {% endfor %}
 
 Los **{{ n_equipos_red }} equipos de red** son **RouterOS CHR** (la versión virtual de RouterOS).
@@ -311,10 +311,11 @@ fiel a lo que te encontrarías con hierro.
 
 ## Lo que se ve en la interfaz de Proxmox
 
-Cada invitado lleva **tres etiquetas y ni una más**: quién lo gestiona (`ansible-managed`),
-qué es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`) y dónde está
-({% for s in sedes %}`{{ s.tag }}`{% if not loop.last %}, {% endif %}{% endfor %}, `borde`, `infra`). Nada de vocabulario que no responda a una
-de esas tres preguntas.
+Cada invitado lleva **cuatro etiquetas y ni una más**: quién lo gestiona (`ansible`),
+qué es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`), dónde está
+({% for s in sedes %}`{{ s.codigo }}`{% if not loop.last %}, {% endif %}{% endfor %}{% for c in codigos_extra %}, `{{ c }}`{% endfor %}) y de qué laboratorio es
+(`Lab-{{ man.lab_numero }}`). Nada de vocabulario que no responda a una de esas cuatro
+preguntas.
 
 Esas etiquetas están **coloreadas en el datacenter** (opción `tag-style`, declarada en
 `pve_tag_style` y convergida por `apply.yml`). El color dice dos cosas sin abrir nada: el

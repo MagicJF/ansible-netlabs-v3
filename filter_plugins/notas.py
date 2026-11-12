@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ===========================================================================
-# notas.py — la nota HTML de cada invitado y sus tres etiquetas, como FILTRO.
+# notas.py — la nota HTML de cada invitado y sus cuatro etiquetas, como FILTRO.
 #
 # Qué es: el puente entre la declaración y las dos cosas que Proxmox enseña en
 # su interfaz (`description` y `tags`). NO guarda nada: se calcula cada vez que
@@ -31,12 +31,13 @@ sys.path.insert(0, os.path.join(RAIZ, "playbooks", "tools"))
 import pve_notas as N  # noqa: E402
 
 
-def notas_map(cts, vms=None, sites=None, hub=None, otros=None, mgmt2=None):
-    """{vmid: {"description": <html>, "tags": [tres]}} de toda la declaración.
+def notas_map(cts, vms=None, sites=None, hub=None, otros=None, mgmt2=None, lab_numero=None):
+    """{vmid: {"description": <html>, "tags": [cuatro]}} de toda la declaración.
 
-    Los cuatro argumentos son los que el render necesita: la lista de
-    contenedores y de VMs (para saber quién es vecino de quién por los cables) y
-    la tabla de sedes con el hub (para el diagrama de posición y la sede).
+    Los argumentos son los que el render necesita: la lista de contenedores y de
+    VMs (para saber quién es vecino de quién por los cables), la tabla de sedes
+    con el hub (para el diagrama de posición y la sede) y el número declarado del
+    laboratorio (`lab_numero`, para la etiqueta «Lab-NN»).
     """
     N.man = {
         "pve_containers": cts,
@@ -45,6 +46,7 @@ def notas_map(cts, vms=None, sites=None, hub=None, otros=None, mgmt2=None):
         "lab_hub": hub,
         "lab_mgmt_otros": otros or {},
         "lab_mgmt2": mgmt2 or {},
+        "lab_numero": lab_numero,
     }
     N.preparar()
     out = {}

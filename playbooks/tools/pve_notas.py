@@ -12,7 +12,8 @@
 # Qué hace: reescribe en labs/netlab-v2/inventory/group_vars/all.yml las dos cosas que PVE
 # enseña en su interfaz y que hasta ahora se escribían a mano:
 #   * description — la nota HTML (tablas, diagrama de posición, intención)
-#   * tags        — tres y ni una más: quién lo gestiona, qué es y dónde está
+#   * tags        — cuatro y ni una más: quién lo gestiona, qué es, dónde está y
+#                   de qué laboratorio
 #
 # Por qué se genera y no se escribe a mano: la nota cuenta cables, direcciones,
 # rutas y reglas. Todo eso YA está en el manifiesto. Escribirlo dos veces
@@ -98,26 +99,46 @@ SEDES = {}
 HUB = 1
 SITIO = {}
 NOMBRE_SITIO = {}
+EXTRA = {}
+
+
+# El papel de sitio: de qué parte de la topología cuelga un invitado. La primera
+# letra de cada familia es la de su nombre (I=infraestructura, G=gestión, B=borde).
+FAMILIA_DE_CLASE = {"infra": "I", "gestion": "G", "borde": "B"}
+
+
+def clase_sitio(sede, rol):
+    """'sede' | 'infra' | 'gestion' | 'borde' — de dónde cuelga el invitado."""
+    if sede:
+        return "sede"
+    return {"bootstrap": "infra", "switch": "gestion", "firewall": "borde"}.get(rol)
 
 
 def preparar():
     """Recalcula lo que depende del manifiesto. Hay que llamarla tras fijarlo."""
     global SEDES, HUB, SITIO, NOMBRE_SITIO, CABLES, SEDE_POR_NOMBRE, \
-        ROL_POR_NOMBRE, SITIO_POR_NOMBRE, BORDE_FW
+        ROL_POR_NOMBRE, SITIO_POR_NOMBRE, CLASE_POR_NOMBRE, EXTRA, BORDE_FW
     SEDES = {int(s["id"]): s for s in (man.get("lab_sites") or [])}
     HUB = int(man.get("lab_hub") or 1)
-    SITIO = {"sede%d" % i: (s.get("tag") or s.get("nombre")) for i, s in SEDES.items()}
+    # La etiqueta de sitio es el CÓDIGO de la sede (familia + índice, 'Ca', 'Sa'…),
+    # el mismo que llevan su nombre y su número: no hay una palabra aparte.
+    SITIO = {"sede%d" % i: s.get("codigo") for i, s in SEDES.items()}
     NOMBRE_SITIO = {"sede%d" % i: (s.get("etiqueta") or s.get("nombre"))
                     for i, s in SEDES.items()}
+    # Las familias que no alojan estaciones (infraestructura, gestión, borde) se
+    # declaran por su CÓDIGO en `lab_sedes_extra`; la primera letra es la familia.
+    EXTRA = {c[0]: c for c in (man.get("lab_sedes_extra") or {})}
     CABLES = cables(man)
     # La identidad de cada invitado se resuelve UNA vez desde la declaración y se
     # reparte en mapas: el nombre sólo hace de clave.
     ident = {e["n"]: identidad_de(e) for e in todos(man)}
     SEDE_POR_NOMBRE = {n: s for n, (s, _r) in ident.items()}
     ROL_POR_NOMBRE = {n: r for n, (_s, r) in ident.items()}
-    SITIO_POR_NOMBRE = {n: (("borde" if r == "firewall" else "infra") if not s else SITIO[s])
-                        for n, (s, r) in ident.items()}
-    BORDE_FW = next((n for n, t in SITIO_POR_NOMBRE.items() if t == "borde"), None)
+    CLASE_POR_NOMBRE = {n: clase_sitio(s, r) for n, (s, r) in ident.items()}
+    SITIO_POR_NOMBRE = {
+        n: (SITIO[s] if s else EXTRA.get(FAMILIA_DE_CLASE.get(CLASE_POR_NOMBRE[n])))
+        for n, (s, _r) in ident.items()}
+    BORDE_FW = next((n for n, c in CLASE_POR_NOMBRE.items() if c == "borde"), None)
 
 
 def rol(n):
@@ -196,7 +217,7 @@ def sede_de(e):
 
 
 def sitio_de(e):
-    """Dónde está: el tag de su sede, o 'borde'/'infra' si no cuelga de ninguna."""
+    """Dónde está: el CÓDIGO de su sede, o el de su familia si no cuelga de ninguna."""
     return SITIO_POR_NOMBRE.get(e["n"])
 
 
@@ -298,13 +319,14 @@ def camino_de(sede):
 SEDE_POR_NOMBRE = {}
 ROL_POR_NOMBRE = {}
 SITIO_POR_NOMBRE = {}
+CLASE_POR_NOMBRE = {}
 BORDE_FW = None
 
 
 def diagrama(e):
     """La posición del invitado en el camino, con su nombre marcado."""
     n = e["n"]
-    if SITIO_POR_NOMBRE.get(n) == "borde":
+    if CLASE_POR_NOMBRE.get(n) == "borde":
         cadena = camino_de("sede%d" % HUB)
     elif ROL_POR_NOMBRE.get(n) == "bootstrap":
         return ("<pre>\n"
@@ -337,6 +359,7 @@ def html(e):
     tipo_txt = ("Contenedor LXC (Debian 13, sin privilegios)" if e["tipo"] == "LXC"
                 else "Máquina virtual (RouterOS CHR)")
     st = sitio_de(e)
+    cl = CLASE_POR_NOMBRE.get(n)
     sede = SEDE_POR_NOMBRE.get(n)
     L = []
     A = L.append
@@ -346,15 +369,17 @@ def html(e):
         A("<b>%s</b> — workstation de %s. Un PC de usuario: toma su dirección por "
           "DHCP y <b>no tiene ninguna vía de gestión</b>." % (n, NOMBRE_SITIO.get(sede, "el laboratorio")))
     elif rol(n) == "switch":
-        A("<b>%s</b> — switch de acceso de %s. Conmuta y nada más: "
-          "<b>no enruta, no filtra y no da DHCP</b>." % (n, NOMBRE_SITIO.get(sede, "el laboratorio")))
+        donde = ("el switch de acceso de %s" % NOMBRE_SITIO[sede]) if sede \
+            else "el switch del segundo segmento de gestión (OOB)"
+        A("<b>%s</b> — %s. Conmuta y nada más: "
+          "<b>no enruta, no filtra y no da DHCP</b>." % (n, donde))
     elif rol(n) == "router":
         A("<b>%s</b> — router de %s. Es la <b>puerta de enlace y el servidor DHCP</b> "
           "de su LAN, y conoce las demás sedes." % (n, NOMBRE_SITIO.get(sede, "el laboratorio")))
     elif rol(n) == "firewall":
         A("<b>%s</b> — firewall %s. <b>Filtra el perímetro</b>%s." % (
-            n, "de borde" if st == "borde" else "de " + NOMBRE_SITIO.get(sede, "una sede"),
-            " y es el único que hace NAT hacia internet" if st == "borde" else ""))
+            n, "de borde" if cl == "borde" else "de " + NOMBRE_SITIO.get(sede, "una sede"),
+            " y es el único que hace NAT hacia internet" if cl == "borde" else ""))
     else:
         A("<b>%s</b> — herramienta de despliegue. Da a cada equipo de red su "
           "<b>primera</b> dirección y no interviene en nada más." % n)
@@ -364,8 +389,10 @@ def html(e):
     A("<b>IDENTIDAD</b>")
     filas = [["vmid", str(e["vmid"])],
              ["Tipo", tipo_txt],
-             ["Dónde", NOMBRE_SITIO.get(sede, "la red de gestión / borde") if st not in ("infra", "borde")
-              else ("red de gestión" if st == "infra" else "el borde de la empresa")],
+             ["Dónde", NOMBRE_SITIO.get(sede, "la red de gestión") if cl == "sede"
+              else {"infra": "la red de gestión",
+                    "gestion": "el segundo segmento de gestión (OOB)",
+                    "borde": "el borde de la empresa"}.get(cl, "—")],
              ["Rol", rol(n)],
              ["Tags", " ".join("<code>%s</code>" % t for t in tags_de(e))]]
     L += tabla(filas)
@@ -486,7 +513,7 @@ def html(e):
         A("<ul>")
         A("<li><b>El orden de las reglas es el que filtra</b>, así que la verificación "
           "relee la tabla y comprueba el orden, no sólo el conjunto.</li>")
-        if st == "borde":
+        if cl == "borde":
             A("<li><b>Es el único que hace NAT</b> (masquerade). Dentro de la empresa las "
               "direcciones son reales: por eso hay rutas de vuelta y no traducciones anidadas.</li>")
             A("<li><b>Su pata exterior sale por la red de gestión</b> y el proveedor es el host. "
@@ -508,15 +535,29 @@ def html(e):
     return "\n".join(L)
 
 
-def tags_de(e):
-    """Tres etiquetas y ni una más: quien lo gestiona, qué es y dónde está.
+def tag_lab():
+    r"""El tag del laboratorio: 'Lab-<numero>', del número declarado en `lab_numero`.
 
-    El papel y la sede salen de la DECLARACIÓN; si un invitado aún no resuelve
-    (dirección plantillada sin renderizar), se omite la etiqueta en vez de
+    No lleva espacio a propósito: PVE valida el tag con
+    `[a-z0-9_][a-z0-9_\-\+\.]*` (pve-common, JSONSchema) y un espacio lo rechaza
+    con "invalid characters in tag". Sin `lab_numero` declarado devuelve None y la
+    etiqueta se omite; el chequeo de `notas` exige CUATRO, así que un laboratorio
+    sin número falla en voz alta en vez de publicar `Lab-None`.
+    """
+    n = man.get("lab_numero")
+    return "Lab-%s" % n if n else None
+
+
+def tags_de(e):
+    """Cuatro etiquetas y ni una más: quién lo gestiona, qué es, dónde está y de qué
+    laboratorio.
+
+    El papel, la sede y el laboratorio salen de la DECLARACIÓN; si un invitado aún no
+    resuelve (dirección plantillada sin renderizar), se omite la etiqueta en vez de
     devolver None: una lista con None revienta el `sort` del motor y tumba el
     preflight de TODOS los laboratorios, no sólo el de ese invitado.
     """
-    return [t for t in ("ansible-managed", rol(e["n"]), sitio_de(e)) if t]
+    return [t for t in ("ansible", rol(e["n"]), sitio_de(e), tag_lab()) if t]
 
 
 # ------------------------------------------------------------------- CLI -
