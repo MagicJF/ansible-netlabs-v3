@@ -28,7 +28,8 @@ lab_mgmt_gateway: 10.10.10.1
 lab_mgmt_bridge: vmbr1
 lab_mgmt_otros:
   infra: 10.10.10.63
-lab_numero: 11          # LL del número (ADR 0005)
+lab_numero: 2          # L del número (ver docs/decisiones/0008)
+lab_pool: lab-mini              # el Resource Pool del laboratorio (ADR 0008)
 lab_nombre: "una sola sede"
 lab_hub: 1
 
@@ -86,10 +87,10 @@ lab_edge_core: 10.29.0.1
 lab_edge_fw: 10.29.0.2
 pve_tag_style:
   shape: full
-  colors: ansible:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;ca:00838f:ffffff;ia:5e35b1:ffffff;ga:8e24aa:ffffff;ba:37474f:ffffff;lab-11:827717:ffffff
+  colors: ansible:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;ca:00838f:ffffff;ia:5e35b1:ffffff;ga:8e24aa:ffffff;ba:37474f:ffffff
 pve_bridges:
 - iface: vmbr31
-  comments: 'cable: 11-Ca-rtco-10 ether2 <-> 11-Ca-pcws-10 eth0'
+  comments: 'cable: 2-Ca-rtco-10 ether2 <-> 2-Ca-pcws-10 eth0'
 pve_defaults:
   template: local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst
   template_storage: local
@@ -120,8 +121,8 @@ pve_defaults:
   pubkey: '{{ lookup(''file'', pve_ssh_key_path ~ ''.pub'', errors=''ignore'') | default('''', true) |
     trim }}'
 pve_containers:
-- vmid: 11317110
-  hostname: 11-Ia-boot-10
+- vmid: 2317110
+  hostname: 2-Ia-boot-10
   cores: 1
   memory: 1024
   rootfs_size: 4
@@ -149,8 +150,8 @@ pve_containers:
         \ mgmt = v.config.routeros.addresses\n                | selectattr('interface', 'equalto', 'ether1')\
         \ | first -%}\n{%-   set _ = out.append({'mac': mac,\n                          'address': mgmt.address.split('/')[0],\n\
         \                          'name': v.name}) -%}\n{%- endfor -%} {{ out }}"
-- vmid: 11119110
-  hostname: 11-Ca-pcws-10
+- vmid: 2119110
+  hostname: 2-Ca-pcws-10
   site: sede1
   address: 10.31.0.11
   cores: 1
@@ -218,15 +219,15 @@ pve_chr_defaults:
   - red
   - ansible
 pve_vms:
-- name: 11-Ca-rtco-10
-  vmid: 11112110
+- name: 2-Ca-rtco-10
+  vmid: 2112110
   chr: true
   net:
     net0: virtio=BC:24:11:00:51:01,bridge=vmbr1
     net1: virtio=BC:24:11:00:51:02,bridge=vmbr31
   config:
     routeros:
-      identity: 11-Ca-rtco-10
+      identity: 2-Ca-rtco-10
       dhcp_client: false
       addresses:
       - address: '{{ lab_sede[1].mgmt.rt }}/24'

@@ -871,8 +871,8 @@ def notas_check():
       3. en el segmento COMPARTIDO (la red de gestión), que NO nombre un vecino
          único: ahí cuelgan las patas de administración de todos los equipos
       4. que no se invente una MAC donde la declaración no declara ninguna
-      5. que las etiquetas sean exactamente las cuatro: quién, qué, dónde y de
-         qué laboratorio
+      5. que las etiquetas sean exactamente las tres: quién, qué y dónde (de qué
+         laboratorio lo dice su Resource Pool, no una etiqueta: ADR 0008)
       6. que ninguna nota se haya quedado con una referencia Jinja sin resolver
 
     Y una cosa más, que es la regla: que NINGÚN invitado guarde `description` ni
@@ -925,7 +925,6 @@ def notas_check():
     sitios_ok = ({str(s.get("codigo")).lower() for s in (man.get("lab_sites") or [])}
                  | {str(k).lower() for k in (man.get("lab_sedes_extra") or {})})
     roles_ok = {"workstation", "switch", "router", "firewall", "bootstrap"}
-    lab_ok = "lab-%s" % man.get("lab_numero")
 
     fallos = []
     for g, tipo, nombre in sorted(invitados, key=lambda x: x[0]["vmid"]):
@@ -933,9 +932,10 @@ def notas_check():
         if "{{" in desc or "{%" in desc:
             fallos.append(f"{nombre}: la nota se quedó con una referencia Jinja sin resolver")
         live = [t.strip() for t in generadas[g["vmid"]]["tags"] if t and t.strip()]
-        if len(live) != 4:
-            fallos.append(f"{nombre}: {len(live)} etiqueta(s); deben ser CUATRO "
-                          f"(quién lo gestiona, qué es, dónde está y de qué laboratorio)")
+        if len(live) != 3:
+            fallos.append(f"{nombre}: {len(live)} etiqueta(s); deben ser TRES "
+                          f"(quién lo gestiona, qué es y dónde está): de qué laboratorio "
+                          f"es un invitado lo dice su Resource Pool, no una etiqueta")
         else:
             if live[0] not in marcas:
                 fallos.append(f"{nombre}: la etiqueta {live[0]!r} no está entre las "
@@ -945,9 +945,6 @@ def notas_check():
             if live[2] not in sitios_ok:
                 fallos.append(f"{nombre}: el sitio {live[2]!r} no está entre los "
                               f"declarados {sorted(sitios_ok)}")
-            if live[3] != lab_ok:
-                fallos.append(f"{nombre}: el laboratorio {live[3]!r} no es el declarado "
-                              f"({lab_ok!r})")
         blk = re.search(r"<b>CONEXIONES</b>\s*<table>(.*?)</table>", desc, re.S)
         if not blk:
             fallos.append(f"{nombre}: la nota no tiene tabla de conexiones")
@@ -982,7 +979,7 @@ def notas_check():
         fail(f"{len(fallos)} desacuerdo(s) entre las notas y la declaración")
     say(f"  {len(invitados)} invitados: una fila por pata, su bridge y su MAC, el vecino "
         "real de cada cable punto a punto,\n  el segmento de gestión contado como lo que "
-        "es, y las cuatro etiquetas (quién, qué, dónde, laboratorio).")
+        "es, y las tres etiquetas (quién, qué, dónde).")
     say("\nPASS: las notas no contradicen a la declaración.")
     return 0
 
@@ -1451,62 +1448,64 @@ def _labs_declarados():
 
 
 def _lab_set(ruta):
-    """(vmids declarados, etiquetas que la declaración pone a cada invitado)."""
+    """(vmids declarados, el Resource Pool del laboratorio)."""
     d = yaml.safe_load(open(ruta)) or {}
     vmids = set()
     for clave in ("pve_containers", "pve_vms"):
         for it in (d.get(clave) or []):
             if isinstance(it, dict) and it.get("vmid") is not None:
                 vmids.add(int(it["vmid"]))
-    marcas = set()
-    for clave in ("pve_defaults", "pve_vm_defaults"):
-        for t in ((d.get(clave) or {}).get("tags") or []):
-            marcas.add(str(t))
-    return vmids, marcas
+    return vmids, d.get("lab_pool")
 
 
 def guests_check():
     """La plataforma no tiene invitados del lab fuera de la declaración.
 
-    «Fuera de la declaración» se define por la ETIQUETA que la propia declaración pone
-    a todos sus invitados (`pve_defaults.tags` = netlab, ansible), NO por rangos
-    de VMID: los rangos se solapan entre laboratorios (mini usa 2xxx, netlab-v2 también)
-    y una lista de VMID escrita a mano sería otra copia que envejece. Un invitado del
-    host (hermesagent, caddy, netbox) no lleva esa etiqueta y queda fuera del juicio.
+    «Del laboratorio» lo dice su Resource Pool, NO una etiqueta (ADR 0008): el pool
+    es lo que PVE enseña en su árbol y lo único que la plataforma puede hacer
+    cumplir, así que la pregunta y la respuesta están en el mismo sitio. Un invitado
+    del host (hermesagent, caddy, netbox) no está en ningún pool de laboratorio y
+    queda fuera del juicio, y no hace falta adivinar por rango de VMID —que se
+    solaparía entre laboratorios— ni por lista escrita a mano, que envejece.
     """
     say("== guests: ningún invitado del lab fuera de la declaración ==")
     labs = _labs_declarados()
     if not labs:
         fail("no hay ningún laboratorio declarado en labs/")
-    union, marcas, por_lab = set(), set(), {}
+    union, pools, por_lab = set(), {}, {}
     for nombre, ruta in labs:
-        vmids, m = _lab_set(ruta)
+        vmids, poolid = _lab_set(ruta)
+        if not poolid:
+            fail(f"el laboratorio «{nombre}» no declara lab_pool: sin pool no hay "
+                 f"forma de reconocer sus invitados (docs/decisiones/0008)")
+        if poolid in pools:
+            fail(f"«{nombre}» y «{pools[poolid]}» declaran el MISMO pool {poolid!r}: "
+                 f"los invitados de uno se leerían como los del otro")
+        pools[poolid] = nombre
         union |= vmids
-        marcas |= m
         por_lab[nombre] = vmids
-    if not marcas:
-        fail("la declaración no define pve_defaults.tags: no hay forma de reconocer sus invitados")
 
     # El laboratorio ACTIVO es el que se está operando, y eso lo dice `LAB`, que
     # respeta HERMES_LAB: leer el manifiesto de uno y exigir los invitados del
-    # enlace `active` es juzgar a un laboratorio con el censo de otro (pasó:
-    # validar `mini` en frío denunciaba ausentes los 21 de `netlab-v2`).
+    # enlace `active` es juzgar a un laboratorio con el censo de otro.
     activo = os.path.basename(os.path.realpath(os.path.join(REPO, LAB)))
-    manifest = manifiesto()
-    node = manifest.get("pve_node")
-    if not node:
-        fail("la declaración no fija pve_node")
 
+    # Una sola lectura dice tres cosas de cada invitado: quién es, de qué tipo y en
+    # qué pool está. `cluster/resources` es del datacenter entero, así que también
+    # se ve un invitado del laboratorio que hubiera aparecido en otro nodo.
     session, base = _api()
-    plataforma = {}
-    for kind in ("lxc", "qemu"):
-        r = session.get(f"{base}/nodes/{node}/{kind}", timeout=30)
-        r.raise_for_status()
-        for g in r.json().get("data") or []:
-            tags = {t.strip() for t in str(g.get("tags", "")).split(";") if t.strip()}
-            plataforma[int(g["vmid"])] = {"name": g.get("name"), "tags": tags, "kind": kind}
+    r = session.get(f"{base}/cluster/resources?type=vm", timeout=30)
+    r.raise_for_status()
+    plataforma, del_lab = {}, {}
+    for g in r.json().get("data") or []:
+        if g.get("vmid") is None:
+            continue
+        vmid = int(g["vmid"])
+        poolid = str(g.get("pool") or "")
+        plataforma[vmid] = {"name": g.get("name"), "kind": g.get("type"), "pool": poolid}
+        if poolid in pools:
+            del_lab[vmid] = plataforma[vmid]
 
-    del_lab = {v: g for v, g in plataforma.items() if g["tags"] & marcas}
     extras = sorted(v for v in del_lab if v not in union)
     faltan = sorted(v for v in por_lab.get(activo, set()) if v not in plataforma)
 
@@ -1514,8 +1513,8 @@ def guests_check():
         f"{len(plataforma)} en la plataforma, {len(del_lab)} del lab")
     for v in extras:
         g = del_lab[v]
-        say(f"  EXTRA: {g['kind']} {v} «{g['name']}» lleva {sorted(g['tags'])} "
-            f"pero ningún laboratorio lo declara")
+        say(f"  EXTRA: {g['kind']} {v} «{g['name']}» está en el pool {g['pool']!r} "
+            f"({pools[g['pool']]}) pero ningún laboratorio lo declara")
     for v in faltan:
         say(f"  FALTA: el laboratorio «{activo}» declara {v} y no está en la plataforma")
     if extras or faltan:
@@ -1701,12 +1700,12 @@ def _codigo_numero(codigo, familias):
 def numeracion_check():
     """El número de cada invitado se compone de su declaración, y su nombre lo espeja.
 
-    Un VMID de 8 cifras es LL SS CC II: laboratorio, sede, clase, índice. La sede se
-    declara como dos letras —la familia (`lab_familias`) y su índice minúscula— y
-    su POSICIÓN en la tabla da la decena; la clase como un número de la tabla
-    `lab_clases`; el nombre se compone como `LL-SS-token-II`. El check no adivina
-    nada: comprueba que el número y el nombre de la MISMA declaración se componen
-    de la misma forma. Si un invitado se numera a mano y se desvía, aquí se ve.
+    Un VMID de 7 cifras es L SS CC II: laboratorio (UNA cifra), sede, clase, índice.
+    La sede se declara como dos letras —la familia (`lab_familias`) y su índice
+    minúscula— y su POSICIÓN en la tabla da la decena; la clase como un número de la
+    tabla `lab_clases`; el nombre se compone como `L-SS-token-II`. El check no adivina
+    nada: comprueba que el número y el nombre de la MISMA declaración se componen de
+    la misma forma. Si un invitado se numera a mano y se desvía, aquí se ve.
     """
     say("== numeracion: el numero y el nombre de cada invitado ==")
     man = manifiesto()
@@ -1714,6 +1713,9 @@ def numeracion_check():
     if lab is None:
         say("  SKIP: este laboratorio no declara lab_numero (migracion pendiente)")
         return 0
+    if not re.fullmatch(r"[1-9]", str(lab)):
+        fail(f"lab_numero es UNA cifra de 1 a 9 (la L del numero; ver docs/decisiones/0008): "
+             f"{lab!r}")
     familias = man.get("lab_familias") or []
     if not familias:
         fail("este laboratorio no declara lab_familias: el codigo de sede no se puede leer")
@@ -1730,11 +1732,11 @@ def numeracion_check():
             errores.append(f"invitado sin vmid o nombre: {g}")
             continue
         cifras = str(vmid)
-        if len(cifras) != 8:
-            errores.append(f"{nombre}: vmid {vmid} no tiene 8 cifras")
+        if len(cifras) != 7:
+            errores.append(f"{nombre}: vmid {vmid} no tiene 7 cifras")
             continue
-        ll, ss, cc, ii = cifras[0:2], cifras[2:4], cifras[4:6], cifras[6:8]
-        if int(ll) != int(lab):
+        ll, ss, cc, ii = cifras[0:1], cifras[1:3], cifras[3:5], cifras[5:7]
+        if ll != str(lab):
             errores.append(f"{nombre}: vmid {vmid} empieza por {ll}, no por el laboratorio {lab}")
         if int(ss) not in sede_por_numero:
             errores.append(f"{nombre}: vmid {vmid} usa la sede {ss}, que no esta declarada")
@@ -1751,6 +1753,48 @@ def numeracion_check():
     if errores:
         fail(f"{len(errores)} invitado(s) con numero o nombre que no cuadran con el esquema")
     say(f"PASS: los {len(invitados)} invitados de este laboratorio tienen numero y nombre coherentes.")
+    return 0
+
+
+def pool_check():
+    """El Resource Pool de cada laboratorio: lo declara, se llama como su carpeta, no se comparte.
+
+    El pool es la identidad del laboratorio en la plataforma (ADR 0008), así que su
+    nombre se puede comprobar sin tocar la plataforma: que el laboratorio lo declare,
+    que sea `lab-<nombre de su carpeta>` (el pool dice QUÉ laboratorio es, y la
+    carpeta es lo que nombra al laboratorio dentro del repo: son el mismo nombre, y
+    aquí se exige que lo sean) y que ningún otro laboratorio declare el mismo. Dos
+    laboratorios con el mismo poolid harían que los invitados de uno se leyeran como
+    los del otro, que es exactamente lo que el pool viene a evitar.
+    """
+    say("== pool: el Resource Pool de cada laboratorio ==")
+    labs = _labs_declarados()
+    if not labs:
+        fail("no hay ningún laboratorio declarado en labs/")
+    vistos, errores = {}, []
+    for nombre, ruta in labs:
+        _vmids, poolid = _lab_set(ruta)
+        esperado = f"lab-{nombre}"
+        if not poolid:
+            errores.append(f"{nombre}: no declara lab_pool")
+            continue
+        poolid = str(poolid)
+        if not re.fullmatch(r"lab-[a-z0-9][a-z0-9._-]*", poolid):
+            errores.append(f"{nombre}: lab_pool {poolid!r} no tiene forma de poolid: minúsculas, "
+                           f"dígitos, guion, más y punto, y sin espacios (ver docs/decisiones/0008)")
+        if poolid != esperado:
+            errores.append(f"{nombre}: lab_pool es {poolid!r} y se espera {esperado!r}: "
+                           f"el pool de un laboratorio se llama como su carpeta")
+        if poolid in vistos:
+            errores.append(f"{nombre}: comparte el pool {poolid!r} con el laboratorio "
+                           f"«{vistos[poolid]}»")
+        vistos[poolid] = nombre
+    for e in errores:
+        say(f"  DESFASE: {e}")
+    if errores:
+        fail(f"{len(errores)} laboratorio(s) con un Resource Pool que no cuadra")
+    say(f"PASS: los {len(labs)} laboratorios tienen su pool y no lo comparte ninguno: "
+        f"{', '.join(sorted(vistos))}.")
     return 0
 
 
@@ -1786,6 +1830,7 @@ def main():
                     help="sella las citas actuales (sin nombres: todos los documentos)")
     sub.add_parser("caducidad", help="documentos que citan código cambiado desde su última revisión")
     sub.add_parser("numeracion", help="el numero y el nombre de cada invitado se componen igual")
+    sub.add_parser("pool", help="el Resource Pool de cada laboratorio: declarado, propio y sin compartir")
     args = parser.parse_args()
 
     if args.mode == "invariant":
@@ -1818,6 +1863,8 @@ def main():
         return refs(args.ruta)
     if args.mode == "numeracion":
         return numeracion_check()
+    if args.mode == "pool":
+        return pool_check()
     if args.mode == "caducidad":
         return caducidad_check()
     parser.print_help()

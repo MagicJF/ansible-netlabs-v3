@@ -40,3 +40,25 @@
           'bridges': pve_bridges | default([]),
           'tunnel': pve_tunnel | default({})}
          | pve_state_problems }}
+
+# ---------------------------------------------------------------------------
+# Y el laboratorio tiene que decir CUÁL es su pool. No es una referencia que
+# pueda colgarse de otra cosa: es la respuesta a "¿de quién es este invitado?"
+# (docs/decisiones/0008), y sin ella no se puede preguntar a la plataforma por
+# los invitados del laboratorio. Se exige aquí, con preflight y apply, antes de
+# tocar nada: una declaración que no dice su pool se para en el mismo sitio con
+# el mismo mensaje, en vez de crear veinte invitados huérfanos y decirlo después.
+# ---------------------------------------------------------------------------
+- name: The declared state must declare the lab's Resource Pool
+  ansible.builtin.assert:
+    that:
+      - lab_pool | default('') is match('^lab-[a-z0-9][a-z0-9._-]*$')
+      - (lab_pool | default('')) | length <= 64
+    fail_msg: >-
+      El laboratorio no declara bien su Resource Pool: `lab_pool` es
+      "{{ lab_pool | default('(sin declarar)') }}". Se espera `lab-<nombre del
+      laboratorio>`, en minúsculas y sin espacios (por ejemplo `lab-netlab-v2`).
+      Es el pool de Proxmox que agrupa a sus invitados y lo que dice de qué
+      laboratorio es cada uno (docs/decisiones/0008): sin él, un invitado del
+      laboratorio no se distingue de uno ajeno.
+    success_msg: "El laboratorio declara su Resource Pool: {{ lab_pool }}."

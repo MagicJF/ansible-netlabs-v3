@@ -23,7 +23,8 @@ Dónde se aplica.
 - [0001 — El hipervisor se gobierna SOLO por su API](0001-solo-api.md)
 - [0002 — Por qué existe el bootstrap](0002-bootstrap-existe.md)
 - [0003 — La ruta por defecto del DHCP de fábrica se purga con un reinicio](0003-reinicio-purga-ruta-dhcp.md)
-- [0004 — Un invitado del laboratorio se reconoce por su etiqueta, no por su VMID](0004-invitado-por-etiqueta.md)
-- [0005 — El número de un invitado se compone (laboratorio, sede, clase, índice)](0005-numero-compuesto.md)
-- [0006 — El vocabulario de etiquetas: cuatro, y el laboratorio con su nombre](0006-vocabulario-etiquetas.md)
+- [0004 — Un invitado del laboratorio se reconoce por su etiqueta, no por su VMID](0004-invitado-por-etiqueta.md) *(sustituido por [0008](0008-pool-por-laboratorio.md))*
+- [0005 — El número de un invitado se compone (laboratorio, sede, clase, índice)](0005-numero-compuesto.md) *(el par de cifras del laboratorio, sustituido por [0008](0008-pool-por-laboratorio.md))*
+- [0006 — El vocabulario de etiquetas: cuatro, y el laboratorio con su nombre](0006-vocabulario-etiquetas.md) *(la cuarta etiqueta, sustituida por [0008](0008-pool-por-laboratorio.md))*
 - [0007 — El código de sede: familia e índice](0007-codigo-de-sede.md)
+- [0008 — El laboratorio se agrupa por su Resource Pool, y su cifra es una](0008-pool-por-laboratorio.md)

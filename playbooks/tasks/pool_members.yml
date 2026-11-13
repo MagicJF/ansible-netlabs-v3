@@ -1,0 +1,94 @@
+---
+# ===========================================================================
+# Los invitados del laboratorio DENTRO de su pool (lab_pool) — por la API.
+#
+# Qué hace: lee quién está dentro del pool del laboratorio, da de alta los
+# invitados que la declaración declara y falten, y lo relee para comprobar que
+# están. Corre DESPUÉS de crear los invitados: un pool no puede agrupar a quien
+# todavía no existe.
+#
+# A los que el pool tiene y la declaración NO conoce no se les toca: `apply` no
+# borra lo que no ha declarado, ni de un pool. Esos los denuncia
+# `framework_check.py guests`, que es el verbo que juzga lo que sobra.
+#
+# Se da de alta SÓLO lo que falta, y por eso se lee antes: `vms` es una lista de
+# alta, no el conjunto final (con `delete=0` PVE añade lo que recibe, y falla si
+# alguno ya estaba dentro). Pedir el alta de un miembro que ya está dentro no es
+# una operación idempotente: es un error.
+# ===========================================================================
+- name: Leer el pool del laboratorio y quién está dentro
+  ansible.builtin.uri:
+    url: "{{ pve_api }}/pools/{{ lab_pool }}"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
+    validate_certs: true
+    ca_path: "{{ pve_api_ca_path }}"
+    status_code: 200
+    return_content: true
+  register: pool_live
+  no_log: true
+  changed_when: false
+
+- name: Decidir qué invitados declarados faltan dentro del pool
+  ansible.builtin.set_fact:
+    pool_declarados: "{{ (pve_cts + pve_vm_specs) | map(attribute='vmid') | map('int') | list }}"
+    pool_dentro: "{{ pool_live.json.data.members | default([]) | selectattr('vmid', 'defined') | map(attribute='vmid') | map('int') | list }}"
+
+- name: Dar de alta en el pool los invitados declarados que falten
+  ansible.builtin.uri:
+    url: "{{ pve_api }}/pools/{{ lab_pool }}"
+    method: PUT
+    headers:
+      Authorization: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
+    body_format: form-urlencoded
+    body:
+      vms: "{{ (pool_declarados | difference(pool_dentro)) | sort | join(',') }}"
+    validate_certs: true
+    ca_path: "{{ pve_api_ca_path }}"
+    status_code: 200
+  no_log: true
+  changed_when: true
+  when: (pool_declarados | difference(pool_dentro)) | length > 0
+
+- name: Releer el pool tras dar de alta a los que faltaban
+  ansible.builtin.uri:
+    url: "{{ pve_api }}/pools/{{ lab_pool }}"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
+    validate_certs: true
+    ca_path: "{{ pve_api_ca_path }}"
+    status_code: 200
+    return_content: true
+  register: pool_after
+  no_log: true
+  changed_when: false
+
+- name: Leer quién está dentro del pool después del alta
+  ansible.builtin.set_fact:
+    pool_dentro_after: "{{ pool_after.json.data.members | default([]) | selectattr('vmid', 'defined') | map(attribute='vmid') | map('int') | list }}"
+
+- name: Verify every declared guest of the lab is inside its pool
+  ansible.builtin.assert:
+    that:
+      - pool_declarados | difference(pool_dentro_after) | length == 0
+    fail_msg: >-
+      El pool {{ lab_pool }} no agrupa a todos los invitados que declara el
+      laboratorio. Fuera del pool: {{ pool_declarados | difference(pool_dentro_after) | sort | join(', ') }}.
+      El pool es lo que dice de qué laboratorio es un invitado
+      (docs/decisiones/0008): mientras uno falte, ese invitado es huérfano en el
+      árbol de Proxmox.
+    success_msg: >-
+      El pool {{ lab_pool }} agrupa los {{ pool_declarados | length }} invitados
+      declarados.
+
+- name: Decir qué tiene el pool que la declaración no conoce
+  ansible.builtin.debug:
+    msg: >-
+      El pool {{ lab_pool }} tiene {{ pool_dentro_after | difference(pool_declarados) | length }}
+      invitado(s) que la declaración del laboratorio NO declara:
+      {{ pool_dentro_after | difference(pool_declarados) | sort | join(', ') }}.
+      No se tocan (apply no borra lo que no ha declarado): los juzga
+      `framework_check.py guests`, y se sacan a mano si sobran.
+  when: pool_dentro_after | difference(pool_declarados) | length > 0

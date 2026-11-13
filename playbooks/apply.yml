@@ -92,7 +92,6 @@
          | notas_map(pve_vms | to_json | from_json, lab_sites | to_json | from_json, lab_hub,
             (lab_mgmt_otros | default({})) | to_json | from_json,
             (lab_mgmt2 | default({})) | to_json | from_json,
-            lab_numero,
             sedes_extra=(lab_sedes_extra | default({})) | to_json | from_json) }}
     # El entorno de ESTA máquina. La plantilla y el verificador viven en
     # tools/entorno.py: es el mismo fichero (y la misma precedencia) que usan las
@@ -250,6 +249,14 @@
     # ---- the datacenter's colour scheme, before the guests are tagged -----
     - name: Converge the declared tag style (pve_tag_style)
       ansible.builtin.include_tasks: tasks/tag_style.yml
+
+    # ---- el Resource Pool del laboratorio, antes de crear sus invitados ----
+    # El laboratorio se identifica por su PROPIO pool (ADR 0008), así que el pool
+    # tiene que existir antes que sus invitados. Va aquí, junto a los segmentos de
+    # red, por la misma razón que ellos: es andamiaje de la plataforma que los
+    # invitados necesitan, y si falla es mejor saberlo antes de crear veinte.
+    - name: Declarar el Resource Pool del laboratorio (pve_pool)
+      ansible.builtin.include_tasks: tasks/pool.yml
 
     # ---- mutate, only what drifted ---------------------------------------
     - name: Create the containers that do not exist yet
@@ -581,6 +588,13 @@
         - "'startup' in a.to_set"
       changed_when: true
 
+    # ---- el pool, ya con los invitados creados -----------------------------
+    # Con los dos tipos creados, porque el pool agrupa invitados que tienen que
+    # existir. Se le da de alta SÓLO lo que falta, y lo que el pool tenga de más
+    # no se toca: eso lo juzga `guests`, no `apply`.
+    - name: Dar de alta en el pool del laboratorio sus invitados (pve_pool)
+      ansible.builtin.include_tasks: tasks/pool_members.yml
+
     # ---- los discos importados, ANTES de la energia ----------------------
     # Un disco importado nace al tamano de la imagen y el resize lo lleva al
     # declarado. Va DELANTE de la energia a proposito: la energia es una
@@ -793,6 +807,24 @@
       loop: "{{ pve_plan_after | dict2items }}"
       loop_control:
         label: "VMID {{ item.key }}"
+
+    # El pool se comprueba desde la RELECTURA fresca, no desde lo que respondió
+    # el PUT: un alta que PVE aceptó y no guardó se ve aquí y en ningún otro sitio.
+    # Lo que el pool tenga de más NO se exige: no es cosa de este verbo.
+    - name: Verify every declared guest is inside the lab's Resource Pool
+      ansible.builtin.assert:
+        that:
+          - pve_read_meta_after.pool.exists
+          - pve_read_meta_after.pool.faltan | length == 0
+        fail_msg: >-
+          El Resource Pool del laboratorio {{ pve_read_meta_after.pool.name }} no
+          agrupa a sus invitados.
+          {{ 'No existe.' if not pve_read_meta_after.pool.exists else '' }}
+          {{ ('Fuera del pool: ' ~ (pve_read_meta_after.pool.faltan | map('string') | join(', ')) ~ '.') if pve_read_meta_after.pool.faltan | length else '' }}
+          El pool es lo que dice de qué laboratorio es un invitado (docs/decisiones/0008).
+        success_msg: >-
+          Pool {{ pve_read_meta_after.pool.name }}: los {{ pve_read_meta_after.pool.members | length }}
+          invitados declarados del laboratorio, dentro.
 
     # Un arranque en frío no puede terminar en verde con invitados declarados en pie y
     # fuera de la red. Pero "fuera de la red" porque su router aún no sirve NO es una

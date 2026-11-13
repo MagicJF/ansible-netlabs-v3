@@ -29,30 +29,30 @@ REST**.
 
 ```
   LA CENTRAL
-    10-Ca-pc-10     workstation vmid 10119110 · gestión 10.11.0.11
-    10-Ca-pc-11     workstation vmid 10119111 · gestión 10.11.0.12
-    10-Ca-pc-12     workstation vmid 10119112 · gestión 10.11.0.13
-    10-Ca-pc-13     workstation vmid 10119113 · gestión 10.11.0.14
-    10-Ca-swac-10   switch      vmid 10111110 · gestión 10.10.10.11
-    10-Ca-swac-11   switch      vmid 10111111 · gestión 10.10.10.12
-    10-Ca-rtco-10   router      vmid 10112110 · gestión 10.10.10.21
-    10-Ca-fwpe-10   firewall    vmid 10118110 · gestión 10.10.10.31
+    1-Ca-pc-10      workstation vmid 1119110 · gestión 10.11.0.11
+    1-Ca-pc-11      workstation vmid 1119111 · gestión 10.11.0.12
+    1-Ca-pc-12      workstation vmid 1119112 · gestión 10.11.0.13
+    1-Ca-pc-13      workstation vmid 1119113 · gestión 10.11.0.14
+    1-Ca-swac-10    switch      vmid 1111110 · gestión 10.10.10.11
+    1-Ca-swac-11    switch      vmid 1111111 · gestión 10.10.10.12
+    1-Ca-rtco-10    router      vmid 1112110 · gestión 10.10.10.21
+    1-Ca-fwpe-10    firewall    vmid 1118110 · gestión 10.10.10.31
   LA DELEGACIÓN 2
-    10-Sa-pc-10     workstation vmid 10219110 · gestión 10.12.0.11
-    10-Sa-pc-11     workstation vmid 10219111 · gestión 10.12.0.12
-    10-Sa-swac-10   switch      vmid 10211110 · gestión 10.10.10.13
-    10-Sa-rtbo-10   router      vmid 10212210 · gestión 10.10.10.22
-    10-Sa-fwpe-10   firewall    vmid 10218110 · gestión 10.10.10.32
+    1-Sa-pc-10      workstation vmid 1219110 · gestión 10.12.0.11
+    1-Sa-pc-11      workstation vmid 1219111 · gestión 10.12.0.12
+    1-Sa-swac-10    switch      vmid 1211110 · gestión 10.10.10.13
+    1-Sa-rtbo-10    router      vmid 1212210 · gestión 10.10.10.22
+    1-Sa-fwpe-10    firewall    vmid 1218110 · gestión 10.10.10.32
   LA DELEGACIÓN 3
-    10-Sb-pc-10     workstation vmid 10229110 · gestión 10.13.0.11
-    10-Sb-pc-11     workstation vmid 10229111 · gestión 10.13.0.12
-    10-Sb-swac-10   switch      vmid 10221110 · gestión 10.10.10.14
-    10-Sb-rtbo-10   router      vmid 10222210 · gestión 10.10.10.23
-    10-Sb-fwpe-10   firewall    vmid 10228110 · gestión 10.10.10.33
+    1-Sb-pc-10      workstation vmid 1229110 · gestión 10.13.0.11
+    1-Sb-pc-11      workstation vmid 1229111 · gestión 10.13.0.12
+    1-Sb-swac-10    switch      vmid 1221110 · gestión 10.10.10.14
+    1-Sb-rtbo-10    router      vmid 1222210 · gestión 10.10.10.23
+    1-Sb-fwpe-10    firewall    vmid 1228110 · gestión 10.10.10.33
   SIN SEDE (la red de gestión, su segundo segmento OOB, el borde y la infraestructura)
-    10-Ga-swge-10   switch      vmid 10411210 · gestión 10.20.20.11
-    10-Ba-fwbo-10   firewall    vmid 10518210 · gestión 10.10.10.34
-    10-Ia-boot-10   bootstrap   vmid 10317110 · gestión 10.10.10.41
+    1-Ga-swge-10    switch      vmid 1411210 · gestión 10.20.20.11
+    1-Ba-fwbo-10    firewall    vmid 1518210 · gestión 10.10.10.34
+    1-Ia-boot-10    bootstrap   vmid 1317110 · gestión 10.10.10.41
 ```
 
 Leído en palabras:
@@ -112,27 +112,27 @@ Así `1301` es "central, switch, el primero" y `1401` "central, workstation, la 
 
 | Máquina | VMID | Tipo | Función | Dirección |
 |---|---|---|---|---|
-| `10-Ca-pc-10` | 10119110 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.11` |
-| `10-Ca-pc-11` | 10119111 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.12` |
-| `10-Ca-pc-12` | 10119112 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.13` |
-| `10-Ca-pc-13` | 10119113 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.14` |
-| `10-Sa-pc-10` | 10219110 | LXC | workstation de la delegación 2: PC de usuario, sin vía de gestión | `10.12.0.11` |
-| `10-Sa-pc-11` | 10219111 | LXC | workstation de la delegación 2: PC de usuario, sin vía de gestión | `10.12.0.12` |
-| `10-Sb-pc-10` | 10229110 | LXC | workstation de la delegación 3: PC de usuario, sin vía de gestión | `10.13.0.11` |
-| `10-Sb-pc-11` | 10229111 | LXC | workstation de la delegación 3: PC de usuario, sin vía de gestión | `10.13.0.12` |
-| `10-Ca-swac-10` | 10111110 | CHR | switch de la central | `10.10.10.11` |
-| `10-Ca-swac-11` | 10111111 | CHR | switch de la central | `10.10.10.12` |
-| `10-Ga-swge-10` | 10411210 | CHR | switch de la red de gestión | `10.20.20.11` |
-| `10-Sa-swac-10` | 10211110 | CHR | switch de la delegación 2 | `10.10.10.13` |
-| `10-Sb-swac-10` | 10221110 | CHR | switch de la delegación 3 | `10.10.10.14` |
-| `10-Ca-rtco-10` | 10112110 | CHR | router de la central | `10.10.10.21` |
-| `10-Sa-rtbo-10` | 10212210 | CHR | router de la delegación 2 | `10.10.10.22` |
-| `10-Sb-rtbo-10` | 10222210 | CHR | router de la delegación 3 | `10.10.10.23` |
-| `10-Ba-fwbo-10` | 10518210 | CHR | **firewall de borde**: el único que sale a internet y el único que hace NAT | `10.10.10.34` |
-| `10-Ca-fwpe-10` | 10118110 | CHR | firewall de la central | `10.10.10.31` |
-| `10-Sa-fwpe-10` | 10218110 | CHR | firewall de la delegación 2 | `10.10.10.32` |
-| `10-Sb-fwpe-10` | 10228110 | CHR | firewall de la delegación 3 | `10.10.10.33` |
-| `10-Ia-boot-10` | 10317110 | LXC | bootstrap de la red de gestión | `10.10.10.41` |
+| `1-Ca-pc-10` | 1119110 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.11` |
+| `1-Ca-pc-11` | 1119111 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.12` |
+| `1-Ca-pc-12` | 1119112 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.13` |
+| `1-Ca-pc-13` | 1119113 | LXC | workstation de la central: PC de usuario, sin vía de gestión | `10.11.0.14` |
+| `1-Sa-pc-10` | 1219110 | LXC | workstation de la delegación 2: PC de usuario, sin vía de gestión | `10.12.0.11` |
+| `1-Sa-pc-11` | 1219111 | LXC | workstation de la delegación 2: PC de usuario, sin vía de gestión | `10.12.0.12` |
+| `1-Sb-pc-10` | 1229110 | LXC | workstation de la delegación 3: PC de usuario, sin vía de gestión | `10.13.0.11` |
+| `1-Sb-pc-11` | 1229111 | LXC | workstation de la delegación 3: PC de usuario, sin vía de gestión | `10.13.0.12` |
+| `1-Ca-swac-10` | 1111110 | CHR | switch de la central | `10.10.10.11` |
+| `1-Ca-swac-11` | 1111111 | CHR | switch de la central | `10.10.10.12` |
+| `1-Ga-swge-10` | 1411210 | CHR | switch de la red de gestión | `10.20.20.11` |
+| `1-Sa-swac-10` | 1211110 | CHR | switch de la delegación 2 | `10.10.10.13` |
+| `1-Sb-swac-10` | 1221110 | CHR | switch de la delegación 3 | `10.10.10.14` |
+| `1-Ca-rtco-10` | 1112110 | CHR | router de la central | `10.10.10.21` |
+| `1-Sa-rtbo-10` | 1212210 | CHR | router de la delegación 2 | `10.10.10.22` |
+| `1-Sb-rtbo-10` | 1222210 | CHR | router de la delegación 3 | `10.10.10.23` |
+| `1-Ba-fwbo-10` | 1518210 | CHR | **firewall de borde**: el único que sale a internet y el único que hace NAT | `10.10.10.34` |
+| `1-Ca-fwpe-10` | 1118110 | CHR | firewall de la central | `10.10.10.31` |
+| `1-Sa-fwpe-10` | 1218110 | CHR | firewall de la delegación 2 | `10.10.10.32` |
+| `1-Sb-fwpe-10` | 1228110 | CHR | firewall de la delegación 3 | `10.10.10.33` |
+| `1-Ia-boot-10` | 1317110 | LXC | bootstrap de la red de gestión | `10.10.10.41` |
 
 Los **12 equipos de red** son **RouterOS CHR** (la versión virtual de RouterOS).
 Las **8 workstations** y el bootstrap son **contenedores LXC** de Debian.
@@ -145,15 +145,15 @@ Las **8 workstations** y el bootstrap son **contenedores LXC** de Debian.
 |---|---|---|
 | Red de gestión (patas de administración) | `10.10.10.0/24` | `10.10.10.1` (el host Proxmox) |
 | Segundo segmento de gestión (OOB) | `10.20.20.0/24` | `10.20.20.1` (el host Proxmox) |
-| LAN de la central | `10.11.0.0/24` | `10.11.0.1` (10-Ca-rtco-10) |
+| LAN de la central | `10.11.0.0/24` | `10.11.0.1` (1-Ca-rtco-10) |
 | Tránsito router ↔ su firewall (la central) | `10.21.0.0/30` | router `10.21.0.2` ↔ firewall `10.21.0.1` |
-| LAN de la delegación 2 | `10.12.0.0/24` | `10.12.0.1` (10-Sa-rtbo-10) |
+| LAN de la delegación 2 | `10.12.0.0/24` | `10.12.0.1` (1-Sa-rtbo-10) |
 | Tránsito router ↔ su firewall (la delegación 2) | `10.22.0.0/30` | router `10.22.0.2` ↔ firewall `10.22.0.1` |
-| LAN de la delegación 3 | `10.13.0.0/24` | `10.13.0.1` (10-Sb-rtbo-10) |
+| LAN de la delegación 3 | `10.13.0.0/24` | `10.13.0.1` (1-Sb-rtbo-10) |
 | Tránsito router ↔ su firewall (la delegación 3) | `10.23.0.0/30` | router `10.23.0.2` ↔ firewall `10.23.0.1` |
-| Enlace WAN la central ↔ la delegación 2 | `10.99.1.0/30` | `10-Ca-fwpe-10` `10.99.1.1` ↔ `10-Sa-fwpe-10` `10.99.1.2` |
-| Enlace WAN la central ↔ la delegación 3 | `10.99.2.0/30` | `10-Ca-fwpe-10` `10.99.2.1` ↔ `10-Sb-fwpe-10` `10.99.2.2` |
-| Tránsito de borde | `10.29.0.0/30` | `10-Ca-fwpe-10` `10.29.0.1` ↔ `10-Ba-fwbo-10` `10.29.0.2` |
+| Enlace WAN la central ↔ la delegación 2 | `10.99.1.0/30` | `1-Ca-fwpe-10` `10.99.1.1` ↔ `1-Sa-fwpe-10` `10.99.1.2` |
+| Enlace WAN la central ↔ la delegación 3 | `10.99.2.0/30` | `1-Ca-fwpe-10` `10.99.2.1` ↔ `1-Sb-fwpe-10` `10.99.2.2` |
+| Tránsito de borde | `10.29.0.0/30` | `1-Ca-fwpe-10` `10.29.0.1` ↔ `1-Ba-fwbo-10` `10.29.0.2` |
 
 Las direcciones de gestión se asignan **por bloques de función** dentro de
 `10.10.10.0/24`, y el bloque de cada función sale de las direcciones
@@ -183,7 +183,7 @@ magia:
   traducen: dentro de la empresa las direcciones son las reales, y por eso existen
   las rutas de vuelta y no hay traducciones anidadas.
 
-Medido, no supuesto: desde `10-Ba-fwbo-10` responde `1.1.1.1`; desde la
+Medido, no supuesto: desde `1-Ba-fwbo-10` responde `1.1.1.1`; desde la
 LAN de la central y desde las demás sedes se llega a internet; y una
 workstation resuelve DNS y abre TCP/443 hacia fuera.
 
@@ -193,7 +193,7 @@ workstation resuelve DNS y abre TCP/443 hacia fuera.
 
 Una workstation de la central hablando con una de la delegación 2:
 ```
-  10-Ca-pc-10 ──(10.11.0.1)──▶ 10-Ca-rtco-10 ──(10.21.0.1)──▶ 10-Ca-fwpe-10 ──(10.99.1.2)──▶ 10-Sa-fwpe-10 ──(10.12.0.11)──▶ 10-Sa-pc-10
+  1-Ca-pc-10 ──(10.11.0.1)──▶ 1-Ca-rtco-10 ──(10.21.0.1)──▶ 1-Ca-fwpe-10 ──(10.99.1.2)──▶ 1-Sa-fwpe-10 ──(10.12.0.11)──▶ 1-Sa-pc-10
 
   La respuesta vuelve por donde vino.
 ```
@@ -237,7 +237,7 @@ no de una vía de gestión metida en las workstations.
      los 19 segmentos (un cable cada uno)            RouterOS ← su API REST HTTP
      las 8 workstations                              · puentes y puertos
      los 12 equipos de red                           · direcciones IP
-     10-Ia-boot-10                                   · servidores DHCP por sede
+     1-Ia-boot-10                                    · servidores DHCP por sede
                                                      · rutas entre sedes
                                                      · FIREWALL y NAT
      └── declara la FORMA, nunca la toca ────────┘
@@ -330,7 +330,7 @@ El mismo fichero sirve para todas: mira su propia dirección, deduce en qué sed
 está y quién debe ser su puerta de enlace.
 
 La prueba **OOB** va al revés que las demás: se espera que **falle**. El segundo
-segmento de gestión (`10.20.20.0/24`, donde vive `10-Ga-swge-10`) no es del dominio de
+segmento de gestión (`10.20.20.0/24`, donde vive `1-Ga-swge-10`) no es del dominio de
 producción —en un montaje físico es una isla con su propio switch y su propio DHCP—,
 así que una workstation no debe alcanzarlo. El test lo comprueba desde las estaciones
 (que **no** llegan) y desde el operador (que **sí** llega, por el túnel), que es lo
@@ -340,11 +340,17 @@ fiel a lo que te encontrarías con hierro.
 
 ## Lo que se ve en la interfaz de Proxmox
 
-Cada invitado lleva **cuatro etiquetas y ni una más**: quién lo gestiona (`ansible`),
-qué es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`), dónde está
-(`Ca`, `Sa`, `Sb`, `Ia`, `Ga`, `Ba`) y de qué laboratorio es
-(`lab-10`). Nada de vocabulario que no responda a una de esas cuatro
-preguntas.
+Cada invitado lleva **tres etiquetas y ni una más**: quién lo gestiona (`ansible`), qué
+es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`) y dónde está
+(`Ca`, `Sa`, `Sb`, `Ia`, `Ga`, `Ba`). Nada de vocabulario que no responda a una de
+esas tres preguntas.
+
+De qué laboratorio es un invitado **no se pregunta por etiqueta**: lo dice su Resource
+Pool, `lab-netlab-v2` en el árbol de Proxmox, que tiene dentro exactamente los
+invitados que la declaración declara y deja fuera a los del host
+([ADR 0008](docs/decisiones/0008-pool-por-laboratorio.md)). Un invitado del laboratorio
+que se quede fuera de su pool es un invitado huérfano: `apply` lo devuelve a su sitio y
+`guests` denuncia lo que esté dentro sin que ningún laboratorio lo declare.
 
 Esas etiquetas están **coloreadas en el datacenter** (opción `tag-style`, declarada en
 `pve_tag_style` y convergida por `apply.yml`). El color dice dos cosas sin abrir nada: el
@@ -377,7 +383,7 @@ volver a generar y auditar cuando haga falta.
 
 ## Lo que este laboratorio NO es
 
-- **El contenedor `10-Ia-boot-10` no es un equipo de la empresa simulada.** Es
+- **El contenedor `1-Ia-boot-10` no es un equipo de la empresa simulada.** Es
   la herramienta que da a cada equipo de red su primera dirección, en la única
   ocasión en que no tiene ninguna (la petición DHCP de un RouterOS recién nacido
   es una difusión, y una difusión no cruza un enlace punto a punto). Una vez cada

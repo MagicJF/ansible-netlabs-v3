@@ -1,0 +1,97 @@
+---
+# ===========================================================================
+# El Resource Pool PROPIO del laboratorio (lab_pool) — por la API.
+#
+# Qué hace: deja en pie el pool que la declaración nombra (`lab_pool`) y su
+# comentario. NO mete invitados dentro: de eso se encarga pool_members.yml, que
+# corre cuando los invitados ya existen.
+#
+# Por qué un pool y no una etiqueta: agrupar es una cosa que Proxmox ya sabe
+# hacer, y la dice la plataforma que agrupa — el pool se ve en el árbol, se
+# filtra, y un pool vacío se distingue de un pool que no existe. Una etiqueta
+# con el número del laboratorio era una segunda respuesta a la misma pregunta,
+# y de las dos, la que PVE puede hacer cumplir es el pool. Ver docs/decisiones/0008.
+#
+# Se comprueba releyendo, no dando por bueno el 200: la verdad es lo que quedó
+# escrito. Este fichero copia la forma de tag_style.yml, que hace lo mismo con
+# las opciones del datacenter.
+# ===========================================================================
+- name: Leer los pools que hay en el datacenter
+  ansible.builtin.uri:
+    url: "{{ pve_api }}/pools"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
+    validate_certs: true
+    ca_path: "{{ pve_api_ca_path }}"
+    status_code: 200
+    return_content: true
+  register: pools_live
+  no_log: true
+  changed_when: false
+
+- name: Declarar el pool del laboratorio (si todavía no existe)
+  ansible.builtin.uri:
+    url: "{{ pve_api }}/pools"
+    method: POST
+    headers:
+      Authorization: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
+    body_format: form-urlencoded
+    body:
+      poolid: "{{ lab_pool }}"
+      comment: "{{ lab_nombre }}"
+    validate_certs: true
+    ca_path: "{{ pve_api_ca_path }}"
+    status_code: 200
+  no_log: true
+  # `uri` da ok por cualquier 200, hiciera lo que hiciera: sin esto, un POST que
+  # no creó nada contaría como cambio y la relectura siguiente no probaría.
+  changed_when: true
+  when: lab_pool not in pools_live.json.data | map(attribute='poolid') | list
+
+- name: Alinear el comentario del pool con lo que declara el laboratorio
+  ansible.builtin.uri:
+    url: "{{ pve_api }}/pools/{{ lab_pool }}"
+    method: PUT
+    headers:
+      Authorization: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
+    body_format: form-urlencoded
+    body:
+      comment: "{{ lab_nombre }}"
+    validate_certs: true
+    ca_path: "{{ pve_api_ca_path }}"
+    status_code: 200
+  no_log: true
+  changed_when: true
+  when:
+    - lab_pool in pools_live.json.data | map(attribute='poolid') | list
+    - (pools_live.json.data | selectattr('poolid', 'eq', lab_pool)
+       | map(attribute='comment') | first) | default('') != lab_nombre
+
+- name: Releer el pool del laboratorio
+  ansible.builtin.uri:
+    url: "{{ pve_api }}/pools/{{ lab_pool }}"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ pve_api_token_id }}={{ pve_api_token_secret }}"
+    validate_certs: true
+    ca_path: "{{ pve_api_ca_path }}"
+    status_code: 200
+    return_content: true
+  register: pool_after
+  no_log: true
+  changed_when: false
+
+- name: Verify the lab's pool is the one the declaration names
+  ansible.builtin.assert:
+    that:
+      - pool_after.json.data.poolid | default('') == lab_pool
+      - pool_after.json.data.comment | default('') == lab_nombre
+    fail_msg: >-
+      El pool del laboratorio no es el que declara la declaración. Esperado:
+      {{ lab_pool }} con comentario "{{ lab_nombre }}". Encontrado:
+      {{ pool_after.json.data.poolid | default('(ninguno)') }} con comentario
+      "{{ pool_after.json.data.comment | default('') }}".
+    success_msg: >-
+      El Resource Pool {{ lab_pool }} está en pie y dice lo que la declaración
+      dice: "{{ lab_nombre }}".

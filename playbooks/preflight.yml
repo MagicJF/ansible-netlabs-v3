@@ -47,7 +47,6 @@
          | notas_map(pve_vms | to_json | from_json, lab_sites | to_json | from_json, lab_hub,
             (lab_mgmt_otros | default({})) | to_json | from_json,
             (lab_mgmt2 | default({})) | to_json | from_json,
-            lab_numero,
             sedes_extra=(lab_sedes_extra | default({})) | to_json | from_json) }}
     # El entorno de ESTA máquina. La plantilla y el verificador viven en
     # tools/entorno.py: es el mismo fichero (y la misma precedencia) que usan las
@@ -160,6 +159,23 @@
       loop: "{{ pve_plan | dict2items }}"
       loop_control:
         label: "VMID {{ item.key }}"
+      changed_when: false
+
+    # ---- el pool del laboratorio: se informa, no se toca -------------------
+    # El laboratorio se identifica por su PROPIO Resource Pool (ADR 0008), así que
+    # preflight dice en qué estado está. Es el MISMO dato que converge `apply` y
+    # sale del MISMO sitio (pve_read.py): dos verbos no pueden discrepar sobre si
+    # un invitado está dentro de su pool.
+    - name: Report the lab's Resource Pool
+      ansible.builtin.debug:
+        msg: >-
+          pool {{ pve_read_meta.pool.name }}:
+          {{ 'todavía no existe (apply lo crea)' if not pve_read_meta.pool.exists
+             else ((pve_read_meta.pool.members | length) ~ ' invitado(s) dentro, '
+                   ~ (pve_read_meta.pool.faltan | length) ~ ' declarado(s) fuera (apply los da de alta)') }}
+          {{ ('· dentro y NO declarados: ' ~ (pve_read_meta.pool.extra | map('string') | join(', '))) if pve_read_meta.pool.extra | length > 0 else '' }}
+          {{ ('· el comentario dice "' ~ (pve_read_meta.pool.comment | default('')) ~ '" y la declaración dice "' ~ lab_nombre ~ '" (apply lo alinea)')
+             if pve_read_meta.pool.exists and (pve_read_meta.pool.comment | default('')) != lab_nombre else '' }}
       changed_when: false
 
     - name: Blocking drift a recreate would be needed for

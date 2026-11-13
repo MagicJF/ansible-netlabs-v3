@@ -12,8 +12,9 @@
 # Qué hace: reescribe en labs/netlab-v2/inventory/group_vars/all.yml las dos cosas que PVE
 # enseña en su interfaz y que hasta ahora se escribían a mano:
 #   * description — la nota HTML (tablas, diagrama de posición, intención)
-#   * tags        — cuatro y ni una más: quién lo gestiona, qué es, dónde está y
-#                   de qué laboratorio
+#   * tags        — tres y ni una más: quién lo gestiona, qué es y dónde está.
+#                   De qué laboratorio es un invitado lo dice el Resource Pool
+#                   del laboratorio, no una etiqueta (ADR 0008).
 #
 # Por qué se genera y no se escribe a mano: la nota cuenta cables, direcciones,
 # rutas y reglas. Todo eso YA está en el manifiesto. Escribirlo dos veces
@@ -535,38 +536,29 @@ def html(e):
     return "\n".join(L)
 
 
-def tag_lab():
-    r"""El tag del laboratorio: 'lab-<numero>', del número declarado en `lab_numero`.
-
-    No lleva espacio a propósito: PVE valida el tag con
-    `[a-z0-9_][a-z0-9_\-\+\.]*` (pve-common, JSONSchema) y un espacio lo rechaza
-    con "invalid characters in tag". Sin `lab_numero` declarado devuelve None y la
-    etiqueta se omite; el chequeo de `notas` exige CUATRO, así que un laboratorio
-    sin número falla en voz alta en vez de publicar `Lab-None`.
-    """
-    n = man.get("lab_numero")
-    return "lab-%s" % n if n else None
-
-
 def tags_de(e):
-    """Cuatro etiquetas y ni una más: quién lo gestiona, qué es, dónde está y de qué
-    laboratorio.
+    """Tres etiquetas y ni una más: quién lo gestiona, qué es y dónde está.
+
+    De qué laboratorio es un invitado NO se pregunta por etiqueta: lo dice el
+    Resource Pool PROPIO del laboratorio, que PVE enseña en su árbol junto al
+    invitado (ADR 0008). Una etiqueta más sería una segunda respuesta a la misma
+    pregunta, y dos respuestas se contradicen el día que una cambie.
 
     En MINÚSCULAS, y no por gusto de estilo: la etiqueta de PVE es un identificador,
-    y PVE lo normaliza a minúsculas al guardarlo (creado con `Ca`/`Lab-11`, su API
-    devuelve `ca`/`lab-11` — medido: el `create` responde 200 y la relectura viene
+    y PVE lo normaliza a minúsculas al guardarlo (creado con `Ca`, su API
+    devuelve `ca` — medido: el `create` responde 200 y la relectura viene
     abajo). Una etiqueta declarada en mayúsculas no converge nunca: el motor la
     reescribe en cada pasada y la verificación la da por desajustada. El código de
-    sede (`Ca`) y el del laboratorio (`Lab-11`) siguen así en el NOMBRE y en la
-    prosa; lo que se publica como etiqueta va en minúsculas. El esquema que cita el
-    ADR 0006 ya lo decía: sólo minúsculas, dígitos, guion, más y punto.
+    sede (`Ca`) sigue así en el NOMBRE y en la prosa; lo que se publica como
+    etiqueta va en minúsculas. El esquema que cita el ADR 0006 ya lo decía: sólo
+    minúsculas, dígitos, guion, más y punto.
 
-    El papel, la sede y el laboratorio salen de la DECLARACIÓN; si un invitado aún no
+    El papel y la sede salen de la DECLARACIÓN; si un invitado aún no
     resuelve (dirección plantillada sin renderizar), se omite la etiqueta en vez de
     devolver None: una lista con None revienta el `sort` del motor y tumba el
     preflight de TODOS los laboratorios, no sólo el de ese invitado.
     """
-    return [str(t).lower() for t in ("ansible", rol(e["n"]), sitio_de(e), tag_lab()) if t]
+    return [str(t).lower() for t in ("ansible", rol(e["n"]), sitio_de(e)) if t]
 
 
 # ------------------------------------------------------------------- CLI -

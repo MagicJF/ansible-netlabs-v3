@@ -311,11 +311,17 @@ fiel a lo que te encontrarías con hierro.
 
 ## Lo que se ve en la interfaz de Proxmox
 
-Cada invitado lleva **cuatro etiquetas y ni una más**: quién lo gestiona (`ansible`),
-qué es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`), dónde está
-({% for s in sedes %}`{{ s.codigo }}`{% if not loop.last %}, {% endif %}{% endfor %}{% for c in codigos_extra %}, `{{ c }}`{% endfor %}) y de qué laboratorio es
-(`lab-{{ man.lab_numero }}`). Nada de vocabulario que no responda a una de esas cuatro
-preguntas.
+Cada invitado lleva **tres etiquetas y ni una más**: quién lo gestiona (`ansible`), qué
+es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`) y dónde está
+({% for s in sedes %}`{{ s.codigo }}`{% if not loop.last %}, {% endif %}{% endfor %}{% for c in codigos_extra %}, `{{ c }}`{% endfor %}). Nada de vocabulario que no responda a una de
+esas tres preguntas.
+
+De qué laboratorio es un invitado **no se pregunta por etiqueta**: lo dice su Resource
+Pool, `{{ man.lab_pool }}` en el árbol de Proxmox, que tiene dentro exactamente los
+invitados que la declaración declara y deja fuera a los del host
+([ADR 0008](docs/decisiones/0008-pool-por-laboratorio.md)). Un invitado del laboratorio
+que se quede fuera de su pool es un invitado huérfano: `apply` lo devuelve a su sitio y
+`guests` denuncia lo que esté dentro sin que ningún laboratorio lo declare.
 
 Esas etiquetas están **coloreadas en el datacenter** (opción `tag-style`, declarada en
 `pve_tag_style` y convergida por `apply.yml`). El color dice dos cosas sin abrir nada: el

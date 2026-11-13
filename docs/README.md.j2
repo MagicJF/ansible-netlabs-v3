@@ -316,7 +316,7 @@ Está deliberadamente fuera del fichero, no olvidado:
 - `password` — un secreto de creación; ponerlo en Git es lo único peor que un secreto sin guardar. Inyéctalo desde un vault al crear si alguna vez hace falta.
 - `pubkey` — PVE lo aplica sólo al crear, no lo reenvía al actualizar.
 - `clone` / `clone_type` — una vía de creación alternativa, sin usar.
-- `pool` — no hay pool en este nodo.
+- `pool` — el pool no se declara por invitado: es del **laboratorio** entero y sale del `lab_pool` del manifiesto ([ADR 0008](docs/decisiones/0008-pool-por-laboratorio.md)).
 - `force`, `purge`, `destroy_unreferenced_disks` — banderas destructivas; el motor nunca las pone.
 - claves crudas `lxc.*` (límites de cgroup, bind mounts) — el módulo de la colección no las expone.
 - `cpus` (límite de CPU) — el módulo lo mapea a `cpuunits` al crear pero a `cpulimit` al actualizar, así que no puede tener un solo significado; declara `cpuunits`.
@@ -779,8 +779,8 @@ es tener una caché dentro de la fuente de verdad. Segundo **el contenido**: la 
 HTML que genera `filter_plugins/notas.py`, así que la comprobación la renderiza con el
 MISMO generador que usa el despliegue y exige que cuadre: una fila por pata declarada con su bridge y su MAC, el vecino real en cada
 cable punto a punto, el segmento de gestión compartido descrito como segmento
-compartido en vez de nombrar un vecino de doce, y exactamente las cuatro etiquetas (quién
-lo gestiona, qué es, dónde está y de qué laboratorio). Nada más puede pillar esta clase de error: una nota
+compartido en vez de nombrar un vecino de doce, y exactamente las tres etiquetas (quién
+lo gestiona, qué es y dónde está). Nada más puede pillar esta clase de error: una nota
 que nombra el puerto equivocado sigue siendo HTML perfectamente válido, y sólo se lee
 el día que alguien se fía de ella.
 
@@ -803,11 +803,18 @@ declarada por ECMP. Es lo que hace CUMPLIR el [ADR 0003](docs/decisiones/0003-re
 después de un `site`: sin ella, esa decisión vivía sólo en la prosa del rol.
 
 **¿Hay invitados fuera de la declaración?** `framework_check.py guests` pregunta a la
-plataforma por sus invitados y falla si alguno lleva las etiquetas del laboratorio
-(`pve_defaults.tags`) sin que NINGÚN laboratorio lo declare, o si el laboratorio activo
-declara una VMID que no está. No usa rangos de VMID —se solapan entre laboratorios— ni
-listas a mano: usa la etiqueta que la propia declaración impone
-([ADR 0004](docs/decisiones/0004-invitado-por-etiqueta.md)).
+plataforma por sus invitados y falla si alguno está en el pool de un laboratorio sin que
+NINGÚN laboratorio lo declare, o si el laboratorio activo declara una VMID que no está.
+«De qué laboratorio es» lo dice su **Resource Pool**
+([ADR 0008](docs/decisiones/0008-pool-por-laboratorio.md)), que es lo que PVE puede hacer
+cumplir: no usa rangos de VMID —se solapan entre laboratorios—, ni listas a mano, ni
+etiquetas que hay que creer.
+
+**¿Cada laboratorio tiene su pool, y es suyo?** `framework_check.py pool` tampoco
+necesita laboratorio: exige que cada manifiesto declare `lab_pool`, que se llame como la
+carpeta del laboratorio (`lab-netlab-v2`) y que no lo comparta con ningún otro. Dos
+laboratorios con el mismo pool leerían los invitados de uno como los del otro, que es
+exactamente lo que el pool viene a evitar.
 
 **¿Se ha movido el código bajo un documento?** `framework_check.py caducidad` compara el
 hash actual de cada fichero citado con el que quedó grabado al revisar el documento
@@ -833,6 +840,7 @@ python3 playbooks/tools/framework_check.py api
 python3 playbooks/tools/framework_check.py docs
 python3 playbooks/tools/framework_check.py routeros
 python3 playbooks/tools/framework_check.py guests
+python3 playbooks/tools/framework_check.py pool
 python3 playbooks/tools/framework_check.py caducidad
 python3 playbooks/tools/framework_check.py invariant --verb configure/site.yml
 python3 playbooks/tools/framework_check.py drill
