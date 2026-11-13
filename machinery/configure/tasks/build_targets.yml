@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
 # Shared by machinery/configure/site.yml and machinery/configure/audit.yml: turn the declared state
 # into an inventory of SSH targets, so the address and the guest identity are
-# declared exactly once (in the active lab, labs/<nombre>.yml) and never duplicated
+# declared exactly once (in the active lab, labs/<nombre>/<nombre>.yml) and never duplicated
 # in a second file.
 #
 # Runs as a task file inside a play on localhost.

@@ -13,7 +13,7 @@ accumulates every run forever. Two things bound that:
   * archives older than `keep_days`, or beyond `keep_count`, are DELETED, so the
     directory cannot grow without limit either.
 
-The policy lives in `labs/netlab-v2.yml` with the rest of the declared
+The policy lives in `labs/netlab-v2/netlab-v2.yml` with the rest of the declared
 state, and every verb applies it before it does anything — so a lab driven only
 through the verbs never needs an operator. Run it standalone for the case where
 nobody runs the framework for days:

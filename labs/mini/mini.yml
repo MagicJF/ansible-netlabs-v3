@@ -104,7 +104,7 @@ pve_defaults:
   cores: 2
   cpuunits: 1024
   onboot: false
-  description: Managed by ansible-netlabs-v3. Declare changes in labs/netlab-v2.yml.
+  description: Managed by ansible-netlabs-v3. Declare changes in labs/netlab-v2/netlab-v2.yml.
   tags:
   - netlab
   - ansible

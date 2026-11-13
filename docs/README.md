@@ -8,7 +8,7 @@ el hipervisor.
 
 Este repositorio es el **motor**, y el motor **no conoce ninguna topología**: ni un
 hostname, ni una dirección, ni un vmid. Lo que se despliega es una **declaración**, y una
-declaración es un **laboratorio**: `labs/<nombre>.yml` (el estado
+declaración es un **laboratorio**: `labs/<nombre>/<nombre>.yml` (el estado
 deseado) y `machinery/inventory/hosts.yml` (los hosts). El laboratorio es un
 **parámetro del verbo**, no una ruta fija:
 
@@ -24,7 +24,7 @@ subredes, bridges— es **disjunto** del resto.
 
 **El laboratorio activo** —su topología, qué papel juega cada máquina y por qué, su
 direccionamiento, por dónde va un paquete y cómo se verifica— tiene su propia guía:
-[`EL-LABORATORIO.md`](EL-LABORATORIO.md).
+`labs/<nombre>/<nombre>.md`.
 
 ---
 
@@ -33,7 +33,7 @@ direccionamiento, por dónde va un paquete y cómo se verifica— tiene su propi
 ```text
 labs/active -> <un-laboratorio>               # symlink: la topología VIVA. Cambiar de laboratorio = repuntarlo
 machinery/inventory/hosts.yml     #   los hosts, y el grupo pve_config_targets que llena la capa 2
-labs/<nombre>.yml  # EL estado deseado — el único fichero que cambia por petición
+labs/<nombre>/<nombre>.yml  # EL estado deseado — el único fichero que cambia por petición
 secrets.yaml             # el entorno de ESTA máquina (NO se versiona): credenciales, puerto, rutas de claves
 lab                                # el ÚNICO punto de entrada: verbos fijos, con ansible.cfg y el entorno resueltos
 ansible.cfg                            # pipelining, reutilización SSH, forks, rutas de plugins y log
@@ -53,7 +53,6 @@ docs/*.md.j2                           # las plantillas de esos documentos (pros
 machinery/playbooks/tools/pve_notas.py           # motor: compone la nota HTML y las etiquetas (no las guarda)
 machinery/filter_plugins/notas.py                # motor: deriva nota y etiquetas al construir la especificación de cada invitado
 machinery/playbooks/tools/logs_prune.py          # motor: retención de machinery/logs/, la aplica cada verbo
-machinery/playbooks/tools/esfuerzo.py            # genera ESFUERZO.md desde los registros reales
 machinery/playbooks/tools/lab-check.sh           # verificación end-to-end de la red, desde dentro de una workstation
 machinery/playbooks/tools/lab-check.yml          # la misma prueba, orquestada como playbook
 machinery/playbooks/tools/pve_start_batch.py     # arranque por escalones contra la API
@@ -74,7 +73,7 @@ machinery/logs/                                  # registros de ejecución, diar
 La **capa 1** es un motor fijo con cuatro verbos —`preflight` (sólo lectura),
 `apply` (converge), `connect` (el camino) y `remove` (el destruir deliberado)—
 leyendo todos el mismo estado declarado. Una petición de cambio es una edición de
-`labs/<nombre>.yml` en una rama nueva, no un playbook nuevo: un
+`labs/<nombre>/<nombre>.yml` en una rama nueva, no un playbook nuevo: un
 playbook por cambio dispersaría el estado real en ficheros que se pisan unos a
 otros. **La rama se corta de `main` y se fusiona cuando el trabajo está
 terminado** — `main` es donde vive lo acabado y sólo hay una. Cortar de la rama
@@ -195,14 +194,14 @@ ejecución. Lanza `preflight` cuando sospeches drift, no como paso rutinario —
 
 ## El estado declarado
 
-`labs/<nombre>.yml` contiene `pve_node`, un bloque `pve_defaults`,
+`labs/<nombre>/<nombre>.yml` contiene `pve_node`, un bloque `pve_defaults`,
 `pve_containers` (los invitados LXC) y `pve_vms` (los invitados RouterOS CHR):
 **los únicos invitados que este repositorio gestiona**. Un invitado ausente de esas
 listas nunca se lee, se crea ni se modifica. Cualquier clave de `pve_defaults`
 puede sobrescribirse por invitado.
 
 El inventario concreto —cuántos invitados hay, sus vmids y qué es cada uno— es del
-**laboratorio**, y está en su guía: [`EL-LABORATORIO.md`](EL-LABORATORIO.md). Lo que el
+**laboratorio**, y está en su guía: `labs/<nombre>/<nombre>.md`. Lo que el
 motor exige de él es una sola cosa, y no admite excepciones: que su espacio —vmids, MACs,
 subredes, bridges— sea **disjunto** del de cualquier otro laboratorio del nodo.
 
@@ -236,7 +235,7 @@ siguen siendo la convención que la tabla respeta, pero la dirección concreta d
 equipo vive en la tabla.
 
 Las herramientas que necesitan los **valores** y no las plantillas
-(`framework_check.py`, `pve_notas.py`, `esfuerzo.py`) resuelven la declaración con
+(`framework_check.py`, `pve_notas.py`) resuelven la declaración con
 `machinery/playbooks/tools/declaracion.py`, que replica el render de Ansible **en un solo
 sitio**: es el único punto que tocar cuando aparezca otra variable derivada.
 
@@ -372,7 +371,7 @@ dentro.
 
 La metodología, una línea por regla:
 
-- **Un estado declarado, dos capas.** `labs/<nombre>.yml` sigue siendo
+- **Un estado declarado, dos capas.** `labs/<nombre>/<nombre>.yml` sigue siendo
   la única fuente de verdad: la capa 1 lee la forma del invitado, la capa 2 lee su
   bloque `config:`. Las direcciones nunca se duplican — la capa 2 deriva el destino
   SSH de la declaración de la interfaz con el filtro `pve_declared_ipv4`, o del
@@ -497,7 +496,7 @@ estado del invitado y comprueba que es el declarado.
 
 Qué topología es, qué papel juega cada máquina y por qué, su direccionamiento y por dónde
 va un paquete: todo eso es del **laboratorio**, y vive en su guía
-([`EL-LABORATORIO.md`](EL-LABORATORIO.md) — *la topología*, *qué es cada pieza*, *el
+(`labs/<nombre>/<nombre>.md` — *la topología*, *qué es cada pieza*, *el
 direccionamiento*, *por dónde va un paquete*, *cómo se despliega*). Aquí, en el README del
 motor, sólo queda lo que es del motor: los verbos, las dos capas y las reglas que valen
 para cualquier topología.
@@ -786,14 +785,14 @@ python3 machinery/playbooks/tools/framework_check.py drill
 ## Un laboratorio nuevo
 
 El motor no se copia ni se bifurca: se copia un **laboratorio**. `framework_check.py
-nuevo-lab` crea `labs/<nombre>.yml` a partir de otro (por defecto `labs/active`) y corrige
+nuevo-lab` crea `labs/<nombre>/<nombre>.yml` a partir de otro (por defecto `labs/active`) y corrige
 la ruta del manifiesto en las notas de los invitados, sin tocar ningún hostname.
 
 ```bash
 python3 machinery/playbooks/tools/framework_check.py nuevo-lab delegacion-4
-python3 machinery/playbooks/tools/framework_check.py --lab labs/delegacion-4.yml agree
-python3 machinery/playbooks/tools/framework_check.py --lab labs/delegacion-4.yml plan
-python3 machinery/playbooks/tools/framework_check.py --lab labs/delegacion-4.yml notas
+python3 machinery/playbooks/tools/framework_check.py --lab labs/delegacion-4/delegacion-4.yml agree
+python3 machinery/playbooks/tools/framework_check.py --lab labs/delegacion-4/delegacion-4.yml plan
+python3 machinery/playbooks/tools/framework_check.py --lab labs/delegacion-4/delegacion-4.yml notas
 ```
 
 Se copia en vez de escribirse de cero porque un manifiesto lleva decenas de invitados,
@@ -939,9 +938,9 @@ grep -E '"status": 4[0-9][0-9]|"status": 5[0-9][0-9]' machinery/logs/pve-api.jso
 
 El diario y el log del play son también la materia prima de un relato **medido** de lo
 que costó poner este laboratorio en pie: llamadas a la API por endpoint y por máquina,
-ejecuciones de tarea por anfitrión y el tiempo de reloj de cada verbo. Se genera desde
-esos registros, nunca escrito a mano — [`ESFUERZO.md`](ESFUERZO.md) más
-`machinery/playbooks/tools/esfuerzo.py`.
+ejecuciones de tarea por anfitrión y el tiempo de reloj de cada verbo. Se cuenta sobre
+esos registros —el [diario](machinery/playbooks/tracing/sitecustomize.py) y el log—,
+que son la única fuente: no hay una copia que se pueda quedar atrás.
 
 ### Retención
 
@@ -1025,8 +1024,7 @@ forma de envejecer. La regla que los separa es **«¿dónde mira quien empieza l
 | Documento | Qué lleva | Cómo se mantiene |
 | --- | --- | --- |
 | `README.md` (este) | Qué hace el repo y cómo se opera | se genera desde `docs/README.md.j2` |
-| `EL-LABORATORIO.md` | La prosa del laboratorio: topología, direccionamiento, por qué | se genera desde `docs/laboratorio.md.j2` |
-| `ESFUERZO.md` | El recuento del trabajo | se genera con `esfuerzo.py` |
+| `labs/<nombre>/<nombre>.md` | La prosa del laboratorio: topología, direccionamiento, por qué | se genera desde `docs/laboratorio.md.j2` |
 | comentarios del código | El porqué de una implementación concreta, junto a su efecto | se lee al abrir el fichero; se actualiza en el mismo cambio |
 | `docs/decisiones/` | El porqué transversal (ADR), en el tiempo | se cita, no se copia; un ADR aceptado se sustituye |
 | `.hermes.md` | Las reglas que hay que obedecer | se lee siempre |

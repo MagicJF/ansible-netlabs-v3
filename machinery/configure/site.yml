@@ -4,7 +4,7 @@
 #
 # Layer 1 owns the guest's shape through the Proxmox API; this owns what runs
 # inside it, over SSH. Both read the same declared state
-# (labs/netlab-v2.yml), which stays the single source of truth.
+# (labs/netlab-v2/netlab-v2.yml), which stays the single source of truth.
 #
 # Run from the repository root:
 #     ansible-playbook machinery/configure/site.yml
@@ -95,7 +95,7 @@
         msg: >-
           No configuration target answers on :22 and pve_tunnel is not declared with
           manage true, so layer 2 has no path to the guests. Declare pve_tunnel in
-          labs/netlab-v2.yml (endpoint, endpoint_public_key, address,
+          labs/netlab-v2/netlab-v2.yml (endpoint, endpoint_public_key, address,
           guest_network, private_key_path) and run this verb again, or run it from a
           node that is already on the guest LAN. Nothing was changed on the guests.
       when:

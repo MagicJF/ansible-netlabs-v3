@@ -19,7 +19,7 @@
 #
 # Idempotent: an existing endpoint key is kept, the peer is rewritten, and the
 # tunnel is re-applied. It prints the endpoint's PUBLIC key, which goes into
-# pve_tunnel.endpoint_public_key in labs/netlab-v2.yml.
+# pve_tunnel.endpoint_public_key in labs/netlab-v2/netlab-v2.yml.
 #
 # usage: wg_endpoint_setup.sh <CLIENT_PUBLIC_KEY> [SERVER_ADDRESS] [LISTEN_PORT] [GUEST_BRIDGE] [NAME] [EXTRA_ROUTES]
 #

@@ -16,7 +16,7 @@
 #
 # Laboratorio: `--lab <nombre>` opera OTRA topología sin tocar el enlace
 # `labs/active`. Sin él, manda el enlace. El nombre vale con `labs/` delante, con
-# `.yml` o sin él: el laboratorio es el fichero `labs/<nombre>.yml`.
+# `.yml` o sin él: el laboratorio es `labs/<nombre>/<nombre>.yml`.
 #
 # Verbos:
 #   entorno [args]   el fichero del entorno: crear, verificar, mostrar, api
@@ -55,7 +55,7 @@ for arg in "$@"; do
 done
 [ "${#RESTANTES[@]}" -gt 0 ] && set -- "${RESTANTES[@]}" || set --
 
-# El laboratorio es un FICHERO: labs/<nombre>.yml. Sin `--lab`, manda el enlace
+# El laboratorio es `labs/<nombre>/<nombre>.yml`. Sin `--lab`, manda el enlace
 # `labs/active`. El manifiesto viaja por `-e @...` (extra vars), que sí plantilla
 # el Jinja de la declaración (comprobado: la tabla de sedes sale resuelta).
 RUTA_LAB="labs/active"
@@ -63,7 +63,7 @@ if [ -n "$LAB" ]; then
     case "$LAB" in
         labs/*) RUTA_LAB="$LAB" ;;
         *.yml)  RUTA_LAB="labs/$LAB" ;;
-        *)      RUTA_LAB="labs/$LAB.yml" ;;
+        *)      RUTA_LAB="labs/$LAB/$LAB.yml" ;;
     esac
 fi
 if [ ! -f "$RUTA_LAB" ]; then

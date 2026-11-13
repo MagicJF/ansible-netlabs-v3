@@ -24,5 +24,5 @@ demás es REST. Es un bootstrap, no una segunda vía de configuración.
   ORIGEN de la ruta dinámica del ADR 0003.
 
 ## Dónde se aplica
-`machinery/configure/roles/bootstrap/`; prosa en `EL-LABORATORIO.md`; la sección «¿Se puede prescindir
+`machinery/configure/roles/bootstrap/`; prosa en `labs/<nombre>/<nombre>.md`; la sección «¿Se puede prescindir
 del bootstrap?» de `.hermes.md`.

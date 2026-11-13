@@ -39,7 +39,7 @@
       VMID {{ item.0.vmid }}: the declared disk {{ item.1.key }} does not exist.
       An imported image can only be attached while the VM is created — PVE
       accepts `import-from` at creation and nothing else — so this VM has to be
-      recreated: remove it from labs/netlab-v2.yml, run apply.yml to
+      recreated: remove it from labs/netlab-v2/netlab-v2.yml, run apply.yml to
       delete it, declare it again and run apply.yml once more.
   loop: "{{ pve_vm_specs | selectattr('disk_import', 'defined') | list | subelements('disk_import') }}"
   loop_control:

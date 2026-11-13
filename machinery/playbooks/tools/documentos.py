@@ -42,11 +42,24 @@ LAB = "labs/active"
 MANIFIESTO = os.path.join(REPO, LAB)
 PLANTILLAS = os.path.join(REPO, "docs")
 
-# (plantilla, salida). La salida es relativa a la raíz del repositorio.
-DOCUMENTOS = [
-    ("laboratorio.md.j2", "docs/EL-LABORATORIO.md"),
+def nombre_lab(ruta_manifiesto):
+    """El nombre del laboratorio: el de su carpeta (`labs/<nombre>/<nombre>.yml`)."""
+    ruta = ruta_manifiesto if os.path.isabs(ruta_manifiesto) else os.path.join(REPO, ruta_manifiesto)
+    return os.path.basename(os.path.dirname(os.path.realpath(ruta)))
+
+
+# (plantilla, salida). La salida es relativa a la raíz del repositorio; `{lab}` se
+# sustituye por el nombre del laboratorio: su prosa vive CON él, en
+# `labs/<nombre>/<nombre>.md`, no en un documento suelto bajo `docs/`.
+PLANTILLAS_DOC = [
+    ("laboratorio.md.j2", "labs/{lab}/{lab}.md"),
     ("README.md.j2", "docs/README.md"),
 ]
+
+
+def documentos(lab):
+    """Las parejas (plantilla, salida) de este laboratorio, con `{lab}` resuelto."""
+    return [(p, s.replace("{lab}", lab)) for p, s in PLANTILLAS_DOC]
 
 # El orden de los roles en las tablas: del que no enruta al que más hace.
 ORDEN_ROL = {"workstation": 0, "switch": 1, "router": 2, "firewall": 3, "bootstrap": 4}
@@ -286,7 +299,7 @@ def main():
     ap.add_argument("--check", action="store_true",
                     help="no escribe; falla si algún documento no coincide con su render")
     ap.add_argument("--lista", action="store_true", help="qué se genera y de dónde")
-    ap.add_argument("--lab", default="labs/active", help="laboratorio (labs/active o labs/<nombre>.yml)")
+    ap.add_argument("--lab", default="labs/active", help="laboratorio (labs/active o labs/<nombre>/<nombre>.yml)")
     args = ap.parse_args()
     global MANIFIESTO
     MANIFIESTO = os.path.join(REPO, args.lab)
@@ -296,12 +309,12 @@ def main():
 
     if args.lista:
         print("plantilla -> documento (desde %s)" % os.path.relpath(MANIFIESTO, REPO))
-        for p, s in DOCUMENTOS:
+        for p, s in documentos(nombre_lab(MANIFIESTO)):
             print("  docs/%-22s -> %s" % (p, s))
         return 0
 
     desfasados = []
-    for plantilla, salida in DOCUMENTOS:
+    for plantilla, salida in documentos(nombre_lab(MANIFIESTO)):
         nuevo = render(plantilla, ctx)
         ruta = os.path.join(REPO, salida)
         actual = open(ruta, encoding="utf-8").read() if os.path.exists(ruta) else None

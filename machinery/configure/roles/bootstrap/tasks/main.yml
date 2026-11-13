@@ -11,7 +11,7 @@
 # bootstrap — converge the one thing that has to exist before a router's own
 # API can be used: its first address.
 #
-# The declaration (labs/netlab-v2.yml, the guest's `config.bootstrap`
+# The declaration (labs/netlab-v2/netlab-v2.yml, the guest's `config.bootstrap`
 # block) says which interface, which MAC asks and which address is handed over.
 # This role converges the machine that hands it over, and then PROVES the router
 # took it: a running dnsmasq is not proof that the router got an address.

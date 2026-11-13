@@ -2,34 +2,26 @@
   ".hermes.md": {
     "machinery/configure/roles/routeros/tasks/main.yml": "9e507fcc8aaa95dcb46e86fa1e5fdbf5d535583c6f349f0cf7f680912a757889"
   },
-  "docs/EL-LABORATORIO.md": {
-    "docs/ESFUERZO.md": "cd6eafb4b18cd4e6aaccdbf554005aed71d0a96f6d1efc1c77ce24beba3cc3f7",
-    "docs/decisiones/0008-pool-por-laboratorio.md": "26a67b1e971ed0c6b453c4e959e0ca431330683ade91ebcbefa661dd37a3f43c",
-    "machinery/configure/site.yml": "2ae0ecf5592add264a5fa3480d246179a081c6ccce7a1198d8c54569d6522eb4",
-    "machinery/playbooks/apply.yml": "f4affd1bd3c89b2b3cbbf2b2bededcce24054351343f3fe5e3ac6d391005e625"
-  },
-  "docs/ESFUERZO.md": {},
   "docs/README.md": {
-    "docs/EL-LABORATORIO.md": "0d7f4d692691d0d1b7e0152a046e3e68f54cf29b5c63b6b8798f6072662f9bd9",
-    "docs/ESFUERZO.md": "cd6eafb4b18cd4e6aaccdbf554005aed71d0a96f6d1efc1c77ce24beba3cc3f7",
-    "docs/decisiones/0002-bootstrap-existe.md": "66df16cbcc4c8225da61f7574e6b7c2cb533c3069c5f7b1fdcd08143c25cd393",
+    "docs/decisiones/0002-bootstrap-existe.md": "68ead6f2d61d565ca4efd4514be951d7ee8910ecae54a56d19c7825811feb084",
     "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": "3186ac32b19c52926b95590f31a77e17e36842e76b9ac3d4dd0fe0cab66697df",
     "docs/decisiones/0008-pool-por-laboratorio.md": "26a67b1e971ed0c6b453c4e959e0ca431330683ade91ebcbefa661dd37a3f43c",
-    "machinery/configure/roles/bootstrap/tasks/main.yml": "262ade3d36c38ab758ff19dbc6c179c2dd633195af6b75fba3c99275f69788ba",
+    "machinery/configure/roles/bootstrap/tasks/main.yml": "2aab8f1e30558625015d440cf1e39a285ee2c4ad4e671a3db3bcd58a89ab1d96",
     "machinery/configure/roles/routeros/tasks/main.yml": "9e507fcc8aaa95dcb46e86fa1e5fdbf5d535583c6f349f0cf7f680912a757889",
     "machinery/configure/tasks/ssh_path.yml": "3d55bea03b963f1c66570f81a6400f13b17d2c10cea6d1026f4342a637582b42",
-    "machinery/playbooks/apply.yml": "f4affd1bd3c89b2b3cbbf2b2bededcce24054351343f3fe5e3ac6d391005e625",
+    "machinery/playbooks/apply.yml": "44a887267f47e26dd9ab1087cd678147d3b78c114b302f073602ff580da19d80",
     "machinery/playbooks/preflight.yml": "6f5ce395fffe5e4a91f0d58007e44766812ea1dabe917f0c422749348daa2523",
-    "machinery/playbooks/pve_engine.j2": "532533398250f7d858c55495b24fa433dc792fa8ff28b6b34bbbff9efe321fbe"
+    "machinery/playbooks/pve_engine.j2": "532533398250f7d858c55495b24fa433dc792fa8ff28b6b34bbbff9efe321fbe",
+    "machinery/playbooks/tracing/sitecustomize.py": "3c485115bfa6c3692b6f18dd8c32a8ba6e1639ead888f14613d3c38add59c2ea"
   },
   "docs/decisiones/0001-solo-api.md": {},
   "docs/decisiones/0002-bootstrap-existe.md": {},
   "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": {
-    "machinery/playbooks/tools/framework_check.py": "ac1a9d11e7eb4d56862f23fd2c9822dfc4cb769ac184e657495eeaba4c662254"
+    "machinery/playbooks/tools/framework_check.py": "49502547601cab83d4bbfc3cf08b6f4e4bf0c6ec894f9c84dee174b5bd3317ac"
   },
   "docs/decisiones/0004-invitado-por-etiqueta.md": {
     "docs/decisiones/0006-vocabulario-etiquetas.md": "717d3ebb160dde886853077b16e4b0a34b27e034c7d3304abad471e2a94240e7",
-    "machinery/playbooks/tools/framework_check.py": "ac1a9d11e7eb4d56862f23fd2c9822dfc4cb769ac184e657495eeaba4c662254"
+    "machinery/playbooks/tools/framework_check.py": "49502547601cab83d4bbfc3cf08b6f4e4bf0c6ec894f9c84dee174b5bd3317ac"
   },
   "docs/decisiones/0005-numero-compuesto.md": {},
   "docs/decisiones/0006-vocabulario-etiquetas.md": {
@@ -45,12 +37,17 @@
   },
   "docs/decisiones/README.md": {
     "docs/decisiones/0001-solo-api.md": "6fdde4c76fb63fdef6f5c8664d0f8b901761240009871453e1b72cd8a3b9485f",
-    "docs/decisiones/0002-bootstrap-existe.md": "66df16cbcc4c8225da61f7574e6b7c2cb533c3069c5f7b1fdcd08143c25cd393",
+    "docs/decisiones/0002-bootstrap-existe.md": "68ead6f2d61d565ca4efd4514be951d7ee8910ecae54a56d19c7825811feb084",
     "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": "3186ac32b19c52926b95590f31a77e17e36842e76b9ac3d4dd0fe0cab66697df",
     "docs/decisiones/0004-invitado-por-etiqueta.md": "d77296d317100b61aa165baa682e08022d4d57d214ccde4e4bd7f0d88777c53b",
     "docs/decisiones/0005-numero-compuesto.md": "e47dea0b6a7c598e6df4c184c272358ac89abf8c760ddafefffb751058268db4",
     "docs/decisiones/0006-vocabulario-etiquetas.md": "717d3ebb160dde886853077b16e4b0a34b27e034c7d3304abad471e2a94240e7",
     "docs/decisiones/0007-codigo-de-sede.md": "0fc3a7575458e122f6c22050f2b371c6cfb9a43ea13665ed1c4db082417b8216",
     "docs/decisiones/0008-pool-por-laboratorio.md": "26a67b1e971ed0c6b453c4e959e0ca431330683ade91ebcbefa661dd37a3f43c"
+  },
+  "labs/netlab-v2/netlab-v2.md": {
+    "docs/decisiones/0008-pool-por-laboratorio.md": "26a67b1e971ed0c6b453c4e959e0ca431330683ade91ebcbefa661dd37a3f43c",
+    "machinery/configure/site.yml": "840f32fcf38b3adb4ddc5f22ef5e281e171e2ebb20c3c9d324fb28650ec1fe6d",
+    "machinery/playbooks/apply.yml": "44a887267f47e26dd9ab1087cd678147d3b78c114b302f073602ff580da19d80"
   }
 }

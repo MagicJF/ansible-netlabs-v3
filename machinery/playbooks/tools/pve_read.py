@@ -293,7 +293,7 @@ def pool_facts(session, api, poolid, declared_vmids):
 
 def main():
     ap = argparse.ArgumentParser(description="Read the declared state, every guest, and the platform facts.")
-    ap.add_argument("--manifest", required=True, help="declared-state file (labs/<nombre>.yml)")
+    ap.add_argument("--manifest", required=True, help="declared-state file (labs/<nombre>/<nombre>.yml)")
     ap.add_argument("--entorno", help="el entorno de la máquina (secrets.yaml)")
     ap.add_argument("--journal", help="append run_start/run_end markers here")
     ap.add_argument("--playbook", default="unknown")

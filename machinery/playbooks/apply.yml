@@ -24,7 +24,7 @@
 # The checks were never the cost — validate/report/assert inside a task are
 # free. The number of execution boundaries was. So no check was removed.
 # ===========================================================================
-- name: Converge every guest declared in the active lab (labs/<nombre>.yml)
+- name: Converge every guest declared in the active lab (labs/<nombre>/<nombre>.yml)
   hosts: localhost
   gather_facts: false
   vars:

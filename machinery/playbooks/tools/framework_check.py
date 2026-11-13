@@ -1183,9 +1183,11 @@ def nuevo_lab(nombre, desde=None, activar=False):
     origen_real = os.path.realpath(os.path.join(REPO, origen))
     if not os.path.isfile(origen_real):
         fail(f"el laboratorio de origen no existe: {origen}")
-    destino = os.path.join(REPO, "labs", nombre + ".yml")
+    destino_dir = os.path.join(REPO, "labs", nombre)
+    destino = os.path.join(destino_dir, nombre + ".yml")
     if os.path.exists(destino):
-        fail(f"ya existe labs/{nombre}.yml")
+        fail(f"ya existe labs/{nombre}/{nombre}.yml")
+    os.makedirs(destino_dir, exist_ok=True)
 
     say(f"== nuevo-lab: {nombre} a partir de {os.path.relpath(origen_real, REPO)} ==")
     shutil.copyfile(origen_real, destino)
@@ -1194,23 +1196,23 @@ def nuevo_lab(nombre, desde=None, activar=False):
     manifiesto = destino
     texto = open(manifiesto, encoding="utf-8").read()
     origen_rel = os.path.relpath(origen_real, REPO).replace(os.sep, "/")
-    texto = texto.replace(origen_rel, f"labs/{nombre}.yml")
+    texto = texto.replace(origen_rel, f"labs/{nombre}/{nombre}.yml")
     open(manifiesto, "w", encoding="utf-8").write(texto)
 
-    say(f"  copiado en labs/{nombre}.yml")
+    say(f"  copiado en labs/{nombre}/{nombre}.yml")
     say("\n  Para validarlo SIN activarlo (no toca el laboratorio vivo):")
-    say(f"    python3 machinery/playbooks/tools/framework_check.py --lab labs/{nombre}.yml agree")
-    say(f"    python3 machinery/playbooks/tools/framework_check.py --lab labs/{nombre}.yml plan")
-    say(f"    python3 machinery/playbooks/tools/framework_check.py --lab labs/{nombre}.yml notas")
+    say(f"    python3 machinery/playbooks/tools/framework_check.py --lab labs/{nombre}/{nombre}.yml agree")
+    say(f"    python3 machinery/playbooks/tools/framework_check.py --lab labs/{nombre}/{nombre}.yml plan")
+    say(f"    python3 machinery/playbooks/tools/framework_check.py --lab labs/{nombre}/{nombre}.yml notas")
     say("\n  Edita su manifiesto, y cuando cuadre:")
     if activar:
         enlace = os.path.join(REPO, "labs/active")
         if os.path.islink(enlace):
             os.unlink(enlace)
-        os.symlink(f"{nombre}.yml", enlace)
-        say(f"  labs/active -> {nombre}.yml  (hecho)")
+        os.symlink(f"{nombre}/{nombre}.yml", enlace)
+        say(f"  labs/active -> {nombre}/{nombre}.yml  (hecho)")
     else:
-        say(f"    ln -sfn {nombre}.yml labs/active   # o repite con --activar")
+        say(f"    ln -sfn {nombre}/{nombre}.yml labs/active   # o repite con --activar")
     say("\nPASS: laboratorio creado. El motor no ha cambiado: sólo la topología.")
     return 0
 
@@ -1323,8 +1325,12 @@ def _documentos_rastreables():
     que la pregunta «¿quién cita esta ruta?» se responde mirando los documentos.
     """
     fuera = [".hermes.md"]
-    d = os.path.join(REPO, "docs")
-    if os.path.isdir(d):
+    # Los documentos de prosa: los de `docs/` y la guía de CADA laboratorio, que vive
+    # con él en `labs/<nombre>/<nombre>.md` (también cita rutas, así que también cuenta).
+    for carpeta in ("docs", "labs"):
+        d = os.path.join(REPO, carpeta)
+        if not os.path.isdir(d):
+            continue
         for raiz, _dirs, ficheros in os.walk(d):
             for f in ficheros:
                 if f.endswith(".md"):
@@ -1433,17 +1439,16 @@ def routeros_check():
 
 
 def _labs_declarados():
-    """[(nombre, ruta_manifest)] de todos los laboratorios, menos el enlace `active`."""
+    """[(nombre, ruta_manifest)] de todos los laboratorios, menos el enlace `active`.
+
+    El laboratorio es su CARPETA: `labs/<nombre>/<nombre>.yml`.
+    """
     raiz = os.path.join(REPO, "labs")
     out = []
     for nombre in sorted(os.listdir(raiz)):
-        if not nombre.endswith(".yml"):
-            continue
-        ruta = os.path.join(raiz, nombre)
-        if os.path.islink(ruta):      # `active` es un enlace a uno de los laboratorios
-            continue
+        ruta = os.path.join(raiz, nombre, nombre + ".yml")
         if os.path.isfile(ruta):
-            out.append((nombre[:-4], ruta))
+            out.append((nombre, ruta))
     return out
 
 
@@ -1654,7 +1659,7 @@ def docs_check():
     say("== docs: los documentos contra la declaración ==")
     ctx = _doc.contexto(manifiesto())
     malos = []
-    for plantilla, salida in _doc.DOCUMENTOS:
+    for plantilla, salida in _doc.documentos(_doc.nombre_lab(MANIFEST)):
         nuevo = _doc.render(plantilla, ctx)
         ruta = os.path.join(REPO, salida)
         actual = open(ruta, encoding="utf-8").read() if os.path.exists(ruta) else None
@@ -1801,7 +1806,7 @@ def pool_check():
 def main():
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--lab", default="labs/active",
-                        help="laboratorio a inspeccionar (labs/active o labs/<nombre>.yml)")
+                        help="laboratorio a inspeccionar (labs/active o labs/<nombre>/<nombre>.yml)")
     sub = parser.add_subparsers(dest="mode")
     inv = sub.add_parser("invariant", help="run a verb twice; the second run must change nothing")
     inv.add_argument("--verb", default="machinery/playbooks/apply.yml")

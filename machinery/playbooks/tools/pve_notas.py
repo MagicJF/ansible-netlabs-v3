@@ -9,7 +9,7 @@
 # ===========================================================================
 # pve_notas.py — las notas de los invitados, derivadas de la declaración.
 #
-# Qué hace: reescribe en labs/netlab-v2.yml las dos cosas que PVE
+# Qué hace: reescribe en labs/netlab-v2/netlab-v2.yml las dos cosas que PVE
 # enseña en su interfaz y que hasta ahora se escribían a mano:
 #   * description — la nota HTML (tablas, diagrama de posición, intención)
 #   * tags        — tres y ni una más: quién lo gestiona, qué es y dónde está.

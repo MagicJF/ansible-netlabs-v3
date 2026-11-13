@@ -1,4 +1,4 @@
-<!-- GENERADO por machinery/playbooks/tools/documentos.py desde labs/netlab-v2.yml.
+<!-- GENERADO por machinery/playbooks/tools/documentos.py desde labs/netlab-v2/netlab-v2.yml.
      No editar a mano: edita la plantilla docs/laboratorio.md.j2 y regenera. -->
 # El laboratorio: una empresa de tres sedes
 
@@ -248,7 +248,7 @@ no de una vía de gestión metida en las workstations.
   **siempre** por su API REST, con `ansible.builtin.uri`: nada de SSH, nada del
   puerto binario 8728.
 
-Un mismo fichero, `labs/netlab-v2.yml`, declara **todo**.
+Un mismo fichero, `labs/netlab-v2/netlab-v2.yml`, declara **todo**.
 
 ---
 
@@ -377,9 +377,9 @@ HTTP y el **log** de Ansible— permiten contar el trabajo con números en vez d
 impresiones: cuántas llamadas se hicieron a cada API, por equipo y por endpoint,
 cuántas tareas se ejecutaron en cada anfitrión y cuánto tardó cada verbo.
 
-**[`ESFUERZO.md`](ESFUERZO.md)** tiene las tablas. No está escrito a mano: lo genera
-`machinery/playbooks/tools/esfuerzo.py` a partir de esos dos registros, así que se puede
-volver a generar y auditar cuando haga falta.
+Se cuentan sobre esos dos registros, que son la única fuente: el recuento no se
+almacena en ninguna parte, se vuelve a leer cuando hace falta. Una cifra guardada es
+una cifra que envejece sin decirlo.
 
 ## Lo que este laboratorio NO es
 
