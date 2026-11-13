@@ -1,0 +1,44 @@
+# Managed by layer 2 — machinery/configure/roles/bootstrap, rendered from the `bootstrap`
+# block of this guest's declaration in labs/netlab-v2.yml. Editing this
+# file inside the guest is drift and is reverted on the next run.
+#
+# This is NOT the lab's DHCP server. It hands ONE address to ONE machine: the
+# router, on the single occasion the router has no address at all.
+{% for s in l2_bootstrap_segments -%}
+interface={{ s.interface }}
+{% endfor -%}
+bind-interfaces
+# No DNS: this container is not a resolver, and dnsmasq would otherwise answer
+# port 53 on the management LAN.
+port=0
+
+# ONE `dhcp-range`, and in `static` mode: dnsmasq hands out no addresses from a
+# pool, it answers only the hosts declared below. That is what keeps this
+# container from racing the host's own DHCP server for any other machine on the
+# segment — the same effect as the `dhcp-ignore=tag:!known` it replaces, said in
+# the one line that was needed anyway.
+# Una RANGE por segmento. dnsmasq ata cada range a la interfaz por la subred de la
+# direccion, asi que declarar dos segmentos no los mezcla.
+{% for s in l2_bootstrap_segments %}
+dhcp-range={{ s.hosts[0].address }},static,{{ bootstrap_netmask }},{{ bootstrap_lease_time }}
+{% for h in s.hosts %}
+# {{ h.name | default('router') }} ({{ s.interface }})
+dhcp-host={{ h.mac }},{{ h.address }}
+{% endfor %}
+# La PUERTA del segmento, atada a esa interfaz: dnsmasq ya etiqueta cada peticion
+# con el nombre de la interfaz por la que entro, asi que la opcion no se cruza
+# entre segmentos. Sin ella el equipo recien nacido tiene direccion pero no sabe
+# volver FUERA de su subred, y su API —que es justo lo que se configura a
+# continuacion— no contesta a quien la llama desde el nodo de control, en otra
+# red. Medido: desde el propio segmento el equipo responde; desde fuera, no.
+dhcp-option=tag:{{ s.interface }},3,{{ s.gateway }}
+{% endfor %}
+
+# Sin DNS: este contenedor no es resolutor, y dnsmasq contestaria el puerto 53 de
+# la LAN de gestion. El direccionamiento de verdad del equipo (su direccion de
+# gestion estatica, su ruta por defecto, el segmento del laboratorio) se declara
+# en el manifiesto y se aplica por su propia API REST un momento despues.
+dhcp-option=6
+
+dhcp-authoritative
+log-dhcp

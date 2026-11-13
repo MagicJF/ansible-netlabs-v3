@@ -52,6 +52,6 @@ orden**, en `lab_familias` (su posición es la decena); los códigos de sede en
 ## Dónde se aplica
 
 `lab_familias`, `lab_sites[].codigo` y `lab_sedes_extra` del inventario de cada
-laboratorio; `playbooks/tools/pve_notas.py` (la etiqueta de sitio) y
-`playbooks/tools/documentos.py`; `framework_check.py` (`numeracion` y `notas`); y la
+laboratorio; `machinery/playbooks/tools/pve_notas.py` (la etiqueta de sitio) y
+`machinery/playbooks/tools/documentos.py`; `framework_check.py` (`numeracion` y `notas`); y la
 prosa de `docs/laboratorio.md.j2`.

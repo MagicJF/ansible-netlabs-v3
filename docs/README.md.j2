@@ -1,4 +1,4 @@
-<!-- GENERADO por playbooks/tools/documentos.py desde la declaración del laboratorio activo.
+<!-- GENERADO por machinery/playbooks/tools/documentos.py desde la declaración del laboratorio activo.
      No editar a mano: edita la plantilla docs/README.md.j2 y regenera. -->
 # Proxmox LXC y VM mediante Ansible
 
@@ -8,14 +8,14 @@ el hipervisor.
 
 Este repositorio es el **motor**, y el motor **no conoce ninguna topología**: ni un
 hostname, ni una dirección, ni un vmid. Lo que se despliega es una **declaración**, y una
-declaración es un **laboratorio**: `labs/<nombre>/inventory/group_vars/all.yml` (el estado
-deseado) y `labs/<nombre>/inventory/hosts.yml` (los hosts). El laboratorio es un
+declaración es un **laboratorio**: `labs/<nombre>.yml` (el estado
+deseado) y `machinery/inventory/hosts.yml` (los hosts). El laboratorio es un
 **parámetro del verbo**, no una ruta fija:
 
 ```bash
-bin/lab --lab <nombre> apply          # opera ese laboratorio
-HERMES_LAB=labs/<nombre> bin/lab check
-bin/lab apply                         # el del enlace labs/active
+lab --lab <nombre> apply          # opera ese laboratorio
+lab --lab <nombre> check          # la prueba, en ese laboratorio
+lab apply                         # el del enlace labs/active
 ```
 
 Cambiar de laboratorio es repuntar `labs/active` (o pasar `--lab`); nunca se toca el
@@ -32,49 +32,49 @@ direccionamiento, por dónde va un paquete y cómo se verifica— tiene su propi
 
 ```text
 labs/active -> <un-laboratorio>               # symlink: la topología VIVA. Cambiar de laboratorio = repuntarlo
-labs/<nombre>/inventory/hosts.yml     #   los hosts, y el grupo pve_config_targets que llena la capa 2
-labs/<nombre>/inventory/group_vars/all.yml  # EL estado deseado — el único fichero que cambia por petición
-playbooks/vars/entorno.example.yml    # LA PLANTILLA del entorno de la máquina: credenciales, puerto, rutas de claves
-bin/lab                                # el ÚNICO punto de entrada: verbos fijos, con ansible.cfg y el entorno resueltos
+machinery/inventory/hosts.yml     #   los hosts, y el grupo pve_config_targets que llena la capa 2
+labs/<nombre>.yml  # EL estado deseado — el único fichero que cambia por petición
+secrets.example.yaml    # LA PLANTILLA del entorno de la máquina: credenciales, puerto, rutas de claves
+lab                                # el ÚNICO punto de entrada: verbos fijos, con ansible.cfg y el entorno resueltos
 ansible.cfg                            # pipelining, reutilización SSH, forks, rutas de plugins y log
 .ansible-lint                          # las reglas de lint que se exigen, y por qué no las demás
-playbooks/preflight.yml                # sólo lectura: comprobaciones de plataforma + declarado frente a vivo
-playbooks/apply.yml                    # converge cada invitado declarado y luego verifica por la API
-playbooks/connect.yml                  # converge el CAMINO del nodo de control hacia la LAN de invitados
-playbooks/remove.yml                   # el destruir deliberado, se niega mientras el invitado siga declarado
-playbooks/pve_engine.j2                # motor: análisis declarado-vs-vivo, como macros Jinja
-playbooks/tasks/                       # motor: pasos compartidos (segmentos, importación de discos, energía, tags)
-playbooks/tools/pve_read.py            # motor: lee todos los invitados + datos de plataforma en UN proceso
-playbooks/tools/framework_check.py     # el test del propio marco: convergente, y ve el drift
-playbooks/tools/documentos.py          # renderiza los documentos del repo desde la declaración
-playbooks/tools/declaracion.py         # motor: resuelve la declaración (el render de Ansible) para las herramientas
-playbooks/tools/entorno.py             # motor: escribe, comprueba y resuelve el entorno de la máquina (una sola verdad)
+machinery/playbooks/preflight.yml                # sólo lectura: comprobaciones de plataforma + declarado frente a vivo
+machinery/playbooks/apply.yml                    # converge cada invitado declarado y luego verifica por la API
+machinery/playbooks/connect.yml                  # converge el CAMINO del nodo de control hacia la LAN de invitados
+machinery/playbooks/remove.yml                   # el destruir deliberado, se niega mientras el invitado siga declarado
+machinery/playbooks/pve_engine.j2                # motor: análisis declarado-vs-vivo, como macros Jinja
+machinery/playbooks/tasks/                       # motor: pasos compartidos (segmentos, importación de discos, energía, tags)
+machinery/playbooks/tools/pve_read.py            # motor: lee todos los invitados + datos de plataforma en UN proceso
+machinery/playbooks/tools/framework_check.py     # el test del propio marco: convergente, y ve el drift
+machinery/playbooks/tools/documentos.py          # renderiza los documentos del repo desde la declaración
+machinery/playbooks/tools/declaracion.py         # motor: resuelve la declaración (el render de Ansible) para las herramientas
+machinery/playbooks/tools/entorno.py             # motor: escribe, comprueba y resuelve el entorno de la máquina (una sola verdad)
 docs/*.md.j2                           # las plantillas de esos documentos (prosa + valores del manifiesto)
-playbooks/tools/pve_notas.py           # motor: compone la nota HTML y las etiquetas (no las guarda)
-filter_plugins/notas.py                # motor: deriva nota y etiquetas al construir la especificación de cada invitado
-playbooks/tools/logs_prune.py          # motor: retención de logs/, la aplica cada verbo
-playbooks/tools/esfuerzo.py            # genera ESFUERZO.md desde los registros reales
-playbooks/tools/lab-check.sh           # verificación end-to-end de la red, desde dentro de una workstation
-playbooks/tools/lab-check.yml          # la misma prueba, orquestada como playbook
-playbooks/tools/pve_start_batch.py     # arranque por escalones contra la API
-playbooks/tools/routeros_wait.py       # espera a que un equipo RouterOS termine de arrancar
-playbooks/tools/routeros_ready.py      # si el DHCP de cada sede está en pie Y con su reserva: la puerta que decide si las estaciones pueden encenderse
-playbooks/tools/segment_comments.py    # vuelca en los bridges del host la descripción de su cable
-playbooks/tools/wg_endpoint_setup.sh   # capa 2: bootstrap del extremo del túnel, una vez en el host PVE
-playbooks/tracing/sitecustomize.py     # motor: registra cada llamada HTTP a las DOS APIs (Proxmox y RouterOS)
-filter_plugins/pve.py                  # motor: filtros de canonicalización que usan las macros
-filter_plugins/state.py                # motor: comprobaciones de referencias cruzadas del estado declarado
-configure/audit.yml                    # capa 2: inspección de sólo lectura de un invitado
-configure/site.yml                     # capa 2: converge el interior de los invitados gestionados
-configure/tasks/                       # capa 2: construcción de destinos, política de acceso y el camino
-configure/roles/<app>/                 # capa 2: un rol por aplicación, o por tipo de invitado
-logs/                                  # registros de ejecución, diario de la API y su archivo (ignorado por git)
+machinery/playbooks/tools/pve_notas.py           # motor: compone la nota HTML y las etiquetas (no las guarda)
+machinery/filter_plugins/notas.py                # motor: deriva nota y etiquetas al construir la especificación de cada invitado
+machinery/playbooks/tools/logs_prune.py          # motor: retención de machinery/logs/, la aplica cada verbo
+machinery/playbooks/tools/esfuerzo.py            # genera ESFUERZO.md desde los registros reales
+machinery/playbooks/tools/lab-check.sh           # verificación end-to-end de la red, desde dentro de una workstation
+machinery/playbooks/tools/lab-check.yml          # la misma prueba, orquestada como playbook
+machinery/playbooks/tools/pve_start_batch.py     # arranque por escalones contra la API
+machinery/playbooks/tools/routeros_wait.py       # espera a que un equipo RouterOS termine de arrancar
+machinery/playbooks/tools/routeros_ready.py      # si el DHCP de cada sede está en pie Y con su reserva: la puerta que decide si las estaciones pueden encenderse
+machinery/playbooks/tools/segment_comments.py    # vuelca en los bridges del host la descripción de su cable
+machinery/playbooks/tools/wg_endpoint_setup.sh   # capa 2: bootstrap del extremo del túnel, una vez en el host PVE
+machinery/playbooks/tracing/sitecustomize.py     # motor: registra cada llamada HTTP a las DOS APIs (Proxmox y RouterOS)
+machinery/filter_plugins/pve.py                  # motor: filtros de canonicalización que usan las macros
+machinery/filter_plugins/state.py                # motor: comprobaciones de referencias cruzadas del estado declarado
+machinery/configure/audit.yml                    # capa 2: inspección de sólo lectura de un invitado
+machinery/configure/site.yml                     # capa 2: converge el interior de los invitados gestionados
+machinery/configure/tasks/                       # capa 2: construcción de destinos, política de acceso y el camino
+machinery/configure/roles/<app>/                 # capa 2: un rol por aplicación, o por tipo de invitado
+machinery/logs/                                  # registros de ejecución, diario de la API y su archivo (ignorado por git)
 ```
 
 La **capa 1** es un motor fijo con cuatro verbos —`preflight` (sólo lectura),
 `apply` (converge), `connect` (el camino) y `remove` (el destruir deliberado)—
 leyendo todos el mismo estado declarado. Una petición de cambio es una edición de
-`labs/<nombre>/inventory/group_vars/all.yml` en una rama nueva, no un playbook nuevo: un
+`labs/<nombre>.yml` en una rama nueva, no un playbook nuevo: un
 playbook por cambio dispersaría el estado real en ficheros que se pisan unos a
 otros. **La rama se corta de `main` y se fusiona cuando el trabajo está
 terminado** — `main` es donde vive lo acabado y sólo hay una. Cortar de la rama
@@ -102,7 +102,7 @@ llamada `all` y rompe todas las referencias.
   ansible-galaxy collection install -r requirements.yml -p .ansible/collections
   ```
 
-  `bin/lab` pone esa carpeta por delante de las de siempre, así que seguir
+  `lab` pone esa carpeta por delante de las de siempre, así que seguir
   instalando en el home también vale.
 - Un token de la API de Proxmox y un certificado/CA de confianza para esa API. Van
   en el fichero del entorno (abajo), nunca en el repositorio.
@@ -111,15 +111,15 @@ llamada `all` y rompe todas las referencias.
 
 Todo lo que cambia de una máquina a otra —las credenciales, el puerto de la API,
 las rutas de las claves y dónde vive el `config` de ssh— se declara UNA vez, en
-`playbooks/vars/entorno.yml`. La plantilla versionada es
-`playbooks/vars/entorno.example.yml`, y quien lo escribe, lo comprueba y sabe con
-qué nombres alternativos se acepta cada valor es `playbooks/tools/entorno.py`.
+`secrets.yaml`. La plantilla versionada es
+`secrets.example.yaml`, y quien lo escribe, lo comprueba y sabe con
+qué nombres alternativos se acepta cada valor es `machinery/playbooks/tools/entorno.py`.
 
 ```bash
-cp playbooks/vars/entorno.example.yml playbooks/vars/entorno.yml   # y edítalo
-bin/lab entorno verificar      # ¿está completo, con rutas que existen, 0600, fuera de git?
-bin/lab entorno mostrar        # revísalo con los secretos tapados
-bin/lab entorno crear --desde-secrets   # si vienes del antiguo playbooks/vars/secrets.yml
+cp secrets.example.yaml secrets.yaml   # y edítalo
+lab entorno verificar      # ¿está completo, con rutas que existen, 0600, fuera de git?
+lab entorno mostrar        # revísalo con los secretos tapados
+lab entorno crear --desde-secrets   # si vienes del antiguo secrets.yaml
 ```
 
 **Está ignorado por git a propósito**: el repositorio es público y el token de PVE
@@ -127,23 +127,24 @@ equivale a root y no caduca. Pero eso no se deja a una convención escrita aquí
 `entorno.py verificar` lo comprueba —los permisos (0600), que git no lo tenga en el
 índice, que las rutas que nombra existan y que su clave pública, que se DERIVA de la
 privada, esté donde tiene que estar—. Un clon nuevo que se salte el fichero no falla
-a medias: `bin/lab` para antes de empezar y dice qué crear y dónde.
+a medias: `lab` para antes de empezar y dice qué crear y dónde.
 
 Dos cosas que ya no hay que declarar dos veces: la clave `.pub` se deriva de la ruta
 de la privada (`pve_ssh_key_path`), y las rutas de las claves NO viven en el
 manifiesto del laboratorio — la topología declara la red y los equipos; las claves son
 del framework, y son de la máquina.
 
-**Precedencia de fuentes: el fichero gana.** Las variables de entorno son el respaldo,
-para donde no se puede dejar un fichero en disco. Ese orden lo resuelve `entorno.py`
-una sola vez y lo usan igual los playbooks y todas las herramientas:
+**Una sola fuente: `secrets.yaml`.** No hay variables de entorno que exportar. Todo lo
+que cambia de una máquina a otra vive en `secrets.yaml`, en la raíz del repositorio;
+`entorno.py` es el único sitio que sabe cómo se llama cada clave, y lo usan igual los
+playbooks y todas las herramientas:
 
-```text
-PROXMOX_HOST=<nombre o IP del SAN de la API de PVE>
-PROXMOX_PORT=<puerto de la API; 8006 por defecto>
-PROXMOX_TOKEN_ID=<usuario@realm!nombre-del-token>
-PROXMOX_TOKEN_SECRET=<secreto del token>
-PROXMOX_CA_PATH=<ruta al certificado/CA de confianza de PVE>
+```yaml
+pve_api_host: <nombre o IP del SAN de la API de PVE>
+pve_api_port: 8006
+pve_api_token_id: <usuario@realm!nombre-del-token>
+pve_api_token_secret: <secreto del token>
+pve_api_ca_path: <ruta al certificado/CA de confianza de PVE>
 ```
 
 En este laboratorio el certificado incluye la IP pública de PVE como SAN; la dirección
@@ -159,12 +160,12 @@ una línea).
 ```bash
 python3 -m pip install -r requirements.txt
 ansible-galaxy collection install -r requirements.yml -p .ansible/collections
-bin/lab preflight     # sólo lectura: comprobaciones + qué cambiaría
-bin/lab apply         # converge + verifica
-bin/lab connect       # el camino que la capa 2 necesita (normalmente automático)
+lab preflight     # sólo lectura: comprobaciones + qué cambiaría
+lab apply         # converge + verifica
+lab connect       # el camino que la capa 2 necesita (normalmente automático)
 ```
 
-`bin/lab` es el único punto de entrada. Existe por tres razones concretas, no por
+`lab` es el único punto de entrada. Existe por tres razones concretas, no por
 gusto de envolver cosas: `ansible.cfg` se busca en el DIRECTORIO ACTUAL, no junto al
 playbook — así que llamando a Ansible "a mano" desde otro sitio el marco corría sin su
 inventario, sin sus filtros y sin su registro, **en silencio**; el entorno de la máquina
@@ -172,7 +173,7 @@ se comprueba ANTES de empezar cualquier verbo; y las variables que sí dependen 
 máquina (temporales, colecciones) las declara `entorno.yml`. Los verbos son fijos:
 `entorno`, `preflight`, `apply`, `remove`, `connect`, `site`, `audit`, `check` y `marco`
 (el test del propio marco). Cualquier argumento extra se pasa tal cual:
-`bin/lab site --limit localhost,infra-bootstrap`.
+`lab site --limit localhost,infra-bootstrap`.
 
 ## Desde otra máquina
 
@@ -180,9 +181,9 @@ Un clon nuevo, en una máquina nueva, en cuatro pasos:
 
 1. `python3 -m pip install -r requirements.txt`
 2. `ansible-galaxy collection install -r requirements.yml -p .ansible/collections`
-3. `cp playbooks/vars/entorno.example.yml playbooks/vars/entorno.yml` y rellenarlo —o
-   `bin/lab entorno crear --desde-secrets` si esa máquina ya tenía el fichero antiguo—
-4. `bin/lab entorno verificar` y, cuando esté verde, `bin/lab preflight`
+3. `cp secrets.example.yaml secrets.yaml` y rellenarlo —o
+   `lab entorno crear --desde-secrets` si esa máquina ya tenía el fichero antiguo—
+4. `lab entorno verificar` y, cuando esté verde, `lab preflight`
 
 Lo único que NO viaja en el repositorio es el paso 3: el fichero del entorno. Todo lo
 demás —la topología, las plantillas, las herramientas, las colecciones— está en el clon.
@@ -194,7 +195,7 @@ ejecución. Lanza `preflight` cuando sospeches drift, no como paso rutinario —
 
 ## El estado declarado
 
-`labs/<nombre>/inventory/group_vars/all.yml` contiene `pve_node`, un bloque `pve_defaults`,
+`labs/<nombre>.yml` contiene `pve_node`, un bloque `pve_defaults`,
 `pve_containers` (los invitados LXC) y `pve_vms` (los invitados RouterOS CHR):
 **los únicos invitados que este repositorio gestiona**. Un invitado ausente de esas
 listas nunca se lee, se crea ni se modifica. Cualquier clave de `pve_defaults`
@@ -208,7 +209,7 @@ subredes, bridges— sea **disjunto** del de cualquier otro laboratorio del nodo
 El manifiesto de la v1 llevaba una segunda lista, `pve_config_targets`: invitados
 cuya **forma** no gestionaba pero cuyo **interior** sí. **La v2 no la usa como
 fuente de verdad** — cada invitado que configura es uno que también declara. El
-grupo sigue declarado vacío en `labs/<nombre>/inventory/hosts.yml` por compatibilidad con los
+grupo sigue declarado vacío en `machinery/inventory/hosts.yml` por compatibilidad con los
 playbooks de capa 2, que lo llenan con `add_host` desde la declaración; en la v2
 no contiene nada. Lo que la v1 adoptaba queda fuera de la declaración, así que la
 convergencia nunca lo lee, lo crea ni lo modifica.
@@ -236,7 +237,7 @@ equipo vive en la tabla.
 
 Las herramientas que necesitan los **valores** y no las plantillas
 (`framework_check.py`, `pve_notas.py`, `esfuerzo.py`) resuelven la declaración con
-`playbooks/tools/declaracion.py`, que replica el render de Ansible **en un solo
+`machinery/playbooks/tools/declaracion.py`, que replica el render de Ansible **en un solo
 sitio**: es el único punto que tocar cuando aparezca otra variable derivada.
 
 Declarado por contenedor, heredado de `pve_defaults` salvo que se sobrescriba:
@@ -252,7 +253,7 @@ Declarado por contenedor, heredado de `pve_defaults` salvo que se sobrescriba:
 | `status` | `stopped` por defecto, `started` por invitado | sí — el contenedor se para/arranca para coincidir |
 | `cmode` | `shell` | sí |
 | `timezone` | `host` | sí |
-| `description` | **DERIVADA**: la nota HTML la calcula `filter_plugins/notas.py` al construir la especificación. NO está en el manifiesto: una copia guardada es una caché dentro de la fuente de verdad, y se queda vieja | sí |
+| `description` | **DERIVADA**: la nota HTML la calcula `machinery/filter_plugins/notas.py` al construir la especificación. NO está en el manifiesto: una copia guardada es una caché dentro de la fuente de verdad, y se queda vieja | sí |
 | `tags` | **DERIVADAS**: `[ansible, <rol>, <sede>, lab-<numero>]`, cuatro ni una más, por el mismo filtro | sí |
 | `features`, `startup` | `[]` (no deben existir) | sí — se borran si están |
 | `netif` | `{}` por defecto; declarado por invitado | sí — se crean las interfaces declaradas y se borran las que no lo estén |
@@ -266,14 +267,14 @@ un montaje o una línea `features=` puesta a mano.
 ### Añadir y quitar un invitado
 
 Añadir uno es: escribir la entrada, lanzar `apply` (la forma) y luego
-`configure/site.yml` (el interior). Quitar uno son **dos pasos en este orden**,
+`machinery/configure/site.yml` (el interior). Quitar uno son **dos pasos en este orden**,
 porque el motor nunca destruye nada:
 
 1. **Desdeclararlo** — borrar la entrada entera de `pve_containers` (o `pve_vms`)
    en una rama, commit y push. El siguiente `apply` deja de gestionarlo; el
    contenedor sigue corriendo, intacto.
 2. **Destruirlo** deliberadamente — interfaz de PVE → *More → Destroy*, `pct
-   destroy <vmid>` en el host, o `ansible-playbook playbooks/remove.yml -e
+   destroy <vmid>` en el host, o `ansible-playbook machinery/playbooks/remove.yml -e
    hostname=<nombre> -e confirm=<nombre>`. `remove.yml` se niega mientras el
    invitado siga declarado, que es exactamente por qué el orden no es una
    preferencia.
@@ -300,7 +301,7 @@ guardián hacen que eso sea un fallo ruidoso en vez de uno silencioso:
   duplicadas** y se detiene indicando la clave y la línea;
 - cada entrada debe llevar su identidad (`vmid` más `hostname`/`name`), o la
   ejecución se niega;
-- el **validador de estado** (`filter_plugins/state.py`) se niega ante un estado
+- el **validador de estado** (`machinery/filter_plugins/state.py`) se niega ante un estado
   cuyas referencias no resuelven — una interfaz que el router no tiene, una ruta
   de extremo que el túnel no lleva, una reserva para una máquina que nadie declaró
   — antes de que ningún verbo lea o escriba nada. Ver [Comprobar el propio
@@ -356,7 +357,7 @@ cuelga del bridge de gestión que declara su pata, nunca del público.
 `preflight.yml` comprueba además que toda ISO que una VM declare esté realmente en
 el nodo antes de crear nada. Una VM que **importa una imagen de fabricante** en vez
 de construir un disco a partir de un tamaño es un caso especial: PVE acepta
-`import-from` sólo al crear, así que `playbooks/tasks/disk_import.yml` hace crecer
+`import-from` sólo al crear, así que `machinery/playbooks/tasks/disk_import.yml` hace crecer
 el volumen importado después, y `apply` se niega en voz alta en vez de fingir que
 puede adjuntar uno más tarde.
 
@@ -371,7 +372,7 @@ dentro.
 
 La metodología, una línea por regla:
 
-- **Un estado declarado, dos capas.** `labs/<nombre>/inventory/group_vars/all.yml` sigue siendo
+- **Un estado declarado, dos capas.** `labs/<nombre>.yml` sigue siendo
   la única fuente de verdad: la capa 1 lee la forma del invitado, la capa 2 lee su
   bloque `config:`. Las direcciones nunca se duplican — la capa 2 deriva el destino
   SSH de la declaración de la interfaz con el filtro `pve_declared_ipv4`, o del
@@ -387,7 +388,7 @@ La metodología, una línea por regla:
   declaran sólo una forma: son PCs cuyo interior nadie configura, así que no son
   destinos de capa 2. Lo que necesitan —una dirección— se lo da el router, y el
   router la declara.
-- **Lee antes de escribir.** `configure/audit.yml` inspecciona un invitado y no
+- **Lee antes de escribir.** `machinery/configure/audit.yml` inspecciona un invitado y no
   cambia nada. Lánzalo antes de declarar `manage: true` sobre un invitado que ya
   existe.
 - **La convergencia es opt-in por invitado.** Un bloque `config:` más
@@ -409,8 +410,8 @@ La metodología, una línea por regla:
   responde en el :22.
 
 ```bash
-ansible-playbook configure/audit.yml   # sólo lectura: qué hay dentro de cada destino
-ansible-playbook configure/site.yml    # converge cada invitado declarado manage: true
+ansible-playbook machinery/configure/audit.yml   # sólo lectura: qué hay dentro de cada destino
+ansible-playbook machinery/configure/site.yml    # converge cada invitado declarado manage: true
 ```
 
 ### El camino por el que corre la capa 2
@@ -435,7 +436,7 @@ túnel hacia su bridge.
 Una LAN de sede, en cambio, **queda detrás de su router**, y el nodo de control no
 tiene ruta hasta ella: medido en vivo, la estación no contesta en el :22 y por el
 bootstrap como `ProxyJump` sí. El salto lo deriva de la declaración
-[`configure/tasks/ssh_path.yml`](configure/tasks/ssh_path.yml), que además explica por
+[`machinery/configure/tasks/ssh_path.yml`](machinery/configure/tasks/ssh_path.yml), que además explica por
 qué es un bloque `Host` y no un `-i` en la línea de comandos.
 
 Una red que vive **detrás de un router dentro del laboratorio** necesita una cosa
@@ -455,11 +456,11 @@ invitados; no da una puerta trasera a root en el host. Así que el extremo es el
 único paste versionado e idempotente que un operador ejecuta por laboratorio.
 
 ```bash
-ansible-playbook playbooks/connect.yml   # converge el camino por su cuenta
+ansible-playbook machinery/playbooks/connect.yml   # converge el camino por su cuenta
 ```
 
-`configure/site.yml` ejecuta el mismo fichero de tareas
-(`configure/tasks/tunnel.yml`) automáticamente cuando su sonda no encuentra ningún
+`machinery/configure/site.yml` ejecuta el mismo fichero de tareas
+(`machinery/configure/tasks/tunnel.yml`) automáticamente cuando su sonda no encuentra ningún
 destino respondiendo en el :22, así que una ejecución normal se auto-repara: detecta
 la ruta que falta → levanta la interfaz → espera el handshake → demuestra que la LAN
 de invitados responde → converge los invitados. Si el camino ya está, no se toca
@@ -512,7 +513,7 @@ de crontabs, y luego lo demuestra: `caddy validate`, `systemctl is-active`, cada
 timer declarado activo, y una sonda HTTP desde el nodo de control que comprueba el
 estado y el cuerpo declarados.
 
-Añadir otra aplicación es otro rol bajo `configure/roles/` y otro bloque bajo
+Añadir otra aplicación es otro rol bajo `machinery/configure/roles/` y otro bloque bajo
 `config:` — no otro repositorio, ni un script `curl | bash` que nadie puede diffear.
 
 ### Ejemplo trabajado: un servidor TiddlyWiki
@@ -535,7 +536,7 @@ marco, **no** un invitado del laboratorio actual — la v2 no declara ninguno) l
 ```
 
 `apply` crea el invitado (que nace alcanzable por SSH gracias a `pubkey`), y
-`configure/site.yml` instala Node.js, instala el motor con la versión fijada, lanza
+`machinery/configure/site.yml` instala Node.js, instala el motor con la versión fijada, lanza
 `tiddlywiki /srv/tiddlywiki --init server` una vez, declara `tiddlywiki.service`
 (`Restart=always`, `enabled`), y luego lo demuestra: el proceso vivo debe ser *esta*
 carpeta de wiki en *este* puerto, el invitado debe responder HTTP 200, `anonymous`
@@ -569,9 +570,9 @@ Su cliente DHCP corre cuando se crea el contenedor, cuando el servidor DHCP de s
 sede todavía no existe, y no reintenta para siempre. Los routers las sirven en
 cuanto se convergen, y un reinicio las pone en su sitio — lo cual también es cierto
 de los propios routers. El orden que funciona, y el que se midió de verdad, es:
-`apply.yml` (crear y encender) → `configure/site.yml` (**equipos de red primero**,
+`apply.yml` (crear y encender) → `machinery/configure/site.yml` (**equipos de red primero**,
 porque las workstations dependen del DHCP de su router) → reiniciar las workstations
-→ `configure/site.yml` otra vez (ahora su interior es alcanzable) → `apply.yml` (la
+→ `machinery/configure/site.yml` otra vez (ahora su interior es alcanzable) → `apply.yml` (la
 verificación de capa 1 cierra en `failed=0`).
 
 ### Lo que la API no puede hacer: la primera dirección de un router
@@ -585,8 +586,8 @@ Ese hueco lo cubre el **bootstrap** del laboratorio: entrega la
 única primera dirección y, en cuanto el router la toma, se retira — es un bootstrap,
 no una segunda vía de configuración. **El mecanismo, sus porqués medidos y la ruta
 residual que deja el DHCP de fábrica viven en el código y en las decisiones, no
-aquí:** [el rol bootstrap](configure/roles/bootstrap/tasks/main.yml),
-[el rol routeros](configure/roles/routeros/tasks/main.yml),
+aquí:** [el rol bootstrap](machinery/configure/roles/bootstrap/tasks/main.yml),
+[el rol routeros](machinery/configure/roles/routeros/tasks/main.yml),
 [ADR 0002](docs/decisiones/0002-bootstrap-existe.md) y
 [ADR 0003](docs/decisiones/0003-reinicio-purga-ruta-dhcp.md).
 
@@ -608,7 +609,7 @@ ningún paso manual:
 - **Los contenedores** usan el parámetro `pubkey` de LXC en PVE. Es una propiedad de
   *creación*: PVE la escribe en `/root/.ssh/authorized_keys` al crear y el módulo
   nunca la reenvía al actualizar, así que la capa 1 puede ponerla y la capa 2
-  (`configure/`) es lo que la verifica desde dentro.
+  (`machinery/configure/`) es lo que la verifica desde dentro.
 - **Las VMs** no tienen equivalente, así que la misma clave viaja por cloud-init:
   `ciuser` más `sshkeys` y una unidad cloud-init (`<storage>:cloudinit`). Está
   activo por defecto (`pve_vm_defaults.cloudinit: true`) y se apaga por invitado para
@@ -645,7 +646,7 @@ PVE, 4 vCPU, sin cuota de CPU):
 | `apply` creando un invitado de principio a fin | 105 s |
 
 Cómo se hizo, sin quitar ni una comprobación: **se eliminaron las fronteras de
-ejecución, no la verificación.** Un proceso lector (`playbooks/tools/pve_read.py`) hace todas
+ejecución, no la verificación.** Un proceso lector (`machinery/playbooks/tools/pve_read.py`) hace todas
 las lecturas de invitados *y* todos los prerrequisitos de plataforma (nodo en línea,
 storage activo, plantilla presente, ISO presente) que antes costaban una tarea cada
 uno. Una sola pasada de plantillado (macros de `pve_engine.j2`) analiza todos los
@@ -662,7 +663,7 @@ iteración de un `loop` es una ejecución, y por eso una tarea que recorre cinco
 invitados paga cinco veces. Esa es toda la palanca:
 
 - **`apply` es el verbo de iteración.** Lee, aplica y verifica por la API en una sola ejecución.
-- **Para iterar sobre UN invitado, `--limit` ya funciona — y es la única ejecución selectiva que sigue siendo honesta.** `ansible-playbook configure/site.yml --limit localhost,<invitado>` ejecuta el motor y converge exactamente ese invitado (medido: `<invitado> ok=24 changed=0`, mientras los plays de los demás informan `skipping: no hosts matched`). `localhost` es obligatorio, porque es el play que construye el inventario de destinos. Las etiquetas darían la misma comodidad invitando a ejecuciones que se saltan parte de la declaración de un invitado; un `--limit` nombra un invitado, y un invitado se converge entero o no se converge.
+- **Para iterar sobre UN invitado, `--limit` ya funciona — y es la única ejecución selectiva que sigue siendo honesta.** `ansible-playbook machinery/configure/site.yml --limit localhost,<invitado>` ejecuta el motor y converge exactamente ese invitado (medido: `<invitado> ok=24 changed=0`, mientras los plays de los demás informan `skipping: no hosts matched`). `localhost` es obligatorio, porque es el play que construye el inventario de destinos. Las etiquetas darían la misma comodidad invitando a ejecuciones que se saltan parte de la declaración de un invitado; un `--limit` nombra un invitado, y un invitado se converge entero o no se converge.
 - **No vuelvas a ejecutar sólo para demostrar idempotencia.** `apply` ya relee e imprime la comparación declarado-vs-vivo; una segunda ejecución dobla el tiempo de reloj por información que ya tienes. Reserva la repetición para cambios que toquen propiedades de creación o energía.
 - **La verificación no es lo que cuesta.** `validate:`, la sonda HTTP externa y el aserto del diario son casi gratis dentro de una tarea. Lo que cuesta es un segundo verbo, y una tarea —o una iteración de bucle— por elemento.
 
@@ -697,11 +698,11 @@ Dos trampas de medición, ambas pisadas de verdad al construir esto:
 Existen varias comprobaciones, y cada una responde una pregunta que las otras no
 pueden.
 
-**El estado declarado tiene que tener sentido como un todo.** `filter_plugins/state.py`
+**El estado declarado tiene que tener sentido como un todo.** `machinery/filter_plugins/state.py`
 valida las referencias cruzadas del manifiesto — que una interfaz de RouterOS exista,
 que una ruta de extremo esté también en `guest_network`, que una reserva DHCP nombre
 una máquina declarada, que un invitado no esté a la vez en `pve_containers` y en
-`pve_config_targets` — y `playbooks/tasks/validate_state.yml` hace que AMBOS verbos
+`pve_config_targets` — y `machinery/playbooks/tasks/validate_state.yml` hace que AMBOS verbos
 fallen por ello, antes de leer o escribir nada.
 
 Esta es la comprobación de más valor, porque la plataforma no detecta una referencia
@@ -710,7 +711,7 @@ simplemente no la crea.** La API responde 200, la ejecución sale verde, y al ro
 falta la dirección en silencio. El fallo aparece dos capas más tarde, en una prueba de
 conectividad, con la apariencia de un problema de red.
 
-Las comprobaciones viven en un filtro y no dentro de `playbooks/tools/pve_read.py` a
+Las comprobaciones viven en un filtro y no dentro de `machinery/playbooks/tools/pve_read.py` a
 propósito: el lector parsea el manifiesto en CRUDO, así que ve `"{% raw %}{{ lab_bridge_name }}{% endraw %}"`
 como una cadena literal y todo valor plantillado sería un falso positivo. Ansible
 resuelve el Jinja antes de llamar a un filtro.
@@ -720,7 +721,7 @@ veces y exige que la segunda informa `changed=0` y cubra los mismos anfitriones.
 el callback JSON de Ansible en vez del recap humano, porque de una tabla formateada
 puedes leer un recuento pero no fiarte de una LISTA de anfitriones — y distinguir "el
 invitado se saltó" de "el invitado nunca estuvo en el play" es justo el punto. Usa
-`--verb configure/site.yml` para la mitad de cobertura: los plays de `apply` y
+`--verb machinery/configure/site.yml` para la mitad de cobertura: los plays de `apply` y
 `preflight` corren en el nodo de control, así que su recap no puede mostrar los
 invitados, y el script lo dice en vez de reclamar una cobertura que no comprobó.
 
@@ -776,7 +777,7 @@ correr, y es la razón por la que las reglas salen en orden.
 laboratorio, y comprueba dos cosas. Primero **la regla**: que ningún invitado guarde
 `description` ni `tags` en el manifiesto — son derivados y se calculan, y guardarlos
 es tener una caché dentro de la fuente de verdad. Segundo **el contenido**: la nota es
-HTML que genera `filter_plugins/notas.py`, así que la comprobación la renderiza con el
+HTML que genera `machinery/filter_plugins/notas.py`, así que la comprobación la renderiza con el
 MISMO generador que usa el despliegue y exige que cuadre: una fila por pata declarada con su bridge y su MAC, el vecino real en cada
 cable punto a punto, el segmento de gestión compartido descrito como segmento
 compartido en vez de nombrar un vecino de doce, y exactamente las tres etiquetas (quién
@@ -785,7 +786,7 @@ que nombra el puerto equivocado sigue siendo HTML perfectamente válido, y sólo
 el día que alguien se fía de ella.
 
 **¿La API se toca sólo por la puerta?** `framework_check.py api` denuncia cualquier
-fichero fuera de la capa (`playbooks/tools/` y `playbooks/tracing/`) que importe
+fichero fuera de la capa (`machinery/playbooks/tools/` y `machinery/playbooks/tracing/`) que importe
 `requests`/`urllib`/`proxmoxer`, invoque `curl` o lleve el camino de la API (`:8006`,
 `/api2/json`, `/rest/…`). El framework habla con la API por `ansible.builtin.uri`;
 escaparse del framework sólo vale para una comprobación puntual de depuración, y lo que
@@ -831,32 +832,32 @@ que de verdad cuesta una ejecución aquí.
 
 ```bash
 ansible-lint
-python3 playbooks/tools/framework_check.py agree
-python3 playbooks/tools/framework_check.py export
-python3 playbooks/tools/framework_check.py plan
-python3 playbooks/tools/framework_check.py notas
-python3 playbooks/tools/framework_check.py labmap --check
-python3 playbooks/tools/framework_check.py api
-python3 playbooks/tools/framework_check.py docs
-python3 playbooks/tools/framework_check.py routeros
-python3 playbooks/tools/framework_check.py guests
-python3 playbooks/tools/framework_check.py pool
-python3 playbooks/tools/framework_check.py caducidad
-python3 playbooks/tools/framework_check.py invariant --verb configure/site.yml
-python3 playbooks/tools/framework_check.py drill
+python3 machinery/playbooks/tools/framework_check.py agree
+python3 machinery/playbooks/tools/framework_check.py export
+python3 machinery/playbooks/tools/framework_check.py plan
+python3 machinery/playbooks/tools/framework_check.py notas
+python3 machinery/playbooks/tools/framework_check.py labmap --check
+python3 machinery/playbooks/tools/framework_check.py api
+python3 machinery/playbooks/tools/framework_check.py docs
+python3 machinery/playbooks/tools/framework_check.py routeros
+python3 machinery/playbooks/tools/framework_check.py guests
+python3 machinery/playbooks/tools/framework_check.py pool
+python3 machinery/playbooks/tools/framework_check.py caducidad
+python3 machinery/playbooks/tools/framework_check.py invariant --verb machinery/configure/site.yml
+python3 machinery/playbooks/tools/framework_check.py drill
 ```
 
 ## Un laboratorio nuevo
 
 El motor no se copia ni se bifurca: se copia un **laboratorio**. `framework_check.py
-nuevo-lab` crea `labs/<nombre>/` a partir de otro (por defecto `labs/active`) y corrige
+nuevo-lab` crea `labs/<nombre>.yml` a partir de otro (por defecto `labs/active`) y corrige
 la ruta del manifiesto en las notas de los invitados, sin tocar ningún hostname.
 
 ```bash
-python3 playbooks/tools/framework_check.py nuevo-lab delegacion-4
-HERMES_LAB=labs/delegacion-4 python3 playbooks/tools/framework_check.py agree
-HERMES_LAB=labs/delegacion-4 python3 playbooks/tools/framework_check.py plan
-HERMES_LAB=labs/delegacion-4 python3 playbooks/tools/framework_check.py notas
+python3 machinery/playbooks/tools/framework_check.py nuevo-lab delegacion-4
+python3 machinery/playbooks/tools/framework_check.py --lab labs/delegacion-4.yml agree
+python3 machinery/playbooks/tools/framework_check.py --lab labs/delegacion-4.yml plan
+python3 machinery/playbooks/tools/framework_check.py --lab labs/delegacion-4.yml notas
 ```
 
 Se copia en vez de escribirse de cero porque un manifiesto lleva decenas de invitados,
@@ -864,27 +865,26 @@ sus cables y un direccionamiento coherente
 entre sedes. Copiar arrastra lo que de verdad cuesta acertar; lo que se edita después
 es la topología.
 
-**El laboratorio es un PARÁMETRO del verbo, no una ruta fija**: `bin/lab --lab <nombre>
-<verbo>` (o `HERMES_LAB=labs/<nombre>`, la variable que ya usaba el marco). El enlace
-`labs/active` es sólo el valor por defecto. Eso es lo que permite **operar dos
-laboratorios sin voltear el enlace**: cambiarlo a mitad de un despliegue es como el
-verbo siguiente acaba yendo al laboratorio equivocado.
+**El laboratorio es un PARÁMETRO del verbo, no una ruta fija**: `lab --lab <nombre>
+<verbo>`. El enlace `labs/active` es sólo el valor por defecto. Eso es lo que permite
+**operar dos laboratorios sin voltear el enlace**: cambiarlo a mitad de un despliegue
+es como el verbo siguiente acaba yendo al laboratorio equivocado.
 
 ```bash
-bin/lab --lab delegacion-4 preflight    # sólo lectura, no toca el vivo
-bin/lab --lab delegacion-4 apply        # converge el nuevo
-HERMES_LAB=labs/delegacion-4 bin/lab check
+lab --lab delegacion-4 preflight    # sólo lectura, no toca el vivo
+lab --lab delegacion-4 apply        # converge el nuevo
+lab --lab delegacion-4 check        # la prueba, en ese laboratorio
 ```
 
-`nuevo-lab --activar` (o `ln -sfn <nombre> labs/active`) reapunta el enlace cuando el
+`nuevo-lab --activar` (o `ln -sfn <nombre>.yml labs/active`) reapunta el enlace cuando el
 nuevo ya cuadra, y entonces los verbos sin `--lab` lo operan a él. **Dos laboratorios
 conviven en el mismo nodo si sus espacios son disjuntos** —vmids, MACs, direcciones y
 bridges—; la red de gestión es del NODO y cada uno se cuelga de ella con direcciones
 propias; y el túnel de gestión lo gestiona uno solo (`manage: true`), los demás lo
-reutilizan con `manage: false`. El registro (`logs/`) es del nodo: con dos vivos, el
+reutilizan con `manage: false`. El registro (`machinery/logs/`) es del nodo: con dos vivos, el
 diario de API mezcla el tráfico de los dos.
 
-> **Resuelto.** El verificador de red (`playbooks/tools/lab-check.sh`) ya no lleva
+> **Resuelto.** El verificador de red (`machinery/playbooks/tools/lab-check.sh`) ya no lleva
 > ninguna dirección dentro: el mapa de destinos se **renderiza desde la declaración**
 > en cada ejecución y se le pasa como fichero. Así un mismo script sirve para N
 > laboratorios y no puede quedarse ciego al que se está operando.
@@ -916,24 +916,24 @@ cual (reordena `tags`, `features` y `startup`; añade un salto de línea a `desc
 reescribe el orden y los ids de volumen en `netX`/`mpX`; mete la MAC generada dentro
 del modelo de la NIC; informa `running` donde el módulo dice `started`…). La lista
 completa, caso por caso y con su compensación, vive junto al código que la aplica:
-[`playbooks/pve_engine.j2`](playbooks/pve_engine.j2).
+[`machinery/playbooks/pve_engine.j2`](machinery/playbooks/pve_engine.j2).
 
 El detalle fino —la semántica del PUT, `check_mode`, la idempotencia— vive en la
 cabecera de su verbo y de su plantilla, no aquí:
-[`playbooks/apply.yml`](playbooks/apply.yml),
-[`playbooks/preflight.yml`](playbooks/preflight.yml) y
-[`playbooks/pve_engine.j2`](playbooks/pve_engine.j2).
+[`machinery/playbooks/apply.yml`](machinery/playbooks/apply.yml),
+[`machinery/playbooks/preflight.yml`](machinery/playbooks/preflight.yml) y
+[`machinery/playbooks/pve_engine.j2`](machinery/playbooks/pve_engine.j2).
 
 ## Registro y observabilidad de la API
 
-Cada ejecución escribe bajo `logs/` (ignorado por git — describe infraestructura real
+Cada ejecución escribe bajo `machinery/logs/` (ignorado por git — describe infraestructura real
 y este repositorio es público):
 
-**`logs/ansible.log`** — la salida humana completa del play, anexada por Ansible
+**`machinery/logs/ansible.log`** — la salida humana completa del play, anexada por Ansible
 (`log_path` en `ansible.cfg`). Los resultados de las tareas de API quedan censurados
 porque llevan `no_log`.
 
-**`logs/framework-check.log`** — donde `playbooks/tools/framework_check.py` manda la
+**`machinery/logs/framework-check.log`** — donde `machinery/playbooks/tools/framework_check.py` manda la
 salida de los verbos que *él* ejecuta. No debe compartir el log humano: ese script
 lanza un verbo con el callback JSON, que emite dos o tres órdenes de magnitud más
 bytes que la salida humana, y mezclar los dos es cómo `ansible.log` llegó a **78 MB de
@@ -941,7 +941,7 @@ los cuales el 99,4% era salida de máquina que nadie lee**. En su propio fichero
 JSON queda en disco para depurar una comprobación fallida, y el log humano sigue
 legible.
 
-**`logs/pve-api.jsonl`** — el diario legible por máquina del tráfico que de verdad
+**`machinery/logs/pve-api.jsonl`** — el diario legible por máquina del tráfico que de verdad
 cruzó el cable, un objeto JSON por línea. Es **uno solo para las dos APIs** (Proxmox y
 RouterOS) y cada línea lleva un campo `api` para poder separarlas:
 
@@ -962,16 +962,16 @@ escritura cae a un warning de módulo y un fallo de armado se registra como
 `tracer_error`. Encima de eso, los dos playbooks comparan el tamaño del diario al
 principio y al final de la ejecución y **hacen fallar la ejecución** si no creció, así
 que un trazador que dejó de funcionar sin avisar no puede dejarte con logs vacíos.
-`grep tracer_error logs/pve-api.jsonl` sin resultados es el aspecto de "la
+`grep tracer_error machinery/logs/pve-api.jsonl` sin resultados es el aspecto de "la
 observabilidad funciona".
 
-Cómo se arma: los playbooks ponen `playbooks/tracing` en `PYTHONPATH` y definen
+Cómo se arma: los playbooks ponen `machinery/playbooks/tracing` en `PYTHONPATH` y definen
 `API_HTTP_TRACE`. CPython importa `sitecustomize` de ahí al arrancar el intérprete,
 así que el trazador está activo en cada proceso de módulo — los módulos no se tocan.
 Engancha DOS transportes porque son dos: `requests` (el módulo `proxmox`/proxmoxer, por
 el puerto 8006) y `urllib` (lo que usa `ansible.builtin.uri`, o sea el rol RouterOS). Los
 dos plays que hablan con la API lo arman: `apply.yml` (capa 1) y el play de la capa 2 en
-`configure/site.yml`, que antes **no** lo hacía — por eso las llamadas del rol RouterOS no
+`machinery/configure/site.yml`, que antes **no** lo hacía — por eso las llamadas del rol RouterOS no
 llegaban al diario y el framework registraba medio laboratorio.
 
 Lo que deliberadamente nunca registra: cabeceras de petición, así que el token de la
@@ -983,20 +983,20 @@ Cómo leerlo:
 
 ```bash
 # sólo una de las dos APIs
-grep '"api": "routeros"' logs/pve-api.jsonl
+grep '"api": "routeros"' machinery/logs/pve-api.jsonl
 
 # todas las llamadas de una ejecución, en orden
 python3 -c "
 import json
-for l in open('logs/pve-api.jsonl'):
+for l in open('machinery/logs/pve-api.jsonl'):
     r = json.loads(l)
     print(r['ts'], r['event'], r.get('method',''), r.get('status',''), r.get('url','').split('/api2/json')[-1], r.get('request_body',''))"
 
 # sólo las mutaciones, con la respuesta de PVE
-grep '"method": "PUT"' logs/pve-api.jsonl | python3 -m json.tool --json-lines
+grep '"method": "PUT"' machinery/logs/pve-api.jsonl | python3 -m json.tool --json-lines
 
 # todo lo que PVE rechazó
-grep -E '"status": 4[0-9][0-9]|"status": 5[0-9][0-9]' logs/pve-api.jsonl
+grep -E '"status": 4[0-9][0-9]|"status": 5[0-9][0-9]' machinery/logs/pve-api.jsonl
 ```
 
 ### Cuánto costó
@@ -1005,28 +1005,28 @@ El diario y el log del play son también la materia prima de un relato **medido*
 que costó poner este laboratorio en pie: llamadas a la API por endpoint y por máquina,
 ejecuciones de tarea por anfitrión y el tiempo de reloj de cada verbo. Se genera desde
 esos registros, nunca escrito a mano — [`ESFUERZO.md`](ESFUERZO.md) más
-`playbooks/tools/esfuerzo.py`.
+`machinery/playbooks/tools/esfuerzo.py`.
 
 ### Retención
 
-Ansible sólo **anexa** a su `log_path` — nunca lo rota — así que `logs/` es el único
+Ansible sólo **anexa** a su `log_path` — nunca lo rota — así que `machinery/logs/` es el único
 directorio de este repositorio que crece solo. Está acotado por una política declarada
 en vez de por un operador que se acuerde:
 
 ```yaml
 pve_log_retention:
-  live_max_mb: 8    # un fichero vivo por encima de esto se rota a logs/archive/ y se vacía
+  live_max_mb: 8    # un fichero vivo por encima de esto se rota a machinery/logs/archive/ y se vacía
   keep_days: 14     # los archivos con más antigüedad se borran
   keep_count: 10    # ...y no se guardan más de estos, los más nuevos primero
 ```
 
-**Cada verbo la aplica antes de hacer nada**, por `playbooks/tasks/prune_logs.yml`, así
+**Cada verbo la aplica antes de hacer nada**, por `machinery/playbooks/tasks/prune_logs.yml`, así
 que un laboratorio gobernado sólo por los verbos nunca necesita que nadie se acuerde.
 El mismo script corre suelto para el caso contrario — nadie lanza el marco en días:
 
 ```bash
-python3 playbooks/tools/logs_prune.py --dry-run   # dice qué haría, no cambia nada
-python3 playbooks/tools/logs_prune.py             # lo hace
+python3 machinery/playbooks/tools/logs_prune.py --dry-run   # dice qué haría, no cambia nada
+python3 machinery/playbooks/tools/logs_prune.py             # lo hace
 ```
 
 Cuatro cosas son deliberadas:
@@ -1061,8 +1061,8 @@ puede escribir más de `live_max_mb` — un `drill` son cuatro verbos, y uno de 
 escribe un log JSON de ~16 MB — y lo rota la comprobación del verbo siguiente. El tope
 está en el estado estacionario, que es lo que crece sin uno.
 
-El directorio `logs/` debe existir antes de que Ansible arranque (`log_path` no puede
-crearlo), y por eso `logs/.gitkeep` está commiteado.
+El directorio `machinery/logs/` debe existir antes de que Ansible arranque (`log_path` no puede
+crearlo), y por eso `machinery/logs/.gitkeep` está commiteado.
 
 ## Credenciales y limpieza
 
@@ -1074,7 +1074,7 @@ descubrimiento/bootstrap inicial; ningún playbook de infraestructura usa SSH.
 
 Para quitar un invitado, **desdecláralo primero y destrúyelo después** — ver [Añadir y
 quitar un invitado](#añadir-y-quitar-un-invitado). `ansible-playbook
-playbooks/remove.yml -e hostname=<nombre> -e confirm=<nombre>` hace el segundo paso y
+machinery/playbooks/remove.yml -e hostname=<nombre> -e confirm=<nombre>` hace el segundo paso y
 se niega mientras el invitado siga declarado. Para el ciclo «destruir y recrear»
 —borrarlo a sabiendas y que el siguiente `apply` lo levante otra vez— añade
 `-e destroy_declared=true`; la confirmación sigue siendo obligatoria. No quites

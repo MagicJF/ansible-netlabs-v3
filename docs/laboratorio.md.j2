@@ -1,4 +1,4 @@
-<!-- GENERADO por playbooks/tools/documentos.py desde {{ man_rel }}.
+<!-- GENERADO por machinery/playbooks/tools/documentos.py desde {{ man_rel }}.
      No editar a mano: edita la plantilla docs/laboratorio.md.j2 y regenera. -->
 # El laboratorio: {{ man.lab_nombre }}
 
@@ -234,30 +234,30 @@ razón física:
 #    aún no sirve DHCP, y una workstation no reintenta — encenderla ahora la
 #    dejaría sin dirección hasta reiniciarla a mano. El verbo lo dice, nombra lo
 #    que aplaza y termina en rojo POR ESO, no por un desajuste.
-ansible-playbook playbooks/apply.yml
+ansible-playbook machinery/playbooks/apply.yml
 
 # 2. el bootstrap sirve: es quien da la PRIMERA dirección a los equipos de red
 #    (un CHR reintenta su primer DHCP, así que la coge en cuanto sirve).
-ansible-playbook configure/site.yml --limit localhost,infra-bootstrap
+ansible-playbook machinery/configure/site.yml --limit localhost,infra-bootstrap
 
 # 3. los equipos de red, y con ellos el DHCP de cada sede. Las estaciones se quedan
 #    FUERA solas: el verbo pregunta por API si su sede sirve DHCP y no exige alcance
 #    a lo que este mismo orden impide que esté en pie. Lo dice al hacerlo, con los
 #    nombres, para que no parezca que se ha olvidado de ellas.
-ansible-playbook configure/site.yml
+ansible-playbook machinery/configure/site.yml
 
 # 4. ya con el DHCP de las sedes en pie, apply enciende las estaciones: piden su
 #    dirección y la obtienen a la primera. Y verifica la capa 1 completa, que
 #    ahora sí está completa.
-ansible-playbook playbooks/apply.yml
+ansible-playbook machinery/playbooks/apply.yml
 
 # 5. con las estaciones alcanzables, se configura su interior
-ansible-playbook configure/site.yml
+ansible-playbook machinery/configure/site.yml
 ```
 
 El orden y sus verbos se explican en la cabecera de cada uno:
-[`playbooks/apply.yml`](playbooks/apply.yml) y
-[`configure/site.yml`](configure/site.yml); aquí sólo se cuenta el orden.
+[`machinery/playbooks/apply.yml`](machinery/playbooks/apply.yml) y
+[`machinery/configure/site.yml`](machinery/configure/site.yml); aquí sólo se cuenta el orden.
 
 **El alcance no se le exige a quien este orden impide estar en pie.** La capa 2
 pregunta lo mismo que la capa 1 —¿sirve ya la sede su DHCP?— y salta a las estaciones
@@ -274,20 +274,20 @@ en frío que deja 8 estaciones sin encender no ha convergido, así que el verbo
 300 s a un DHCP que sabe que aún no sirve. Ese rojo es la respuesta correcta a un
 paso que todavía no puede completarse.
 
-En un laboratorio ya montado, `configure/site.yml` o `apply.yml` sobre un estado
+En un laboratorio ya montado, `machinery/configure/site.yml` o `apply.yml` sobre un estado
 convergido **no cambian nada** (`changed=0`), y esa es la garantía central del
 repositorio.
 
 > **Un paso que la API no puede dar.** El extremo del túnel de gestión vive en el
 > host Proxmox, y la API no puede configurar el host (sería ejecutar código en el
-> hipervisor). Se pega **una vez** con `playbooks/tools/wg_endpoint_setup.sh`,
+> hipervisor). Se pega **una vez** con `machinery/playbooks/tools/wg_endpoint_setup.sh`,
 > pasándole las redes de las sedes como último argumento. Es el único paso manual.
 
 ---
 
 ## Cómo se verifica
 
-`playbooks/tools/lab-check.sh` se ejecuta **dentro de cualquiera de las {{ n_workstations }}
+`machinery/playbooks/tools/lab-check.sh` se ejecuta **dentro de cualquiera de las {{ n_workstations }}
 workstations** y comprueba contra todos los demás equipos del laboratorio:
 
 | | Qué comprueba | Dureza |
@@ -330,8 +330,8 @@ PVE guarda las etiquetas ordenadas alfabéticamente; el motor compara **conjunto
 ordenados**, así que el orden en que se declaren no produce deriva.
 
 La **nota** de cada máquina no es un adorno: es HTML y se **deriva** de la propia
-declaración (`filter_plugins/notas.py`, con el generador de
-`playbooks/tools/pve_notas.py`) en el momento de desplegarla; **no está guardada en el
+declaración (`machinery/filter_plugins/notas.py`, con el generador de
+`machinery/playbooks/tools/pve_notas.py`) en el momento de desplegarla; **no está guardada en el
 manifiesto**, porque una copia guardada es una caché dentro de la fuente de verdad y un
 día se queda vieja sin decirlo. Lleva la tabla de conexiones (qué pata
 va a qué bridge y con quién la comparte, incluidas las MAC), el direccionamiento, el
@@ -349,7 +349,7 @@ impresiones: cuántas llamadas se hicieron a cada API, por equipo y por endpoint
 cuántas tareas se ejecutaron en cada anfitrión y cuánto tardó cada verbo.
 
 **[`ESFUERZO.md`](ESFUERZO.md)** tiene las tablas. No está escrito a mano: lo genera
-`playbooks/tools/esfuerzo.py` a partir de esos dos registros, así que se puede
+`machinery/playbooks/tools/esfuerzo.py` a partir de esos dos registros, así que se puede
 volver a generar y auditar cuando haga falta.
 
 ## Lo que este laboratorio NO es
@@ -370,5 +370,5 @@ volver a generar y auditar cuando haga falta.
 ## Lo que hace el motor, en una frase
 
 Declaras el estado deseado una vez. Cada verbo —`preflight`, `apply`, `connect`,
-`remove`, `configure/site`— compara lo declarado con lo que hay en la plataforma y
+`remove`, `machinery/configure/site`— compara lo declarado con lo que hay en la plataforma y
 aplica **sólo la diferencia**; si no hay diferencia, no toca nada y lo dice.

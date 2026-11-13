@@ -11,17 +11,17 @@ __pycache__/
 # Run logs and the Proxmox API journal. Never commit these: they describe real
 # infrastructure, and this repository is public. The directory itself is kept
 # because Ansible's log_path cannot create it.
-logs/*
-!logs/.gitkeep
+machinery/logs/*
+!machinery/logs/.gitkeep
 
-# El entorno de ESTA máquina de control (playbooks/vars/entorno.yml): credenciales,
+# El entorno de ESTA máquina de control (secrets.yaml): credenciales,
 # puerto y rutas de claves. Lo cargan los playbooks y lo leen las herramientas, pero
 # nunca se commitea: el token de PVE equivale a root, no caduca, y el repositorio es
-# público. La plantilla versionada es entorno.example.yml.
-playbooks/vars/entorno.yml
+# público. La plantilla versionada es secrets.example.yaml.
+secrets.yaml
 
 # El nombre antiguo del mismo fichero, para que uno que quedara por ahí no se cuele.
-playbooks/vars/secrets.yml
+secrets.yml
 
 # Lo que Ansible se deja en el repositorio (colecciones, temporales).
 .ansible/collections/

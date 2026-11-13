@@ -58,8 +58,8 @@ del color es la etiqueta **tal como PVE la guarda**.
 
 ## Dónde se aplica
 
-`filter_plugins/notas.py` y `playbooks/tools/pve_notas.py` (la derivación, con
-`lab_numero`); `playbooks/apply.yml` y `playbooks/preflight.yml` (el
+`machinery/filter_plugins/notas.py` y `machinery/playbooks/tools/pve_notas.py` (la derivación, con
+`lab_numero`); `machinery/playbooks/apply.yml` y `machinery/playbooks/preflight.yml` (el
 `lab_numero` que llega al filtro); `framework_check.py notas` (el chequeo); los
 `pve_tag_style.colors` de cada laboratorio; y la prosa de `docs/README.md.j2` y
 `docs/laboratorio.md.j2`.

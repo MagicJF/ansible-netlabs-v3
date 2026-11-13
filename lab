@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# ===========================================================================
+# lab — el único punto de entrada del framework.
+#
+# Existe por tres razones concretas, no por gusto de envolver cosas:
+#
+#   1. `ansible.cfg` se busca en el DIRECTORIO ACTUAL (o en `ANSIBLE_CONFIG`), no
+#      junto al playbook. Llamando a `ansible-playbook /ruta/apply.yml` desde otro
+#      sitio, el marco corría SIN su inventario, SIN sus filtros y SIN su registro
+#      — y en silencio. Aquí se fijan las dos cosas.
+#   2. El entorno de la máquina tiene que estar resuelto ANTES de empezar: sin
+#      credenciales, media ejecución falla a mitad en vez de no empezar.
+#   3. El entorno de ESTA máquina vive en `secrets.yaml`, en la raíz del repo: este
+#      script exporta lo que Ansible necesita de ahí y comprueba que esté completo
+#      antes de empezar cualquier verbo. Nada de variables de entorno del operador.
+#
+# Laboratorio: `--lab <nombre>` opera OTRA topología sin tocar el enlace
+# `labs/active`. Sin él, manda el enlace. El nombre vale con `labs/` delante, con
+# `.yml` o sin él: el laboratorio es el fichero `labs/<nombre>.yml`.
+#
+# Verbos:
+#   entorno [args]   el fichero del entorno: crear, verificar, mostrar, api
+#   preflight        qué cambiaría, sin cambiar nada
+#   apply            converge y verifica
+#   remove           retira lo declarado, sin tocar lo ajeno
+#   connect          converge el camino que la capa 2 necesita
+#   site             capa 2: converge el interior de los invitados gestionados
+#   audit            capa 2: inspección de sólo lectura
+#   check            la prueba de la red, ejecutada desde las workstations
+#   marco [args]     el test del propio marco (framework_check.py)
+#
+# Cualquier argumento extra se pasa tal cual al verbo. Ejemplos:
+#   lab apply --check
+#   lab site --limit localhost,infra-bootstrap
+# ===========================================================================
+set -euo pipefail
+
+RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export ANSIBLE_CONFIG="$RAIZ/ansible.cfg"
+cd "$RAIZ"
+
+# --- el laboratorio: se acepta `--lab N`, `--lab=N` o `--lab N.yml` ---------
+LAB=""
+RESTANTES=()
+ESPERANDO_LAB=""
+for arg in "$@"; do
+    case "$arg" in
+        --lab)      ESPERANDO_LAB=1 ;;
+        --lab=*)    LAB="${arg#--lab=}" ;;
+        *)
+            if [ -n "$ESPERANDO_LAB" ]; then LAB="$arg"; ESPERANDO_LAB=""
+            else RESTANTES+=("$arg"); fi
+            ;;
+    esac
+done
+[ "${#RESTANTES[@]}" -gt 0 ] && set -- "${RESTANTES[@]}" || set --
+
+# El laboratorio es un FICHERO: labs/<nombre>.yml. Sin `--lab`, manda el enlace
+# `labs/active`. El manifiesto viaja por `-e @...` (extra vars), que sí plantilla
+# el Jinja de la declaración (comprobado: la tabla de sedes sale resuelta).
+RUTA_LAB="labs/active"
+if [ -n "$LAB" ]; then
+    case "$LAB" in
+        labs/*) RUTA_LAB="$LAB" ;;
+        *.yml)  RUTA_LAB="labs/$LAB" ;;
+        *)      RUTA_LAB="labs/$LAB.yml" ;;
+    esac
+fi
+if [ ! -f "$RUTA_LAB" ]; then
+    printf 'No existe %s — corre `ls labs/` para ver los laboratorios que hay.\n' "$RUTA_LAB" >&2
+    exit 2
+fi
+LAB_ARGS=(-e "@$RUTA_LAB" -e "pve_lab=$RUTA_LAB")
+
+VERBO="${1:-}"
+if [ -z "$VERBO" ]; then
+    sed -n '/^# Verbos:/,/^# ===/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' | sed '/^===$/d'
+    exit 2
+fi
+shift
+
+# Las colecciones del repo PRIMERO: es lo que hace que un clon nuevo funcione sin
+# instalar nada en el home. No se puede declarar en ansible.cfg porque una ruta
+# relativa ahí se descarta sin avisar (ver el comentario en ansible.cfg).
+export ANSIBLE_COLLECTIONS_PATH="$RAIZ/.ansible/collections${HOME:+:$HOME/.ansible/collections}:/usr/share/ansible/collections"
+
+ENTORNO=machinery/playbooks/tools/entorno.py
+
+# Las variables de Ansible que declara el entorno de esta máquina (temporales,
+# opciones de ssh). `eval` de nuestra propia herramienta; si no declara ninguna,
+# no imprime nada.
+while IFS= read -r linea; do eval "$linea"; done < <(python3 "$ENTORNO" env)
+
+# El entorno, comprobado UNA vez antes de empezar cualquier verbo que use la API.
+if [ "$VERBO" != "entorno" ]; then
+    if ! python3 "$ENTORNO" verificar; then
+        printf '\nEl entorno de esta máquina no está listo (arriba está el porqué).\n'
+        printf 'No se ejecuta nada más: `lab entorno verificar` te dice qué arreglar.\n'
+        exit 2
+    fi
+fi
+
+case "$VERBO" in
+    entorno)   exec python3 "$ENTORNO" "$@" ;;
+    marco)     exec python3 machinery/playbooks/tools/framework_check.py --lab "$RUTA_LAB" "$@" ;;
+    preflight) exec ansible-playbook "${LAB_ARGS[@]}" machinery/playbooks/preflight.yml "$@" ;;
+    apply)     exec ansible-playbook "${LAB_ARGS[@]}" machinery/playbooks/apply.yml "$@" ;;
+    remove)    exec ansible-playbook "${LAB_ARGS[@]}" machinery/playbooks/remove.yml "$@" ;;
+    connect)   exec ansible-playbook "${LAB_ARGS[@]}" machinery/playbooks/connect.yml "$@" ;;
+    site)      exec ansible-playbook "${LAB_ARGS[@]}" machinery/configure/site.yml "$@" ;;
+    audit)     exec ansible-playbook "${LAB_ARGS[@]}" machinery/configure/audit.yml "$@" ;;
+    check)     exec ansible-playbook "${LAB_ARGS[@]}" machinery/playbooks/tools/lab-check.yml "$@" ;;
+    *) printf 'Verbo desconocido: %s\nCorre `lab` sin argumentos para ver los que hay.\n' "$VERBO" >&2; exit 2 ;;
+esac

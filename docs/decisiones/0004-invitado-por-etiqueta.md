@@ -36,6 +36,6 @@ etiquetado sin declarar («extra») o si el laboratorio ACTIVO —el que apunta
 
 ## Dónde se aplica
 El check `framework_check.py guests`
-([`playbooks/tools/framework_check.py`](playbooks/tools/framework_check.py)); las etiquetas
+([`machinery/playbooks/tools/framework_check.py`](machinery/playbooks/tools/framework_check.py)); las etiquetas
 se declaran en `pve_defaults` y `pve_vm_defaults` del inventario de cada laboratorio; y la
 prosa en el README (plantilla `docs/README.md.j2`).

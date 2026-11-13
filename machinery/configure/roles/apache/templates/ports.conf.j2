@@ -1,0 +1,8 @@
+# Managed by layer 2 — machinery/configure/roles/apache/templates/ports.conf.j2
+# The declared sites decide the ports Apache listens on
+# (labs/netlab-v2.yml -> pve_containers[].config.apache.sites[].port),
+# so this file cannot drift from the declaration. Editing it on the guest is
+# drift and will be reverted on the next run of machinery/configure/site.yml.
+{% for port in apache_listen_ports %}
+Listen {{ port }}
+{% endfor %}

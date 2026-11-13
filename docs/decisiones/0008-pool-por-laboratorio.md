@@ -65,11 +65,11 @@ laboratorios se pisen en el mismo datacenter, y para eso una cifra basta.
 ## Dónde se aplica
 
 El `lab_pool` y la renumeración de `labs/*/inventory/group_vars/all.yml`;
-`playbooks/tasks/pool.yml` y `playbooks/tasks/pool_members.yml` (lo crea y da de alta);
-`playbooks/tasks/validate_state.yml` (que exista y esté bien declarado, en los dos
-verbos); `playbooks/tools/pve_read.py` (el estado del pool, que informan y convergen);
-`playbooks/apply.yml` y `playbooks/preflight.yml`; `playbooks/tools/framework_check.py`
+`machinery/playbooks/tasks/pool.yml` y `machinery/playbooks/tasks/pool_members.yml` (lo crea y da de alta);
+`machinery/playbooks/tasks/validate_state.yml` (que exista y esté bien declarado, en los dos
+verbos); `machinery/playbooks/tools/pve_read.py` (el estado del pool, que informan y convergen);
+`machinery/playbooks/apply.yml` y `machinery/playbooks/preflight.yml`; `machinery/playbooks/tools/framework_check.py`
 (`guests` por pool, `notas` con tres etiquetas, `numeracion` con siete cifras, y el verbo
-`pool`); `filter_plugins/notas.py` y `playbooks/tools/pve_notas.py` (la etiqueta del
+`pool`); `machinery/filter_plugins/notas.py` y `machinery/playbooks/tools/pve_notas.py` (la etiqueta del
 laboratorio desaparece de la derivación); y la prosa de `docs/README.md.j2` y
 `docs/laboratorio.md.j2`.

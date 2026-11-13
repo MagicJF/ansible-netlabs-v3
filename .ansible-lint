@@ -27,7 +27,7 @@ skip_list:
   # are read by people far more often than they are linted.
   - yaml[line-length]
 
-  # configure/site.yml passes a role's variables explicitly at the call site
+  # machinery/configure/site.yml passes a role's variables explicitly at the call site
   # (`tw`, `caddy_sites`, ...) rather than letting the role reach into its own
   # defaults. That is the point of the call site: what a role is given is
   # visible where it is given. The rule wants every one of them prefixed with
@@ -36,7 +36,7 @@ skip_list:
 
   # This repository waits for a task by name (`when: X.changed`) instead of
   # notifying a handler, because the wait is part of the verification the run
-  # prints. See the comment above the wait in playbooks/tasks/bridges.yml.
+  # prints. See the comment above the wait in machinery/playbooks/tasks/bridges.yml.
   - no-handler
 
   # Handler names here are lowercase and consistent across every role. The rule
