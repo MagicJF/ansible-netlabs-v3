@@ -6,7 +6,7 @@
 # labs/netlab-v2.yml la aplique el framework y no un operador. Un lab
 # que solo se maneja con los verbos nunca necesita acordarse de esto.
 #
-# La ruta lleva `../machinery/playbooks/` porque este fichero se incluye desde las DOS
+# La ruta lleva `../playbooks/` porque este fichero se incluye desde las DOS
 # capas: desde machinery/playbooks/ el rodeo es inocuo, y desde machinery/configure/ es lo que
 # apunta al script. Es la misma forma que ya usa `pve_manifest` en los verbos.
 #
@@ -35,7 +35,7 @@
 # queda en el resultado registrado.
 - name: Keep machinery/logs/ bounded (rotate what is over the cap, drop what is too old)
   ansible.builtin.command:
-    cmd: python3 {{ playbook_dir }}/../machinery/playbooks/tools/logs_prune.py --json
+    cmd: python3 {{ playbook_dir }}/../playbooks/tools/logs_prune.py --json
   register: pve_log_prune
   changed_when: false
   failed_when: pve_log_prune.rc != 0

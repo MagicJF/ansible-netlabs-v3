@@ -20,7 +20,7 @@
     # tasks/ssh_path.yml applies to the guest play later in the same run.
   tasks:
     - name: Keep machinery/logs/ bounded (the policy in the declared state)
-      ansible.builtin.include_tasks: ../machinery/playbooks/tasks/prune_logs.yml
+      ansible.builtin.include_tasks: ../playbooks/tasks/prune_logs.yml
 
     - name: Build the configuration targets
       ansible.builtin.include_tasks: tasks/build_targets.yml
@@ -137,7 +137,7 @@
   # (PVE) y urllib (lo que usa `ansible.builtin.uri`), así que armar aquí cubre
   # RouterOS: cada llamada queda con su `api: routeros` y se puede filtrar.
   environment:
-    PYTHONPATH: "{{ playbook_dir }}/../machinery/playbooks/tracing"
+    PYTHONPATH: "{{ playbook_dir }}/../playbooks/tracing"
     API_HTTP_TRACE: "{{ pve_log_dir }}/pve-api.jsonl"
   tasks:
     - name: Converge the declared RouterOS state

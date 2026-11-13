@@ -15,7 +15,7 @@
   gather_facts: false
   tasks:
     - name: Keep machinery/logs/ bounded (the policy in the declared state)
-      ansible.builtin.include_tasks: ../machinery/playbooks/tasks/prune_logs.yml
+      ansible.builtin.include_tasks: ../playbooks/tasks/prune_logs.yml
 
     - name: Build the configuration targets
       ansible.builtin.include_tasks: tasks/build_targets.yml

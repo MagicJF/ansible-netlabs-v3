@@ -5,7 +5,7 @@
   "docs/EL-LABORATORIO.md": {
     "docs/ESFUERZO.md": "cd6eafb4b18cd4e6aaccdbf554005aed71d0a96f6d1efc1c77ce24beba3cc3f7",
     "docs/decisiones/0008-pool-por-laboratorio.md": "26a67b1e971ed0c6b453c4e959e0ca431330683ade91ebcbefa661dd37a3f43c",
-    "machinery/configure/site.yml": "ccdb44c381e49fb2e51305c2ea093b9f18bd30b3808608156a96a9710b631aa1",
+    "machinery/configure/site.yml": "2ae0ecf5592add264a5fa3480d246179a081c6ccce7a1198d8c54569d6522eb4",
     "machinery/playbooks/apply.yml": "f4affd1bd3c89b2b3cbbf2b2bededcce24054351343f3fe5e3ac6d391005e625"
   },
   "docs/ESFUERZO.md": {},

@@ -42,4 +42,4 @@
     - name: Converge the declared tunnel
       # Same task file machinery/configure/site.yml uses when it finds no guest answering:
       # one implementation, two entry points.
-      ansible.builtin.include_tasks: ../machinery/configure/tasks/tunnel.yml
+      ansible.builtin.include_tasks: ../configure/tasks/tunnel.yml
