@@ -55,34 +55,6 @@
 #      mismo en el mismo orden: laboratorio, sede, clase e índice.
 # ============================================================================
 
-pve_node: Proxmox
-
-# ---------------------------------------------------------------------------
-# DIRECCIONAMIENTO
-#
-# Todas las direcciones de GESTIÓN viven en 10.10.10.0/24 (vmbr1), cuya puerta
-# es el host Proxmox (10.10.10.1). Ese /24 no se puede ampliar sin reconfigurar
-# el host, y el host no se toca (ver .hermes.md), así que la regla de la v1
-# ("el último octeto es el vmid") NO cabe con cuatro dígitos: aquí las
-# direcciones de gestión se asignan por BLOQUES DE FUNCIÓN.
-#
-#   10.10.10.1      el host Proxmox (NO es nuestro; es el gateway)
-#   10.10.10.2      un invitado preexistente, AJENO a este repositorio
-#   10.10.10.11-19  switches      (ST = 13/23/33)
-#   10.10.10.21-29  routers       (ST = 12/22/32)
-#   10.10.10.31-39  firewalls     (ST = 11/21/31, y el de borde 91)
-#   10.10.10.41-49  infraestructura (ST = 09)
-#
-# La direccion CONCRETA de cada equipo no se escribe en su ficha: se declara en
-# el bloque `mgmt:` de su sede (o en `lab_mgmt_otros`, para lo que no es una
-# sede) y cada ficha la CITA. Los bloques de arriba son la convencion que esa
-# tabla respeta; si un dia cambia una direccion, cambia en UN sitio.
-# ---------------------------------------------------------------------------
-lab_mgmt_network: "10.10.10.0/24"
-lab_mgmt_gateway: "10.10.10.1"
-# El bridge del nodo donde vive la red de gestión. Se declara porque los
-# documentos y las notas lo citan, y citarlo a mano es como se quedan viejos.
-lab_mgmt_bridge: "vmbr1"
 
 # ---------------------------------------------------------------------------
 # LAS SEDES. Una sede es UNA ENTRADA: su LAN, su tránsito hacia el firewall y su
@@ -111,18 +83,6 @@ lab_numero: 1          # L del número (ver docs/decisiones/0008)
 lab_pool: lab-netlab-v2         # el Resource Pool del laboratorio (ADR 0008)
 lab_nombre: "una empresa de tres sedes"
 lab_hub: 1
-
-# ---------------------------------------------------------------------------
-# FAMILIAS DE SEDE — la primera letra del código. El número que va al vmid es la
-# POSICIÓN de la familia (1..5) y la segunda letra (minúscula) es el índice
-# dentro de ella. Ver docs/decisiones/0007-codigo-de-sede.md.
-# ---------------------------------------------------------------------------
-lab_familias:
-  - { letra: "C", nombre: "central" }          # 1x
-  - { letra: "S", nombre: "sedes" }            # 2x
-  - { letra: "I", nombre: "infraestructura" }  # 3x
-  - { letra: "G", nombre: "gestión" }          # 4x
-  - { letra: "B", nombre: "borde" }            # 5x
 
 lab_sites:
   - id: 1
@@ -174,11 +134,6 @@ lab_clases:
 # Sedes que no alojan estaciones: la infraestructura, la gestión y el borde.
 lab_sedes_extra:
   Ia: "infraestructura"
-  Ga: "gestión"
-  Ba: "borde"
-
-# Acceso por id: las declaraciones de equipo dicen lab_sede[2].red, no la IP.
-lab_sede: "{{ dict(lab_sites | map(attribute='id') | zip(lab_sites)) }}"
 
 # Las direcciones de gestion de lo que NO es una sede: el contenedor de
 # infraestructura (da la primera direccion a cada equipo de red) y el firewall
@@ -218,21 +173,6 @@ lab_edge_network: "10.29.0.0/30"
 lab_edge_core: "10.29.0.1"
 lab_edge_fw: "10.29.0.2"
 
-# El "proveedor de internet" es el propio host Proxmox: es el único que tiene
-# salida real, y está medido (TCP a internet desde la LAN de gestión funciona).
-lab_internet_gateway: "10.10.10.1"
-lab_internet_dns: "1.1.1.1"
-
-# El bridge del nodo con salida real (su uplink público). NINGÚN invitado del
-# laboratorio va aquí: la salida va por la red de gestión. Se declara para que la
-# documentación pueda citarlo sin escribirlo a mano.
-pve_public_bridge: "vmbr0"
-
-# Red del nodo de control (el túnel). No es una red de la empresa: es el camino
-# por el que ESTE nodo entra a gestionar.
-lab_control_network: "10.99.99.0/24"
-lab_control_via: "10.10.10.1"
-
 # ---------------------------------------------------------------------------
 # CLAVE DE AUTOMATIZACIÓN
 #
@@ -254,10 +194,8 @@ lab_control_via: "10.10.10.1"
 # ---------------------------------------------------------------------------
 pve_tunnel:
   manage: true
-  name: wg-lab
   endpoint: "54.36.168.83:51820"
   endpoint_public_key: "3+bBS+GqR4EtWUFst+2s49rneVguWquuRBGINt/tZXQ="
-  address: "10.99.99.2/24"
   guest_network:
     - "10.10.10.0/24"   # la LAN de gestión (host y patas de gestión)
     - "10.11.0.0/24"    # SEDE 1 (central)
@@ -304,7 +242,6 @@ pve_tunnel:
 pve_tag_style:
   # full dibuja la etiqueta entera en el árbol; circle y dense la abrevian, y
   # none la esconde. Con tres tags por invitado, "full" es lo que se lee.
-  shape: full
   # Forma que almacena PVE (comprobada contra la API):
   #   color-map=<tag>:<color-de-fondo>[:<color-del-texto>];<tag>:...
   colors: "ansible:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;ca:00838f:ffffff;sa:6d4c41:ffffff;sb:8d6e63:ffffff;ia:5e35b1:ffffff;ga:8e24aa:ffffff;ba:37474f:ffffff"
@@ -358,46 +295,7 @@ pve_bridges:
 # ---------------------------------------------------------------------------
 pve_defaults:
   # ---- creation-time: PVE cannot change these on an existing container ------
-  template: "local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst"
-  template_storage: local
-  storage: local-zfs
-  rootfs_size: 8
-  unprivileged: true
-  ostype: debian
-
-  # ---- power state ---------------------------------------------------------
-  # started | stopped. En marcha: aplicar la declaración ES levantar el
-  # laboratorio, y ese es el sentido de tenerlo declarado.
-  status: started
-
-  # ---- resources (converged in place) --------------------------------------
-  memory: 2048
-  swap: 512
-  cores: 2
-  cpuunits: 1024
-
-  # ---- behaviour (converged in place) --------------------------------------
-  onboot: false
   description: "Managed by ansible-netlabs-v3. Declare changes in labs/netlab-v2/netlab-v2.yml."
-  # Etiqueta base; cada invitado AÑADE las suyas (sede y papel) a esta lista.
-  tags: [netlab, ansible]
-  timezone: host
-  cmode: shell
-  features: []
-  startup: []
-
-  # ---- network (converged in place; empty = no interface at all) ----------
-  netif: {}
-  nameserver: null
-  searchdomain: null
-
-  # ---- attachments (converged in place; empty = must not exist) -----------
-  hookscript: null
-  mounts: {}
-  mount_devices: []
-
-  # ---- the key at birth ----------------------------------------------------
-  pubkey: "{{ lookup('file', pve_ssh_key_path ~ '.pub', errors='ignore') | default('', true) | trim }}"
 
 # The containers this repository manages — and nothing else. A container absent
 # from this list is never read, created or modified.
@@ -628,89 +526,6 @@ pve_containers:
           retry: 30
     netif:
       net0: "name=eth0,bridge=vmbr19,hwaddr=BC:24:10:00:53:02,ip=dhcp"
-
-# ============================================================================
-# QEMU VMs — mismas reglas declarativas que los contenedores, con una
-# diferencia: proxmox_kvm se niega a actualizar net/scsi/ide/sata/virtio (y
-# bios/machine/scsihw/ostype), así que para una VM son creation-time: la deriva
-# en ellos se RECHAZA, no se converge. Y por eso cambiar de qué bridge cuelga
-# una pata obliga a recrear la máquina.
-# ============================================================================
-pve_vm_defaults:
-  bios: seabios
-  machine: q35
-  scsihw: virtio-scsi-single
-  ostype: l26
-
-  status: stopped
-
-  sockets: 1
-  cpu: host
-  vga: std
-  onboot: false
-  boot: "order=ide2;scsi0"
-  description: "Nested Proxmox VE managed by ansible-netlabs-v3."
-  tags: [netlab, ansible]
-
-  net: {}
-  scsi: {}
-  sata: {}
-  ide: {}
-  virtio: {}
-
-  cloudinit: true
-  cloudinit_storage: local-zfs
-  ciuser: root
-  sshkeys: "{{ pve_defaults.pubkey }}"
-
-# ---------------------------------------------------------------------------
-# CHR (MikroTik RouterOS) — valores por defecto de TODO equipo de red.
-#
-# Aquí viven el sabor, el orden de arranque y la forma común, porque los equipos
-# de red son once y repetir eso en cada uno es pedir que se desincronicen. Cada
-# equipo AÑADE sus propias etiquetas (sede y papel) sin repetir estas.
-#
-# Los equipos de red van ANTES que las workstations: la petición DHCP de una
-# workstation la contesta el router de su sede, así que arrancarlos juntos es
-# una carrera que la workstation pierde.
-# ---------------------------------------------------------------------------
-pve_chr_defaults:
-  onboot: true
-  startup: ["order=2"]
-  # 1 core y 256 MiB por equipo de red: un CHR que conmuta, enruta o filtra
-  # (que es todo lo que hace) no necesita más, y ahora son once.
-  cores: 1
-  memory: 256
-  # En marcha: aplicar la declaración ES levantar el laboratorio.
-  status: started
-  manage: true
-  # La imagen del fabricante no tiene cloud-init, así que esa unidad sería peso
-  # muerto.
-  cloudinit: false
-  # CHR es una imagen de la era i440fx: arranca en el chipset PC, no en q35.
-  machine: pc
-  # La imagen importada es el ÚNICO disco, así que es el dispositivo de arranque
-  # (el orden por defecto espera la unidad cloud-init que esta VM no tiene).
-  boot: "order=scsi0"
-  scsi:
-    # 1 GiB y no 8: la imagen del fabricante ocupa 128 MiB y RouterOS CHR vive en
-    # RAM, así que un disco grande aquí es espacio asignado que nadie usa.
-    scsi0: "local-zfs:1"
-  # La imagen del fabricante se IMPORTA en vez de crearse: proxmox_kvm sólo sabe
-  # construir un disco a partir de un tamaño, así que la imagen raw está subida a
-  # un storage que acepta `import` y se adjunta con la sintaxis import-from de la
-  # API en el momento de crear la VM (ver machinery/playbooks/tasks/disk_import.yml).
-  disk_import:
-    - key: scsi0
-      source: "local:import/chr-7.25.1.raw"
-  # La consola que respeta un teclado que no es US: lleva CARACTERES, no
-  # scancodes. `vga: serial0` es lo que hace que el botón Console de PVE abra
-  # esta consola en vez de un noVNC que no tiene nada que mostrar.
-  serial:
-    serial0: socket
-  vga: serial0
-  description: "MikroTik RouterOS: una funcion de red, un equipo. Gestionado por REST."
-  tags: [netlab, routeros, red, ansible]
 
 pve_vms:
   - vmid: 1411210
@@ -1194,38 +1009,3 @@ pve_vms:
             - {chain: input, action: drop}
           nat:
             - {chain: srcnat, action: masquerade, out_interface: ether1}
-
-# ============================================================================
-# NOTA: no hay lista de "invitados parcialmente adoptados".
-#
-# La v1 traía una lista de invitados "parcialmente adoptados" (los que
-# configuraba sin gestionarles la forma). Aquí no existe: todo invitado que se
-# configura se declara también, y el que no se declara no aparece en ninguna
-# lista ni se lee nunca. Si algún día hay que configurar uno preexistente desde
-# capa 2, se declara aquí y se explica por qué.
-# ============================================================================
-
-# ============================================================================
-# TIEMPOS DE ENERGÍA (verbos apply/preflight)
-# ============================================================================
-# Cuánto se espera, como máximo, a que un escalón entero acabe en marcha. El
-# lote se pide de golpe y se relanza lo que quede parado.
-pve_power_start_timeout: 240
-
-# Margen de cortesía entre un escalón y el siguiente (clave = `order` del que
-# acaba de arrancar). Sólo lo usa lo que no tiene una señal propia que consultar:
-# los equipos de red esperan a que su API conteste de verdad.
-pve_power_gap_after:
-  1: 10
-
-# Cuánto se espera a que un escalón de RouterOS levante de verdad y conteste su
-# API: un CHR tarda decenas de segundos en levantar RouterOS.
-pve_power_ready_timeout: 180
-
-# ============================================================================
-# RETENCIÓN DE labs/<nombre>/logs/ — el único directorio del repositorio que crece solo.
-# ============================================================================
-pve_log_retention:
-  live_max_mb: 8
-  keep_days: 14
-  keep_count: 10

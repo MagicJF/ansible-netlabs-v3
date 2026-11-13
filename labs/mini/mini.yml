@@ -22,28 +22,12 @@
 # (el otro usa 10.11/10.12/10.13), el bridge vmbr31 (el otro, vmbr4…vmbr22) y las MACs
 # llevan el prefijo BC:24:21 (el otro, BC:24:11).
 # ===========================================================================
-pve_node: Proxmox
-lab_mgmt_network: 10.10.10.0/24
-lab_mgmt_gateway: 10.10.10.1
-lab_mgmt_bridge: vmbr1
 lab_mgmt_otros:
   infra: 10.10.10.63
 lab_numero: 2          # L del número (ver docs/decisiones/0008)
 lab_pool: lab-mini              # el Resource Pool del laboratorio (ADR 0008)
 lab_nombre: "una sola sede"
 lab_hub: 1
-
-# ---------------------------------------------------------------------------
-# FAMILIAS DE SEDE — la primera letra del código. El número que va al vmid es la
-# POSICIÓN de la familia (1..5) y la segunda letra (minúscula) es el índice
-# dentro de ella. Ver docs/decisiones/0007-codigo-de-sede.md.
-# ---------------------------------------------------------------------------
-lab_familias:
-  - { letra: "C", nombre: "central" }          # 1x
-  - { letra: "S", nombre: "sedes" }            # 2x
-  - { letra: "I", nombre: "infraestructura" }  # 3x
-  - { letra: "G", nombre: "gestión" }          # 4x
-  - { letra: "B", nombre: "borde" }            # 5x
 lab_sites:
 - id: 1
   nombre: unica
@@ -70,56 +54,18 @@ lab_clases:
   91: { token: "pcws", etiqueta: "estación de trabajo" }
 lab_sedes_extra:
   Ia: "infra"
-  Ga: "gestión"
-  Ba: "borde"
-lab_sede: '{{ dict(lab_sites | map(attribute=''id'') | zip(lab_sites)) }}'
-lab_control_network: 10.99.99.0/24
-lab_control_via: 10.10.10.1
 pve_tunnel:
   manage: false
-  name: wg-lab
-  address: 10.99.99.2/24
-lab_internet_gateway: 10.10.10.1
-lab_internet_dns: 1.1.1.1
-pve_public_bridge: vmbr0
 lab_edge_network: 10.29.0.0/30
 lab_edge_core: 10.29.0.1
 lab_edge_fw: 10.29.0.2
 pve_tag_style:
-  shape: full
   colors: ansible:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;ca:00838f:ffffff;ia:5e35b1:ffffff;ga:8e24aa:ffffff;ba:37474f:ffffff
 pve_bridges:
 - iface: vmbr31
   comments: 'cable: 2-Ca-rtco-10 ether2 <-> 2-Ca-pcws-10 eth0'
 pve_defaults:
-  template: local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst
-  template_storage: local
-  storage: local-zfs
-  rootfs_size: 8
-  unprivileged: true
-  ostype: debian
-  status: started
-  memory: 2048
-  swap: 512
-  cores: 2
-  cpuunits: 1024
-  onboot: false
   description: Managed by ansible-netlabs-v3. Declare changes in labs/netlab-v2/netlab-v2.yml.
-  tags:
-  - netlab
-  - ansible
-  timezone: host
-  cmode: shell
-  features: []
-  startup: []
-  netif: {}
-  nameserver: null
-  searchdomain: null
-  hookscript: null
-  mounts: {}
-  mount_devices: []
-  pubkey: '{{ lookup(''file'', pve_ssh_key_path ~ ''.pub'', errors=''ignore'') | default('''', true) |
-    trim }}'
 pve_containers:
 - vmid: 2317110
   hostname: 2-Ia-boot-10
@@ -169,55 +115,6 @@ pve_containers:
         retry: 30
   netif:
     net0: name=eth0,bridge=vmbr31,hwaddr=BC:24:11:00:61:01,ip=dhcp
-pve_vm_defaults:
-  bios: seabios
-  machine: q35
-  scsihw: virtio-scsi-single
-  ostype: l26
-  status: stopped
-  sockets: 1
-  cpu: host
-  vga: std
-  onboot: false
-  boot: order=ide2;scsi0
-  description: Nested Proxmox VE managed by ansible-netlabs-v3.
-  tags:
-  - netlab
-  - ansible
-  net: {}
-  scsi: {}
-  sata: {}
-  ide: {}
-  virtio: {}
-  cloudinit: true
-  cloudinit_storage: local-zfs
-  ciuser: root
-  sshkeys: '{{ pve_defaults.pubkey }}'
-pve_chr_defaults:
-  onboot: true
-  startup:
-  - order=2
-  cores: 1
-  memory: 256
-  status: started
-  manage: true
-  cloudinit: false
-  machine: pc
-  boot: order=scsi0
-  scsi:
-    scsi0: local-zfs:1
-  disk_import:
-  - key: scsi0
-    source: local:import/chr-7.25.1.raw
-  serial:
-    serial0: socket
-  vga: serial0
-  description: 'MikroTik RouterOS: una funcion de red, un equipo. Gestionado por REST.'
-  tags:
-  - netlab
-  - routeros
-  - red
-  - ansible
 pve_vms:
 - name: 2-Ca-rtco-10
   vmid: 2112110
@@ -250,11 +147,3 @@ pve_vms:
           selectattr(''site'', ''equalto'', ''sede1'') -%}{%-   set _ = out.append({      ''address'':
           c.address,      ''mac_address'': (c.netif.net0.split('','') | select(''match'', ''^hwaddr='')
           | first).split(''='')[1],      ''comment'': c.hostname }) -%}{%- endfor -%} {{ out }}'
-pve_power_start_timeout: 240
-pve_power_gap_after:
-  1: 10
-pve_power_ready_timeout: 180
-pve_log_retention:
-  live_max_mb: 8
-  keep_days: 14
-  keep_count: 10

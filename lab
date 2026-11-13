@@ -79,13 +79,13 @@ mkdir -p "$LOG_DIR"
 # `ansible.cfg` no puede saber de qué laboratorio es la ejecución; el directorio lo
 # fija aquí quien SÍ lo sabe (Ansible lee ANSIBLE_LOG_PATH por encima del fichero).
 export ANSIBLE_LOG_PATH="$LOG_DIR/ansible.log"
-# Ansible recibe la declaración YA FUNDIDA con `labs/defaults.yml` (el lab escribe
-# sólo lo suyo; lo demás lo pone el default). La fusión es la MISMA función que usan
-# las herramientas, no una segunda implementación. El fichero queda junto a los logs
-# del laboratorio, para poder ver qué recibió Ansible exactamente.
-FUNDIDO="$LOG_DIR/declaracion-fundida.yml"
-python3 machinery/playbooks/tools/declaracion.py --fundir "$RUTA_LAB" --salida "$FUNDIDO" >/dev/null
-LAB_ARGS=(-e "@$FUNDIDO" -e "pve_lab=$RUTA_LAB" -e "pve_log_dir=$LOG_DIR")
+# Ansible recibe la declaración YA FUNDIDA con `machinery/defaults.yml` (el lab
+# escribe sólo lo suyo; lo demás lo pone el default). La fusión es la MISMA función
+# que usan las herramientas, no una segunda implementación. Va EN LÍNEA a propósito:
+# no se deja ningún fichero por medio, porque un fichero con todo dentro a la vista
+# es precisamente lo que se quería evitar.
+FUNDIDO="$(python3 machinery/playbooks/tools/declaracion.py --fundir "$RUTA_LAB" --json)"
+LAB_ARGS=(-e "$FUNDIDO" -e "pve_lab=$RUTA_LAB" -e "pve_log_dir=$LOG_DIR")
 
 VERBO="${1:-}"
 if [ -z "$VERBO" ]; then

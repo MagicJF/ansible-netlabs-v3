@@ -156,10 +156,13 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description="La declaración, fundida con labs/defaults.yml.")
     ap.add_argument("--fundir", help="manifiesto del laboratorio")
-    ap.add_argument("--salida", help="dónde dejar el YAML fundido (para Ansible)")
+    ap.add_argument("--salida", help="(opcional) dejar el YAML fundido en un fichero")
+    ap.add_argument("--json", action="store_true", help="imprimir lo fundido como JSON, sin fichero")
     a = ap.parse_args()
-    if a.fundir and a.salida:
+    if a.fundir:
         datos = leer_manifiesto(a.fundir)
-        with open(a.salida, "w", encoding="utf-8") as fh:
-            yaml.safe_dump(datos, fh, sort_keys=False, allow_unicode=True, width=1000)
-        print(f"{a.fundir} + labs/defaults.yml -> {a.salida}")
+        if a.json:
+            print(json.dumps(datos, default=str))
+        elif a.salida:
+            with open(a.salida, "w", encoding="utf-8") as fh:
+                yaml.safe_dump(datos, fh, sort_keys=False, allow_unicode=True, width=1000)
