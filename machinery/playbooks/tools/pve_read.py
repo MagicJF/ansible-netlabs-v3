@@ -33,6 +33,7 @@
 #
 # Output: one JSON object on stdout. Nothing else is printed, ever.
 # ===========================================================================
+import declaracion
 import argparse
 import json
 import os
@@ -145,7 +146,7 @@ def declared(manifest):
     above it, and every entry is required to carry its identity.
     """
     try:
-        data = yaml.load(open(manifest), Loader=StrictLoader) or {}
+        data = declaracion.leer_manifiesto(manifest, loader=lambda fh: yaml.load(fh, Loader=StrictLoader))
     except yaml.YAMLError as exc:
         sys.exit(f"pve_read.py: {manifest} is not a valid declared state: {exc}")
     guests = []

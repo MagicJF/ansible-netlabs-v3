@@ -21,11 +21,16 @@
 # la declaración usa, para no tener que sacarla de su sitio.
 # ===========================================================================
 import json
+import os
 import re
 
 import jinja2
 import jinja2.nativetypes
 import yaml
+
+# La raíz del repositorio —para encontrar `labs/defaults.yml`—, subiendo desde
+# `machinery/playbooks/tools/`: tools -> playbooks -> machinery -> repo.
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 
 def entorno():
@@ -42,7 +47,7 @@ def entorno():
 
 def crudo(ruta):
     """El manifiesto tal cual, sin resolver: para quien reescribe el fichero."""
-    return yaml.safe_load(open(ruta, encoding="utf-8")) or {}
+    return leer_manifiesto(ruta)
 
 
 def _resolver(x, env, ctx, _prof=0):
@@ -112,3 +117,49 @@ def cargar(ruta):
     for _ in range(3):
         ctx = {**ctx, **_resolver(raw, env, ctx)}
     return _resolver(raw, env, ctx)
+
+
+# ---------------------------------------------------------------------------
+# Fusión con `labs/defaults.yml` (shadowing). Ver `fusionar`.
+# ---------------------------------------------------------------------------
+def fusionar(base, propio):
+    """`propio` ENCIMA de `base`, en profundidad (shadowing).
+
+    Lo que el laboratorio no escribe, lo pone el default; los diccionarios se funden
+    clave a clave, para que declarar `pve_defaults: {memory: 4096}` cambie SÓLO la
+    memoria y conserve el resto. Las listas y los escalares se sustituyen enteros:
+    una lista no se puede entremezclar sin inventar un orden que nadie declaró.
+    """
+    if isinstance(base, dict) and isinstance(propio, dict):
+        out = dict(base)
+        for k, v in propio.items():
+            out[k] = fusionar(base[k], v) if k in base else v
+        return out
+    return propio
+
+
+def leer_manifiesto(ruta, loader=yaml.safe_load):
+    """Un manifiesto de laboratorio YA FUNDIDO con `labs/defaults.yml`.
+
+    TODO el que lea una declaración pasa por aquí: un lector que se saltara la fusión
+    vería un laboratorio al que le faltan claves sin que nada avisara — y con
+    `undefined` estricto eso no es un error ruidoso, es una variable vacía.
+    """
+    with open(ruta, encoding="utf-8") as fh:
+        propio = loader(fh) or {}
+    with open(os.path.join(_REPO, "machinery", "defaults.yml"), encoding="utf-8") as fh:
+        base = yaml.safe_load(fh) or {}
+    return fusionar(base, propio)
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="La declaración, fundida con labs/defaults.yml.")
+    ap.add_argument("--fundir", help="manifiesto del laboratorio")
+    ap.add_argument("--salida", help="dónde dejar el YAML fundido (para Ansible)")
+    a = ap.parse_args()
+    if a.fundir and a.salida:
+        datos = leer_manifiesto(a.fundir)
+        with open(a.salida, "w", encoding="utf-8") as fh:
+            yaml.safe_dump(datos, fh, sort_keys=False, allow_unicode=True, width=1000)
+        print(f"{a.fundir} + labs/defaults.yml -> {a.salida}")

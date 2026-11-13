@@ -17,6 +17,7 @@ Uso:
     segment_comments.py --dry-run     # sólo dice qué haría
     segment_comments.py               # lo hace y verifica
 """
+import declaracion
 import argparse
 import os
 import sys
@@ -42,7 +43,7 @@ def session_and_node():
     s.headers.update({"Authorization": "PVEAPIToken=%s=%s" % (
         creds["token_id"], creds["token_secret"])})
     s.verify = creds["ca_path"]
-    man = yaml.safe_load(open(MANIFEST))
+    man = declaracion.leer_manifiesto(MANIFEST)
     return s, "https://%s:%s/api2/json" % (creds["host"], creds["port"]), man["pve_node"], man
 
 

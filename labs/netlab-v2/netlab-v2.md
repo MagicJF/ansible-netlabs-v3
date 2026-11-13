@@ -342,7 +342,7 @@ fiel a lo que te encontrarías con hierro.
 
 Cada invitado lleva **tres etiquetas y ni una más**: quién lo gestiona (`ansible`), qué
 es (`firewall`, `router`, `switch`, `workstation`, `bootstrap`) y dónde está
-(`Ca`, `Sa`, `Sb`, `Ia`, `Ga`, `Ba`). Nada de vocabulario que no responda a una de
+(`Ca`, `Sa`, `Sb`, `Ga`, `Ba`, `Ia`). Nada de vocabulario que no responda a una de
 esas tres preguntas.
 
 De qué laboratorio es un invitado **no se pregunta por etiqueta**: lo dice su Resource

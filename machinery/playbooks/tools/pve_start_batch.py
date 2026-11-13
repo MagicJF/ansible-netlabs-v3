@@ -25,6 +25,7 @@
 #
 # Sale 0 si todo acabó en marcha, 1 diciendo qué no, 2 si se usa mal.
 # ===========================================================================
+import declaracion
 import argparse
 import json
 import os
@@ -60,7 +61,7 @@ def credenciales(args):
 
 def tipos(manifest):
     """{vmid: 'lxc'|'qemu'} leído de la declaración, que es la fuente de verdad."""
-    datos = yaml.safe_load(open(manifest)) or {}
+    datos = declaracion.leer_manifiesto(manifest)
     mapa = {}
     for clave, tipo in (("pve_containers", "lxc"), ("pve_vms", "qemu")):
         for item in datos.get(clave) or []:

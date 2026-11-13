@@ -17,11 +17,11 @@
   "docs/decisiones/0001-solo-api.md": {},
   "docs/decisiones/0002-bootstrap-existe.md": {},
   "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": {
-    "machinery/playbooks/tools/framework_check.py": "03b7b55c7a859a53770333a354f0c8ff15d05b661463bdd2f20741a21f1d7fc0"
+    "machinery/playbooks/tools/framework_check.py": "88d75925f7e50dbe0d16de8a6eff6a1556e7fe3bcac8445c74a879e7fc9b752e"
   },
   "docs/decisiones/0004-invitado-por-etiqueta.md": {
     "docs/decisiones/0006-vocabulario-etiquetas.md": "717d3ebb160dde886853077b16e4b0a34b27e034c7d3304abad471e2a94240e7",
-    "machinery/playbooks/tools/framework_check.py": "03b7b55c7a859a53770333a354f0c8ff15d05b661463bdd2f20741a21f1d7fc0"
+    "machinery/playbooks/tools/framework_check.py": "88d75925f7e50dbe0d16de8a6eff6a1556e7fe3bcac8445c74a879e7fc9b752e"
   },
   "docs/decisiones/0005-numero-compuesto.md": {},
   "docs/decisiones/0006-vocabulario-etiquetas.md": {

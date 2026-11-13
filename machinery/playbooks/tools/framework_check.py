@@ -263,7 +263,7 @@ def _api():
 def drill(verb, preflight):
     say("== drill: can the framework still SEE a difference, and REPAIR it? ==")
 
-    manifest = yaml.safe_load(open(MANIFEST)) or {}
+    manifest = declaracion.leer_manifiesto(MANIFEST)
     node = manifest.get("pve_node", "")
     containers = [c for c in (manifest.get("pve_containers") or []) if c.get("vmid")]
     if not containers:
@@ -715,7 +715,7 @@ def plan_check():
 
     import jinja2
 
-    man = yaml.safe_load(open(MANIFEST))
+    man = declaracion.leer_manifiesto(MANIFEST)
     defaults = yaml.safe_load(open(ROUTEROS_DEFAULTS))
     plantilla = os.path.join(REPO, "machinery/configure/roles/routeros/templates/plan.j2")
 
@@ -1464,7 +1464,7 @@ def _labs_declarados():
 
 def _lab_set(ruta):
     """(vmids declarados, el Resource Pool del laboratorio)."""
-    d = yaml.safe_load(open(ruta)) or {}
+    d = declaracion.leer_manifiesto(ruta)
     vmids = set()
     for clave in ("pve_containers", "pve_vms"):
         for it in (d.get(clave) or []):

@@ -37,6 +37,7 @@ Exit code is 0 even when it did nothing, so the verbs can call it on every run.
 It exits non-zero only when it could not do its job, which is worth failing on.
 """
 
+import declaracion
 import argparse
 import json
 import os
@@ -81,7 +82,7 @@ def policy_from_manifest():
         return policy
     try:
         with open(MANIFEST, encoding="utf-8") as handle:
-            declared = (yaml.safe_load(handle) or {}).get("pve_log_retention") or {}
+            declared = declaracion.leer_manifiesto(handle.name).get("pve_log_retention") or {}
     except OSError as exc:
         warn(f"logs_prune: cannot read {MANIFEST} ({exc}); using the built-in defaults")
         return policy
