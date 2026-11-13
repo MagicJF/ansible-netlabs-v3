@@ -91,7 +91,7 @@ def ros_de(g):
 # Las sedes salen de la TABLA del manifiesto (`lab_sites`), no de un diccionario
 # escrito a mano: anadir una sede es anadir una entrada, y ni la nota ni las
 # etiquetas se resienten. `tag` es el valor de la etiqueta de PVE (el color lo
-# fija `pve_tag_style`), `nombre` el nombre corto y `etiqueta` como se dice en
+# fija), `nombre` el nombre corto y `etiqueta` como se dice en
 # prosa. El hub se declara aparte (`lab_hub`) porque la topologia no es plana.
 #
 # Se calculan en `preparar()` y no al importar: dependen del manifiesto, que
@@ -394,8 +394,7 @@ def html(e):
               else {"infra": "la red de gestión",
                     "gestion": "el segundo segmento de gestión (OOB)",
                     "borde": "el borde de la empresa"}.get(cl, "—")],
-             ["Rol", rol(n)],
-             ["Tags", " ".join("<code>%s</code>" % t for t in tags_de(e))]]
+             ["Rol", rol(n)]]
     L += tabla(filas)
 
     # --- conexiones
@@ -536,34 +535,7 @@ def html(e):
     return "\n".join(L)
 
 
-def tags_de(e):
-    """Tres etiquetas y ni una más: quién lo gestiona, qué es y dónde está.
 
-    De qué laboratorio es un invitado NO se pregunta por etiqueta: lo dice el
-    Resource Pool PROPIO del laboratorio, que PVE enseña en su árbol junto al
-    invitado (ADR 0008). Una etiqueta más sería una segunda respuesta a la misma
-    pregunta, y dos respuestas se contradicen el día que una cambie.
-
-    En MINÚSCULAS, y no por gusto de estilo: la etiqueta de PVE es un identificador,
-    y PVE lo normaliza a minúsculas al guardarlo (creado con `Ca`, su API
-    devuelve `ca` — medido: el `create` responde 200 y la relectura viene
-    abajo). Una etiqueta declarada en mayúsculas no converge nunca: el motor la
-    reescribe en cada pasada y la verificación la da por desajustada. El código de
-    sede (`Ca`) sigue así en el NOMBRE y en la prosa; lo que se publica como
-    etiqueta va en minúsculas. El esquema que cita el ADR 0006 ya lo decía: sólo
-    minúsculas, dígitos, guion, más y punto.
-
-    El papel y la sede salen de la DECLARACIÓN; si un invitado aún no
-    resuelve (dirección plantillada sin renderizar), se omite la etiqueta en vez de
-    devolver None: una lista con None revienta el `sort` del motor y tumba el
-    preflight de TODOS los laboratorios, no sólo el de ese invitado.
-    """
-    return [str(t).lower() for t in ("ansible", rol(e["n"]), sitio_de(e)) if t]
-
-
-# ------------------------------------------------------------------- CLI -
-# Inspección: imprime lo que PVE enseñará para un invitado (o para todos). Sirve
-# para leer la nota sin abrir la interfaz de Proxmox; no escribe nada.
 def main(argv):
     args = list(argv[1:])
     vmid = None
@@ -575,7 +547,7 @@ def main(argv):
     for e in todos(man):
         if vmid is not None and e["vmid"] != vmid:
             continue
-        print("=== %s (%s)  etiquetas: %s" % (e["n"], e["vmid"], ", ".join(tags_de(e))))
+        print("=== %s (%s)" % (e["n"], e["vmid"]))
         print(html(e))
         print()
 

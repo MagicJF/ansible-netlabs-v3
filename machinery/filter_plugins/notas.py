@@ -36,7 +36,7 @@ import pve_notas as N  # noqa: E402
 
 def notas_map(cts, vms=None, sites=None, hub=None, otros=None, mgmt2=None,
               sedes_extra=None):
-    """{vmid: {"description": <html>, "tags": [tres]}} de toda la declaración.
+    """{vmid: {"description": <html>}} de toda la declaración.
 
     Los argumentos son los que el render necesita: la lista de contenedores y de
     VMs (para saber quién es vecino de quién por los cables), la tabla de sedes
@@ -60,7 +60,7 @@ def notas_map(cts, vms=None, sites=None, hub=None, otros=None, mgmt2=None,
     N.preparar()
     out = {}
     for e in N.todos(N.man):
-        out[e["vmid"]] = {"description": N.html(e), "tags": N.tags_de(e)}
+        out[e["vmid"]] = {"description": N.html(e)}
     return out
 
 

@@ -103,8 +103,6 @@ pve_power_gap_after:
 pve_power_ready_timeout: 180
 pve_power_start_timeout: 240
 pve_public_bridge: vmbr0
-pve_tag_style:
-  shape: full
 pve_tunnel:
   name: wg-lab
   address: 10.99.99.2/24

@@ -352,12 +352,6 @@ invitados que la declaración declara y deja fuera a los del host
 que se quede fuera de su pool es un invitado huérfano: `apply` lo devuelve a su sitio y
 `guests` denuncia lo que esté dentro sin que ningún laboratorio lo declare.
 
-Esas etiquetas están **coloreadas en el datacenter** (opción `tag-style`, declarada en
-`pve_tag_style` y convergida por `apply.yml`). El color dice dos cosas sin abrir nada: el
-**rojo** es "gestionado por este repositorio", y el resto agrupa por función y por sede.
-PVE guarda las etiquetas ordenadas alfabéticamente; el motor compara **conjuntos
-ordenados**, así que el orden en que se declaren no produce deriva.
-
 La **nota** de cada máquina no es un adorno: es HTML y se **deriva** de la propia
 declaración (`machinery/filter_plugins/notas.py`, con el generador de
 `machinery/playbooks/tools/pve_notas.py`) en el momento de desplegarla; **no está guardada en el

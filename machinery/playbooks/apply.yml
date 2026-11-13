@@ -244,8 +244,6 @@
       ansible.builtin.include_tasks: tasks/bridges.yml
 
     # ---- the datacenter's colour scheme, before the guests are tagged -----
-    - name: Converge the declared tag style (pve_tag_style)
-      ansible.builtin.include_tasks: tasks/tag_style.yml
 
     # ---- el Resource Pool del laboratorio, antes de crear sus invitados ----
     # El laboratorio se identifica por su PROPIO pool (ADR 0008), así que el pool
@@ -279,7 +277,6 @@
         cmode: "{{ ct.cmode | default(omit, true) }}"
         timezone: "{{ ct.timezone | default(omit, true) }}"
         description: "{{ ct.description | default(omit, true) }}"
-        tags: "{{ ct.tags | default(omit, true) }}"
         features: "{{ ct.features if (ct.features | default([], true)) else omit }}"
         startup: "{{ ct.startup if (ct.startup | default([], true)) else omit }}"
         nameserver: "{{ ct.nameserver | default(omit, true) }}"
@@ -312,7 +309,6 @@
         cmode: "{{ ct.cmode if 'cmode' in a.to_set else omit }}"
         timezone: "{{ ct.timezone if 'timezone' in a.to_set else omit }}"
         description: "{{ ct.description if 'description' in a.to_set else omit }}"
-        tags: "{{ ct.tags if 'tags' in a.to_set else omit }}"
         features: "{{ ct.features if 'features' in a.to_set else omit }}"
         # `startup` NO se pasa aquí a propósito: ver la tarea que lo converge justo
         # después del bloque de contenedores.
@@ -486,7 +482,6 @@
         # sufrian porque su tarea de creacion si lo declaraba.
         startup: "{{ ct.startup | join(',') if (ct.startup | default([], true)) else omit }}"
         description: "{{ ct.description | default(omit, true) }}"
-        tags: "{{ ct.tags | default(omit, true) }}"
         kvm: true
         net: "{{ ct.net }}"
         # A serial port declared as `socket` is what gives PVE's UI a console
@@ -546,7 +541,6 @@
         # manifiesto (lista, que es la forma de PVE) y se une aquí.
         startup: "{{ ct.startup | join(',') if 'startup' in a.to_set else omit }}"
         description: "{{ ct.description if 'description' in a.to_set else omit }}"
-        tags: "{{ ct.tags if 'tags' in a.to_set else omit }}"
         update: true
         timeout: 300
         state: present

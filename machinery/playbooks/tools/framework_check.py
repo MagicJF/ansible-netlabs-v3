@@ -916,7 +916,7 @@ def notas_check():
     # subconjunto lo dejaría sin poder resolver el borde, la infra y el segmento OOB.
     _notas.man = man
     _notas.preparar()
-    generadas = {e["vmid"]: {"description": _notas.html(e), "tags": _notas.tags_de(e)}
+    generadas = {e["vmid"]: {"description": _notas.html(e)}
                  for e in _notas.todos(_notas.man)}
 
     cables = {}
@@ -924,37 +924,11 @@ def notas_check():
         for p in _patas_de(g, tipo):
             cables.setdefault(p["bridge"], []).append((nombre, p["pata"], p["mac"]))
 
-    # El vocabulario válido sale de la DECLARACIÓN: los tags que la declaración pone
-    # a cada invitado (`pve_defaults`/`pve_vm_defaults`), los códigos de sitio que
-    # declara (`lab_sites[].codigo` y `lab_sedes_extra`) y los cinco papeles. No se re-deriva
-    # la identidad —eso ya lo hace el generador—: aquí se comprueba la FORMA de las
-    # etiquetas y que cada valor pertenezca al vocabulario declarado.
-    marcas = set()
-    for _clave in ("pve_defaults", "pve_vm_defaults"):
-        marcas |= {str(t) for t in ((man.get(_clave) or {}).get("tags") or [])}
-    sitios_ok = ({str(s.get("codigo")).lower() for s in (man.get("lab_sites") or [])}
-                 | {str(k).lower() for k in (man.get("lab_sedes_extra") or {})})
-    roles_ok = {"workstation", "switch", "router", "firewall", "bootstrap"}
-
     fallos = []
     for g, tipo, nombre in sorted(invitados, key=lambda x: x[0]["vmid"]):
         desc = generadas[g["vmid"]]["description"]
         if "{{" in desc or "{%" in desc:
             fallos.append(f"{nombre}: la nota se quedó con una referencia Jinja sin resolver")
-        live = [t.strip() for t in generadas[g["vmid"]]["tags"] if t and t.strip()]
-        if len(live) != 3:
-            fallos.append(f"{nombre}: {len(live)} etiqueta(s); deben ser TRES "
-                          f"(quién lo gestiona, qué es y dónde está): de qué laboratorio "
-                          f"es un invitado lo dice su Resource Pool, no una etiqueta")
-        else:
-            if live[0] not in marcas:
-                fallos.append(f"{nombre}: la etiqueta {live[0]!r} no está entre las "
-                              f"declaradas {sorted(marcas)}")
-            if live[1] not in roles_ok:
-                fallos.append(f"{nombre}: el papel {live[1]!r} no está en {sorted(roles_ok)}")
-            if live[2] not in sitios_ok:
-                fallos.append(f"{nombre}: el sitio {live[2]!r} no está entre los "
-                              f"declarados {sorted(sitios_ok)}")
         blk = re.search(r"<b>CONEXIONES</b>\s*<table>(.*?)</table>", desc, re.S)
         if not blk:
             fallos.append(f"{nombre}: la nota no tiene tabla de conexiones")

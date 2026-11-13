@@ -214,38 +214,6 @@ pve_tunnel:
     - to: "{{ lab_sede[3].red }}"
       via: "{{ lab_sede[3].mgmt.rt }}"   # 1-Sb-rtbo-10
   keepalive: 25
-
-# ---------------------------------------------------------------------------
-# SEGMENTOS DEL HOST (bridges, los "cables")
-#
-# Uno por CABLE, aislado (sin puertos de uplink), y el nombre del bridge aparece
-# literal en sus dos puntas. El motor sólo CREA bridges: los que dejan de
-# declararse se quedan en el host y se retiran por la API. Los comentarios de
-# los segmentos que ya existen los pone el repositorio con una llamada aparte
-# (machinery/playbooks/tools/segment_comments.py), porque el motor no los reescribe.
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# ESQUEMA DE COLOR DE LAS ETIQUETAS (Datacenter -> Options -> Tag Style).
-#
-# No es decoración: es cómo se lee una máquina de un vistazo en el árbol del
-# interfaz. Tres ejes y un color reservado:
-#
-#   ROJO            -> gestionado por ESTE repositorio. Si un invitado no lleva
-#                      el rojo, este repositorio no lo declara y no lo toca.
-#   color por ROL   -> qué es: switch, router, firewall, workstation, bootstrap.
-#   color por SEDE  -> dónde está: central, delegación, borde, infraestructura.
-#
-# El vocabulario de etiquetas es corto a propósito (tres por invitado) y tiene
-# que caber en la lista permitida del datacenter (`allowed-tags`), que PVE
-# aplica: un tag que no esté allí lo rechaza.
-# ---------------------------------------------------------------------------
-pve_tag_style:
-  # full dibuja la etiqueta entera en el árbol; circle y dense la abrevian, y
-  # none la esconde. Con tres tags por invitado, "full" es lo que se lee.
-  # Forma que almacena PVE (comprobada contra la API):
-  #   color-map=<tag>:<color-de-fondo>[:<color-del-texto>];<tag>:...
-  colors: "ansible:b71c1c:ffffff;switch:1565c0:ffffff;router:2e7d32:ffffff;firewall:ef6c00:ffffff;workstation:455a64:ffffff;bootstrap:6a1b9a:ffffff;ca:00838f:ffffff;sa:6d4c41:ffffff;sb:8d6e63:ffffff;ia:5e35b1:ffffff;ga:8e24aa:ffffff;ba:37474f:ffffff"
-
 pve_bridges:
   # ---- SEDE 1 (central) -----------------------------------------------------
   - iface: vmbr4
