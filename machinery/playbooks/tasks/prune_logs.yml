@@ -1,6 +1,6 @@
 ---
 # ===========================================================================
-# Retención de machinery/logs/ — el único directorio del repositorio que crece solo.
+# Retención de labs/<nombre>/logs/ — el único directorio del repositorio que crece solo.
 #
 # Lo incluye CADA verbo, antes de tocar nada, para que la política declarada en
 # labs/netlab-v2/netlab-v2.yml la aplique el framework y no un operador. Un lab
@@ -33,13 +33,13 @@
 # ignorar el chequeo. Lo que sí importa se conserva: si el script no puede hacer
 # su trabajo, la tarea FALLA (failed_when sobre el rc), y el JSON que imprime
 # queda en el resultado registrado.
-- name: Keep machinery/logs/ bounded (rotate what is over the cap, drop what is too old)
+- name: Keep labs/<nombre>/logs/ bounded (rotate what is over the cap, drop what is too old)
   ansible.builtin.command:
-    cmd: python3 {{ playbook_dir }}/../playbooks/tools/logs_prune.py --json
+    cmd: python3 {{ playbook_dir }}/../playbooks/tools/logs_prune.py --lab {{ pve_lab }} --json
   register: pve_log_prune
   changed_when: false
   failed_when: pve_log_prune.rc != 0
   # connect.yml runs its play as root (it owns the endpoint, and only it does), so
-  # this task must opt out: machinery/logs/ belongs to the user who invoked the verb, and a
+  # this task must opt out: labs/<nombre>/logs/ belongs to the user who invoked the verb, and a
   # root-owned archive inside it is a file that user can no longer prune.
   become: false

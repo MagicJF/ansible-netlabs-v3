@@ -11,8 +11,9 @@ __pycache__/
 # Run logs and the Proxmox API journal. Never commit these: they describe real
 # infrastructure, and this repository is public. The directory itself is kept
 # because Ansible's log_path cannot create it.
-machinery/logs/*
-!machinery/logs/.gitkeep
+# El diario de la API y el log humano de cada laboratorio: viven en SU carpeta.
+labs/*/logs/*
+!labs/*/logs/.gitkeep
 
 # El entorno de ESTA máquina de control (secrets.yaml): credenciales,
 # puerto y rutas de claves. Lo cargan los playbooks y lo leen las herramientas, pero

@@ -148,13 +148,13 @@
 # prueban las estaciones —de hecho comprueban que NO llegan—: lo prueba quien
 # lo opera, que en este laboratorio es el nodo de control a traves del tunel
 # WireGuard. La llamada va por `ansible.builtin.uri`, asi que queda anotada en
-# el diario (machinery/logs/pve-api.jsonl) como cualquier otra del framework.
+# el diario (labs/<nombre>/logs/pve-api.jsonl) como cualquier otra del framework.
 # ===========================================================================
 - name: lab-check - el operador SI llega al segmento de gestion (OOB)
   hosts: localhost
   gather_facts: false
   vars:
-    pve_log_dir: "{{ playbook_dir }}/../../logs"
+    pve_log_dir: "{{ (pve_lab | dirname) }}/logs"
   environment:
     PYTHONPATH: "{{ playbook_dir }}/../tracing"
     API_HTTP_TRACE: "{{ pve_log_dir }}/pve-api.jsonl"

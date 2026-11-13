@@ -72,10 +72,20 @@ ENTORNO = os.path.join(REPO, "secrets.yaml")
 # La declaración de RouterOS vive en los valores por defecto del rol: la lista de
 # menús que el framework reclama como suyos es lo que da contra qué comparar.
 ROUTEROS_DEFAULTS = os.path.join(REPO, "machinery/configure/roles/routeros/defaults/main.yml")
-# Where this script's own runs log. They must not share machinery/logs/ansible.log: the
+# Where this script's own runs log. They must not share labs/<nombre>/logs/ansible.log: the
 # JSON callback is orders of magnitude larger than the human output, and mixing
 # the two is what made that file unreadable. See run_verb().
-FRAMEWORK_LOG = os.path.join(REPO, "machinery/logs/framework-check.log")
+# El fichero se resuelve con el laboratorio (ver `_framework_log`): vive CON él.
+
+
+def _framework_log():
+    """El log de las corridas del marco, DENTRO del laboratorio que se inspecciona.
+
+    Uno por laboratorio, como los demás: dos laboratorios en el mismo nodo son dos
+    cosas distintas, y mezclar su diario es lo que hacía ilegible el de antes.
+    """
+    return os.path.join(os.path.dirname(os.path.realpath(MANIFEST)), "logs",
+                        "framework-check.log")
 
 
 def manifiesto():
@@ -116,11 +126,11 @@ def run_verb(verb):
     env["ANSIBLE_LOAD_CALLBACK_PLUGINS"] = "1"
     # Do NOT inherit the human run log. The JSON callback emits megabytes per run,
     # and this script already reads that output from stdout — so letting it land
-    # in machinery/logs/ansible.log (append-only, never rotated by Ansible) is how that file
+    # in labs/<nombre>/logs/ansible.log (append-only, never rotated by Ansible) is how that file
     # reached 78 MB, 99% of it machine output nobody reads. Send it to its own
     # file instead: the human log stays readable, and a failed run is still on
     # disk to debug. The file is covered by pve_log_retention like the others.
-    env["ANSIBLE_LOG_PATH"] = FRAMEWORK_LOG
+    env["ANSIBLE_LOG_PATH"] = _framework_log()
     proc = subprocess.run(
         ["ansible-playbook", verb], cwd=REPO, env=env, capture_output=True, text=True
     )
@@ -1238,7 +1248,7 @@ def _puertas_api():
     """Los únicos sitios con permiso para hablar HTTP con las APIs.
 
     La puerta ES la metodología: lo que no está aquí pasa por `ansible.builtin.uri`,
-    que es transporte anotado y registrado en `machinery/logs/pve-api.jsonl`. Una llamada
+    que es transporte anotado y registrado en `labs/<nombre>/logs/pve-api.jsonl`. Una llamada
     fuera de aquí se ve; luego se decide si se mueve dentro o si está justificada.
     """
     return (

@@ -14,7 +14,7 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Keep machinery/logs/ bounded (the policy in the declared state)
+    - name: Keep labs/<nombre>/logs/ bounded (the policy in the declared state)
       ansible.builtin.include_tasks: ../playbooks/tasks/prune_logs.yml
 
     - name: Build the configuration targets

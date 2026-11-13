@@ -1259,7 +1259,7 @@ pve_power_gap_after:
 pve_power_ready_timeout: 180
 
 # ============================================================================
-# RETENCIÓN DE machinery/logs/ — el único directorio del repositorio que crece solo.
+# RETENCIÓN DE labs/<nombre>/logs/ — el único directorio del repositorio que crece solo.
 # ============================================================================
 pve_log_retention:
   live_max_mb: 8

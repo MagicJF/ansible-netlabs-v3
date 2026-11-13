@@ -26,7 +26,7 @@
   # this play needs root here, and only here.
   become: true
   tasks:
-    - name: Keep machinery/logs/ bounded (the policy in the declared state)
+    - name: Keep labs/<nombre>/logs/ bounded (the policy in the declared state)
       ansible.builtin.include_tasks: tasks/prune_logs.yml
 
     - name: A tunnel that is not declared is not converged

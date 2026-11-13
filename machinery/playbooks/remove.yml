@@ -55,7 +55,7 @@
       ca_path: "{{ pve_api_ca_path }}"
       validate_certs: true
       api_timeout: 300
-    pve_journal: "{{ playbook_dir }}/../logs/pve-api.jsonl"
+    pve_journal: "{{ (pve_lab | dirname) }}/logs/pve-api.jsonl"
     target_hostname: "{{ hostname | default('') }}"
     target_vmid: "{{ vmid | default('') }}"
     do_force: "{{ force | default(false) | bool }}"
@@ -71,7 +71,7 @@
     rd_destroy_declared: "{{ destroy_declared | default(false) | bool }}"
   environment:
     PYTHONPATH: "{{ playbook_dir }}/tracing"
-    API_HTTP_TRACE: "{{ playbook_dir }}/../logs/pve-api.jsonl"
+    API_HTTP_TRACE: "{{ (pve_lab | dirname) }}/logs/pve-api.jsonl"
   pre_tasks:
     - name: Refuse an unconfirmed or ambiguous destruction
       ansible.builtin.assert:
@@ -150,7 +150,7 @@
       register: rem_journal_start
 
   tasks:
-    - name: Keep machinery/logs/ bounded (the policy in the declared state)
+    - name: Keep labs/<nombre>/logs/ bounded (the policy in the declared state)
       ansible.builtin.include_tasks: tasks/prune_logs.yml
 
     - name: Read the live platform, so the decision is based on reality

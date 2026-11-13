@@ -19,7 +19,7 @@
     # Ansible's own ssh reads this file per connection, so the block written by
     # tasks/ssh_path.yml applies to the guest play later in the same run.
   tasks:
-    - name: Keep machinery/logs/ bounded (the policy in the declared state)
+    - name: Keep labs/<nombre>/logs/ bounded (the policy in the declared state)
       ansible.builtin.include_tasks: ../playbooks/tasks/prune_logs.yml
 
     - name: Build the configuration targets
@@ -130,7 +130,7 @@
   gather_facts: false
   serial: 1
   vars:
-    pve_log_dir: "{{ playbook_dir }}/../logs"
+    pve_log_dir: "{{ (pve_lab | dirname) }}/logs"
   # El diario de la API es UNO para las dos APIs. Hasta ahora este play no armaba
   # el trazador, así que las llamadas del rol RouterOS no llegaban al diario y el
   # framework registraba medio laboratorio. sitecustomize.py engancha `requests`
@@ -281,7 +281,7 @@
       # that loops echoes its loop value into its own result, and the loop value
       # here is a registered `uri` result — whose `content` is the ENTIRE response
       # body. Probe a wiki page and a handful of log lines become megabytes of
-      # HTML: measured at 6.15 MB per run, which filled machinery/logs/ansible.log faster
+      # HTML: measured at 6.15 MB per run, which filled labs/<nombre>/logs/ansible.log faster
       # than every other task combined and which the retention policy was quietly
       # bounding (two 13 MB archives are the evidence). Reducing it here means no
       # later loop can ever see the body again.

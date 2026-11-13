@@ -9,19 +9,19 @@
     "machinery/configure/roles/bootstrap/tasks/main.yml": "2aab8f1e30558625015d440cf1e39a285ee2c4ad4e671a3db3bcd58a89ab1d96",
     "machinery/configure/roles/routeros/tasks/main.yml": "9e507fcc8aaa95dcb46e86fa1e5fdbf5d535583c6f349f0cf7f680912a757889",
     "machinery/configure/tasks/ssh_path.yml": "3d55bea03b963f1c66570f81a6400f13b17d2c10cea6d1026f4342a637582b42",
-    "machinery/playbooks/apply.yml": "44a887267f47e26dd9ab1087cd678147d3b78c114b302f073602ff580da19d80",
-    "machinery/playbooks/preflight.yml": "6f5ce395fffe5e4a91f0d58007e44766812ea1dabe917f0c422749348daa2523",
+    "machinery/playbooks/apply.yml": "bac5af0afe2460cb4b7cb866bec92e2a6503f2e4ffd7e050b36b298de3726081",
+    "machinery/playbooks/preflight.yml": "dd8ed542554c5d23508a1deac10b9ee80cb2587a9447852f9fc7137d1eecee27",
     "machinery/playbooks/pve_engine.j2": "532533398250f7d858c55495b24fa433dc792fa8ff28b6b34bbbff9efe321fbe",
     "machinery/playbooks/tracing/sitecustomize.py": "3c485115bfa6c3692b6f18dd8c32a8ba6e1639ead888f14613d3c38add59c2ea"
   },
   "docs/decisiones/0001-solo-api.md": {},
   "docs/decisiones/0002-bootstrap-existe.md": {},
   "docs/decisiones/0003-reinicio-purga-ruta-dhcp.md": {
-    "machinery/playbooks/tools/framework_check.py": "49502547601cab83d4bbfc3cf08b6f4e4bf0c6ec894f9c84dee174b5bd3317ac"
+    "machinery/playbooks/tools/framework_check.py": "03b7b55c7a859a53770333a354f0c8ff15d05b661463bdd2f20741a21f1d7fc0"
   },
   "docs/decisiones/0004-invitado-por-etiqueta.md": {
     "docs/decisiones/0006-vocabulario-etiquetas.md": "717d3ebb160dde886853077b16e4b0a34b27e034c7d3304abad471e2a94240e7",
-    "machinery/playbooks/tools/framework_check.py": "49502547601cab83d4bbfc3cf08b6f4e4bf0c6ec894f9c84dee174b5bd3317ac"
+    "machinery/playbooks/tools/framework_check.py": "03b7b55c7a859a53770333a354f0c8ff15d05b661463bdd2f20741a21f1d7fc0"
   },
   "docs/decisiones/0005-numero-compuesto.md": {},
   "docs/decisiones/0006-vocabulario-etiquetas.md": {
@@ -47,7 +47,7 @@
   },
   "labs/netlab-v2/netlab-v2.md": {
     "docs/decisiones/0008-pool-por-laboratorio.md": "26a67b1e971ed0c6b453c4e959e0ca431330683ade91ebcbefa661dd37a3f43c",
-    "machinery/configure/site.yml": "840f32fcf38b3adb4ddc5f22ef5e281e171e2ebb20c3c9d324fb28650ec1fe6d",
-    "machinery/playbooks/apply.yml": "44a887267f47e26dd9ab1087cd678147d3b78c114b302f073602ff580da19d80"
+    "machinery/configure/site.yml": "f2b4f132c8789b8fc19cdea0b81de522ff6458a49d66d9627a86bbd0727c7c15",
+    "machinery/playbooks/apply.yml": "bac5af0afe2460cb4b7cb866bec92e2a6503f2e4ffd7e050b36b298de3726081"
   }
 }

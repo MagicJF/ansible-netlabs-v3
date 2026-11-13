@@ -70,7 +70,16 @@ if [ ! -f "$RUTA_LAB" ]; then
     printf 'No existe %s — corre `ls labs/` para ver los laboratorios que hay.\n' "$RUTA_LAB" >&2
     exit 2
 fi
-LAB_ARGS=(-e "@$RUTA_LAB" -e "pve_lab=$RUTA_LAB")
+# Se resuelve el enlace UNA vez: el laboratorio del que se opera de verdad es al
+# que apunta `labs/active`, y los logs —el humano de Ansible y el diario de la
+# API— tienen que ser los SUYOS, no los de un directorio común.
+RUTA_REAL="$(readlink -f "$RUTA_LAB")"
+LOG_DIR="$(dirname "$RUTA_REAL")/logs"
+mkdir -p "$LOG_DIR"
+# `ansible.cfg` no puede saber de qué laboratorio es la ejecución; el directorio lo
+# fija aquí quien SÍ lo sabe (Ansible lee ANSIBLE_LOG_PATH por encima del fichero).
+export ANSIBLE_LOG_PATH="$LOG_DIR/ansible.log"
+LAB_ARGS=(-e "@$RUTA_LAB" -e "pve_lab=$RUTA_LAB" -e "pve_log_dir=$LOG_DIR")
 
 VERBO="${1:-}"
 if [ -z "$VERBO" ]; then

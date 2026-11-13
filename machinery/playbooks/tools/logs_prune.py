@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-# PROPÓSITO: retención de `machinery/logs/`, el único directorio que crece sin límite.
+# PROPÓSITO: retención de `labs/<nombre>/logs/`, el único directorio que crece sin límite.
 # INVARIANTES: el fichero vivo se ROTA al superar `live_max_mb`; los archivos viejos se
 #   BORRAN por `keep_days`/`keep_count`.
 # VER: ejecución directa (`python3 machinery/playbooks/tools/logs_prune.py`).
-"""Retention for `machinery/logs/` — the only directory in this repository that grows without bound.
+"""Retention for `labs/<nombre>/logs/` — the only directory in this repository that grows without bound.
 
 Ansible's `log_path` is append-only and Ansible never rotates it, so one file
 accumulates every run forever. Two things bound that:
 
-  * a live file larger than `live_max_mb` is ROTATED into `machinery/logs/archive/` and
+  * a live file larger than `live_max_mb` is ROTATED into `labs/<nombre>/logs/archive/` and
     emptied, so no single file grows without limit;
   * archives older than `keep_days`, or beyond `keep_count`, are DELETED, so the
     directory cannot grow without limit either.
@@ -46,10 +46,11 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 MANIFEST = os.path.join(REPO, "labs/active")
-LOG_DIR = os.path.join(REPO, "machinery", "logs")
+# El directorio de logs del laboratorio: vive CON él, en `labs/<nombre>/logs/`.
+LOG_DIR = os.path.join(os.path.dirname(os.path.realpath(MANIFEST)), "logs")
 ARCHIVE_DIR = os.path.join(LOG_DIR, "archive")
 
-# The files that grow, relative to machinery/logs/. This list is framework knowledge, not
+# The files that grow, relative to labs/<nombre>/logs/. This list is framework knowledge, not
 # lab policy, so it lives here next to the writers rather than in the manifest:
 #   ansible.log         ansible.cfg -> log_path (the human log of every verb)
 #   pve-api.jsonl       machinery/playbooks/tracing/sitecustomize.py (the API journal)
@@ -178,7 +179,14 @@ def main():
     parser.add_argument("--live-max-mb", type=float, help="override the declared rotate threshold")
     parser.add_argument("--keep-days", type=int, help="override the declared maximum age")
     parser.add_argument("--keep-count", type=int, help="override the declared maximum number kept")
+    parser.add_argument("--lab", default="labs/active",
+                        help="el laboratorio cuyos logs se retienen (labs/<nombre>/<nombre>.yml)")
     args = parser.parse_args()
+
+    global MANIFEST, LOG_DIR
+    MANIFEST = args.lab if os.path.isabs(args.lab) else os.path.join(REPO, args.lab)
+    LOG_DIR = os.path.join(os.path.dirname(os.path.realpath(MANIFEST)), "logs")
+    os.makedirs(LOG_DIR, exist_ok=True)
 
     policy = policy_from_manifest()
     if args.live_max_mb is not None:
@@ -230,7 +238,7 @@ def main():
         )
         say(f"  {verb}: {result['rotated'] or '(nothing)'}")
         say(f"  {'would delete' if args.dry_run else 'deleted'}: {result['pruned'] or '(nothing)'}")
-        say(f"  kept {len(survivors)} archive(s); machinery/logs/ now holds {human_bytes(total)}")
+        say(f"  kept {len(survivors)} archive(s); labs/<nombre>/logs/ now holds {human_bytes(total)}")
     return status
 
 

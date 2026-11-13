@@ -52,7 +52,7 @@ machinery/playbooks/tools/entorno.py             # motor: escribe, comprueba y r
 docs/*.md.j2                           # las plantillas de esos documentos (prosa + valores del manifiesto)
 machinery/playbooks/tools/pve_notas.py           # motor: compone la nota HTML y las etiquetas (no las guarda)
 machinery/filter_plugins/notas.py                # motor: deriva nota y etiquetas al construir la especificación de cada invitado
-machinery/playbooks/tools/logs_prune.py          # motor: retención de machinery/logs/, la aplica cada verbo
+machinery/playbooks/tools/logs_prune.py          # motor: retención de labs/<nombre>/logs/, la aplica cada verbo
 machinery/playbooks/tools/lab-check.sh           # verificación end-to-end de la red, desde dentro de una workstation
 machinery/playbooks/tools/lab-check.yml          # la misma prueba, orquestada como playbook
 machinery/playbooks/tools/pve_start_batch.py     # arranque por escalones contra la API
@@ -67,7 +67,7 @@ machinery/configure/audit.yml                    # capa 2: inspección de sólo 
 machinery/configure/site.yml                     # capa 2: converge el interior de los invitados gestionados
 machinery/configure/tasks/                       # capa 2: construcción de destinos, política de acceso y el camino
 machinery/configure/roles/<app>/                 # capa 2: un rol por aplicación, o por tipo de invitado
-machinery/logs/                                  # registros de ejecución, diario de la API y su archivo (ignorado por git)
+labs/<nombre>/logs/                                  # registros de ejecución, diario de la API y su archivo (ignorado por git)
 ```
 
 La **capa 1** es un motor fijo con cuatro verbos —`preflight` (sólo lectura),
@@ -816,7 +816,7 @@ nuevo ya cuadra, y entonces los verbos sin `--lab` lo operan a él. **Dos labora
 conviven en el mismo nodo si sus espacios son disjuntos** —vmids, MACs, direcciones y
 bridges—; la red de gestión es del NODO y cada uno se cuelga de ella con direcciones
 propias; y el túnel de gestión lo gestiona uno solo (`manage: true`), los demás lo
-reutilizan con `manage: false`. El registro (`machinery/logs/`) es del nodo: con dos vivos, el
+reutilizan con `manage: false`. El registro (`labs/<nombre>/logs/`) es del nodo: con dos vivos, el
 diario de API mezcla el tráfico de los dos.
 
 > **Resuelto.** El verificador de red (`machinery/playbooks/tools/lab-check.sh`) ya no lleva
@@ -861,14 +861,14 @@ cabecera de su verbo y de su plantilla, no aquí:
 
 ## Registro y observabilidad de la API
 
-Cada ejecución escribe bajo `machinery/logs/` (ignorado por git — describe infraestructura real
+Cada ejecución escribe bajo `labs/<nombre>/logs/` (ignorado por git — describe infraestructura real
 y este repositorio es público):
 
-**`machinery/logs/ansible.log`** — la salida humana completa del play, anexada por Ansible
+**`labs/<nombre>/logs/ansible.log`** — la salida humana completa del play, anexada por Ansible
 (`log_path` en `ansible.cfg`). Los resultados de las tareas de API quedan censurados
 porque llevan `no_log`.
 
-**`machinery/logs/framework-check.log`** — donde `machinery/playbooks/tools/framework_check.py` manda la
+**`labs/<nombre>/logs/framework-check.log`** — donde `machinery/playbooks/tools/framework_check.py` manda la
 salida de los verbos que *él* ejecuta. No debe compartir el log humano: ese script
 lanza un verbo con el callback JSON, que emite dos o tres órdenes de magnitud más
 bytes que la salida humana, y mezclar los dos es cómo `ansible.log` llegó a **78 MB de
@@ -876,7 +876,7 @@ los cuales el 99,4% era salida de máquina que nadie lee**. En su propio fichero
 JSON queda en disco para depurar una comprobación fallida, y el log humano sigue
 legible.
 
-**`machinery/logs/pve-api.jsonl`** — el diario legible por máquina del tráfico que de verdad
+**`labs/<nombre>/logs/pve-api.jsonl`** — el diario legible por máquina del tráfico que de verdad
 cruzó el cable, un objeto JSON por línea. Es **uno solo para las dos APIs** (Proxmox y
 RouterOS) y cada línea lleva un campo `api` para poder separarlas:
 
@@ -897,7 +897,7 @@ escritura cae a un warning de módulo y un fallo de armado se registra como
 `tracer_error`. Encima de eso, los dos playbooks comparan el tamaño del diario al
 principio y al final de la ejecución y **hacen fallar la ejecución** si no creció, así
 que un trazador que dejó de funcionar sin avisar no puede dejarte con logs vacíos.
-`grep tracer_error machinery/logs/pve-api.jsonl` sin resultados es el aspecto de "la
+`grep tracer_error labs/<nombre>/logs/pve-api.jsonl` sin resultados es el aspecto de "la
 observabilidad funciona".
 
 Cómo se arma: los playbooks ponen `machinery/playbooks/tracing` en `PYTHONPATH` y definen
@@ -918,20 +918,20 @@ Cómo leerlo:
 
 ```bash
 # sólo una de las dos APIs
-grep '"api": "routeros"' machinery/logs/pve-api.jsonl
+grep '"api": "routeros"' labs/<nombre>/logs/pve-api.jsonl
 
 # todas las llamadas de una ejecución, en orden
 python3 -c "
 import json
-for l in open('machinery/logs/pve-api.jsonl'):
+for l in open('labs/<nombre>/logs/pve-api.jsonl'):
     r = json.loads(l)
     print(r['ts'], r['event'], r.get('method',''), r.get('status',''), r.get('url','').split('/api2/json')[-1], r.get('request_body',''))"
 
 # sólo las mutaciones, con la respuesta de PVE
-grep '"method": "PUT"' machinery/logs/pve-api.jsonl | python3 -m json.tool --json-lines
+grep '"method": "PUT"' labs/<nombre>/logs/pve-api.jsonl | python3 -m json.tool --json-lines
 
 # todo lo que PVE rechazó
-grep -E '"status": 4[0-9][0-9]|"status": 5[0-9][0-9]' machinery/logs/pve-api.jsonl
+grep -E '"status": 4[0-9][0-9]|"status": 5[0-9][0-9]' labs/<nombre>/logs/pve-api.jsonl
 ```
 
 ### Cuánto costó
@@ -944,13 +944,13 @@ que son la única fuente: no hay una copia que se pueda quedar atrás.
 
 ### Retención
 
-Ansible sólo **anexa** a su `log_path` — nunca lo rota — así que `machinery/logs/` es el único
+Ansible sólo **anexa** a su `log_path` — nunca lo rota — así que `labs/<nombre>/logs/` es el único
 directorio de este repositorio que crece solo. Está acotado por una política declarada
 en vez de por un operador que se acuerde:
 
 ```yaml
 pve_log_retention:
-  live_max_mb: 8    # un fichero vivo por encima de esto se rota a machinery/logs/archive/ y se vacía
+  live_max_mb: 8    # un fichero vivo por encima de esto se rota a labs/<nombre>/logs/archive/ y se vacía
   keep_days: 14     # los archivos con más antigüedad se borran
   keep_count: 10    # ...y no se guardan más de estos, los más nuevos primero
 ```
@@ -996,8 +996,8 @@ puede escribir más de `live_max_mb` — un `drill` son cuatro verbos, y uno de 
 escribe un log JSON de ~16 MB — y lo rota la comprobación del verbo siguiente. El tope
 está en el estado estacionario, que es lo que crece sin uno.
 
-El directorio `machinery/logs/` debe existir antes de que Ansible arranque (`log_path` no puede
-crearlo), y por eso `machinery/logs/.gitkeep` está commiteado.
+El directorio `labs/<nombre>/logs/` debe existir antes de que Ansible arranque (`log_path` no puede
+crearlo), y por eso `labs/<nombre>/logs/.gitkeep` está commiteado.
 
 ## Credenciales y limpieza
 

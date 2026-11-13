@@ -53,8 +53,8 @@
     lab_address_delay: 10
     # Observability: every run appends to a human log (ansible.cfg log_path) and
     # to a machine-readable journal of the real PVE API traffic.
-    pve_log_dir: "{{ playbook_dir }}/../logs"
-    pve_journal: "{{ playbook_dir }}/../logs/pve-api.jsonl"
+    pve_log_dir: "{{ (pve_lab | dirname) }}/logs"
+    pve_journal: "{{ (pve_lab | dirname) }}/logs/pve-api.jsonl"
     pve_tool: "{{ playbook_dir }}/tools/pve_read.py"
     # La ruta absoluta, no relativa: las acciones locales de Ansible corren desde el
     # directorio del playbook, así que una ruta relativa a la raíz del repo se
@@ -124,7 +124,7 @@
       when: ansible_check_mode
 
   tasks:
-    - name: Keep machinery/logs/ bounded (the policy in the declared state)
+    - name: Keep labs/<nombre>/logs/ bounded (the policy in the declared state)
       ansible.builtin.include_tasks: tasks/prune_logs.yml
 
     # ---- read everything, once -------------------------------------------

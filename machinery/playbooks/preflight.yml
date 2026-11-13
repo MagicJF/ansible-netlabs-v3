@@ -32,8 +32,8 @@
       ca_path: "{{ pve_api_ca_path }}"
       validate_certs: true
       api_timeout: 300
-    pve_log_dir: "{{ playbook_dir }}/../logs"
-    pve_journal: "{{ playbook_dir }}/../logs/pve-api.jsonl"
+    pve_log_dir: "{{ (pve_lab | dirname) }}/logs"
+    pve_journal: "{{ (pve_lab | dirname) }}/logs/pve-api.jsonl"
     pve_tool: "{{ playbook_dir }}/tools/pve_read.py"
     pve_manifest: "{{ playbook_dir }}/../../{{ pve_lab | default('labs/active') }}"
     # La nota HTML y las etiquetas de cada invitado, DERIVADAS de la declaración
@@ -64,7 +64,7 @@
       when: pve_entorno_file.stat.exists
 
   tasks:
-    - name: Keep machinery/logs/ bounded (the policy in the declared state)
+    - name: Keep labs/<nombre>/logs/ bounded (the policy in the declared state)
       ansible.builtin.include_tasks: tasks/prune_logs.yml
 
     - name: Read every declared guest and the platform facts (one process, one task)
