@@ -365,7 +365,7 @@ puede adjuntar uno más tarde.
 
 La capa 1 aprovisiona un invitado por la API de Proxmox. Esa API no puede ejecutar
 nada dentro de un invitado: `POST /nodes/{node}/lxc/{vmid}/exec` responde **501
-Method not implemented**. Así que un Caddyfile, una unidad de systemd o una tarea
+Method not implemented**. Así que el contenido de un servicio, una unidad de systemd o una tarea
 programada quedan fuera del alcance de la capa 1 por construcción, y la capa 2
 existe justo para esa frontera: llega al invitado por SSH y converge lo que corre
 dentro.
@@ -395,9 +395,8 @@ La metodología, una línea por regla:
   `manage: true` significa que la capa 2 posee el interior; `manage: false` (o
   ausente) significa sólo auditoría. Un invitado nunca se configura por accidente.
 - **Cada capa verifica lo que declara.** La capa 1 vuelve a leer por la API. La capa
-  2 valida dentro del invitado (`caddy validate`, `systemctl is-active`, los
-  timers) *y* desde fuera (una petición HTTP que comprueba el estado y el cuerpo
-  declarados).
+  2 valida dentro del invitado (el servicio declarado activo, sus timers) *y* desde
+  fuera (una petición HTTP que comprueba el estado —y el cuerpo, si se declara—).
 - **El acceso tiene un sitio.** La capa 1 inyecta la clave de automatización **al
   nacer** (`pubkey` en `pve_defaults` — PVE la escribe en
   `/root/.ssh/authorized_keys` al crear y nunca la reenvía al actualizar). Para un
@@ -474,88 +473,25 @@ la mitad pública, y `connect.yml` la imprime.
 el :22— sin cambiar nada, así que un problema de capa 2 se ve antes de lanzar el
 verbo de configuración.
 
-### Ejemplo trabajado: un servidor Caddy
+### Añadir una aplicación a un invitado
 
-Lo que el segundo verbo hace por invitado lo decide la declaración. Este es el
-formato de un destino de capa 2 por SSH (es la **capacidad** del marco; en la v2
-ningún invitado declara Caddy):
+Lo que el segundo verbo hace por invitado lo decide la declaración: la capa 2 incluye
+un rol **sólo** cuando el invitado declara su clave bajo `config:` (este laboratorio
+declara `netlab`, `routeros` y `bootstrap`). Así se ve la forma de un destino de capa 2
+por SSH:
 
 ```yaml
-  - vmid: 121
-    hostname: caddy-lab
-    cores: 1
-    memory: 512
-    netif:
-      net0: "name=eth0,bridge=vmbr1,gw=10.10.10.1,ip=10.10.10.21/24,ip6=auto"
-    manage: true                      # la capa 2 puede converger este invitado
+    manage: true                 # la capa 2 puede converger este invitado
     config:
-      caddy:
-        sites:
-          - address: ":80"
-            respond: "hola desde la capa 2 - caddy-lab"
-            expect_body: "hola desde la capa 2 - caddy-lab"
-          - address: ":8080"
-            root: /srv/www
-            file_server: true
-            index_html: "contenido declarado en group_vars"
-            expect_body: "contenido declarado"
-        timers:
-          - name: caddy-validate
-            on_calendar: "daily"
-            exec_start: "/usr/bin/caddy validate --config /etc/caddy/Caddyfile"
+      <rol>:
+        ...                      # lo que el rol espera, declarado en el manifiesto
 ```
-
-El rol instala Caddy desde el repositorio apt oficial (clave + fuente deb822, sin
-`curl | bash`), renderiza el Caddyfile a partir de esos sitios con `validate:` para
-que un fichero roto no llegue nunca al servicio en marcha, escribe el contenido
-índice declarado, declara los trabajos periódicos como **timers de systemd** en vez
-de crontabs, y luego lo demuestra: `caddy validate`, `systemctl is-active`, cada
-timer declarado activo, y una sonda HTTP desde el nodo de control que comprueba el
-estado y el cuerpo declarados.
 
 Añadir otra aplicación es otro rol bajo `machinery/configure/roles/` y otro bloque bajo
-`config:` — no otro repositorio, ni un script `curl | bash` que nadie puede diffear.
-
-### Ejemplo trabajado: un servidor TiddlyWiki
-
-Un invitado que declara una instancia de TiddlyWiki (también **capacidad** del
-marco, **no** un invitado del laboratorio actual — la v2 no declara ninguno) lleva:
-
-```yaml
-    config:
-      tiddlywiki:
-        wiki_dir: /srv/tiddlywiki
-        port: 8080
-        version: "5.4.1"
-        service_user: tiddlywiki
-        listen_host: "0.0.0.0"
-      http:
-        - address: ":8080"
-          expect_status: 200
-          expect_body: "TiddlyWiki"
-```
-
-`apply` crea el invitado (que nace alcanzable por SSH gracias a `pubkey`), y
-`machinery/configure/site.yml` instala Node.js, instala el motor con la versión fijada, lanza
-`tiddlywiki /srv/tiddlywiki --init server` una vez, declara `tiddlywiki.service`
-(`Restart=always`, `enabled`), y luego lo demuestra: el proceso vivo debe ser *esta*
-carpeta de wiki en *este* puerto, el invitado debe responder HTTP 200, `anonymous`
-y el nodo de control también deben obtener HTTP 200 con el cuerpo declarado. Un rol
-se incluye sólo cuando el invitado declara su clave de configuración, así que un
-invitado gestionado que no declare un bloque `caddy` nunca recibe Caddy.
-
-Dos decisiones que conviene conocer:
-
-- **El motor se instala desde el tarball oficial de npm, no por el paquete `npm` de
-  Debian**, porque `apt install npm` en Debian 13 arrastra ~400 paquetes (la pila
-  GTK/X, por sus dependencias de módulos) para un wiki que no necesita ninguno. El
-  rol comprueba que el tarball no declare dependencias de ejecución, así que una
-  versión futura que las gane falla en voz alta en vez de necesitar un gestor de
-  paquetes en silencio.
-- **La dirección de escucha se declara, no se pone por defecto.** La edición servidor
-  de TiddlyWiki es escribible y sin autenticación, así que `listen_host` es una
-  decisión de exposición explícita en el manifiesto y se espera que el invitado esté
-  detrás de una red que no sea pública.
+`config:` — no otro repositorio, ni un script `curl | bash` que nadie puede diffear. El
+rol instala desde la fuente oficial, renderiza su configuración desde lo declarado
+(validándola antes de tocar el servicio en marcha) y luego **lo demuestra**: relee el
+estado del invitado y comprueba que es el declarado.
 
 ### El laboratorio declarado
 

@@ -172,39 +172,9 @@
       ansible.builtin.include_tasks: tasks/reachability.yml
 
     # Each role is opt-in through ITS declared key: a guest that declares no
-    # `caddy` block must not get Caddy installed just because it is managed.
-    - name: Converge the declared Caddy instances
-      ansible.builtin.include_role:
-        name: caddy
-      vars:
-        caddy_sites: "{{ (l2_config.caddy | default({})).sites | default([]) }}"
-        caddy_timers: "{{ (l2_config.caddy | default({})).timers | default([]) }}"
-      when:
-        - l2_manage | bool
-        - l2_config.caddy is defined
-
-    - name: Converge the declared TiddlyWiki instances
-      ansible.builtin.include_role:
-        name: tiddlywiki
-      vars:
-        tw: "{{ l2_config.tiddlywiki | default({}) }}"
-        tiddlywiki_wiki_dir: "{{ tw.wiki_dir | default('/srv/tiddlywiki') }}"
-        tiddlywiki_port: "{{ tw.port | default(8080) }}"
-        tiddlywiki_version: "{{ tw.version | default('5.4.1') }}"
-        tiddlywiki_service_user: "{{ tw.service_user | default('tiddlywiki') }}"
-        tiddlywiki_listen_host: "{{ tw.listen_host | default('0.0.0.0') }}"
-      when:
-        - l2_manage | bool
-        - l2_config.tiddlywiki is defined
-
-    - name: Converge the declared Apache instances
-      ansible.builtin.include_role:
-        name: apache
-      vars:
-        apache_sites: "{{ (l2_config.apache | default({})).sites | default([]) }}"
-      when:
-        - l2_manage | bool
-        - l2_config.apache is defined
+    # `netlab` block must not get the network-lab configuration just because it is
+    # managed. An application is added as another role plus another `config:` block
+    # in a lab — never by installing on a guest something it did not declare.
 
     # The network lab: a guest on an isolated segment can only reach the other
     # segment through the router VM, which needs a route its own network
@@ -283,8 +253,8 @@
       when: l2_netlab_ping.results | length > 0
 
 # ---------------------------------------------------------------------------
-# Verification from OUTSIDE the guest: the declaration says what Caddy should
-# serve, so the proof is an HTTP request from here, not a task exit status.
+# Verification from OUTSIDE the guest: the declaration says what should answer,
+# so the proof is an HTTP request from here, not a task exit status.
 # ---------------------------------------------------------------------------
 - name: Layer 2 - verify from outside every guest
   hosts: localhost
@@ -342,15 +312,15 @@
       changed_when: false
 
     - name: Every declared site must answer with the status its declaration expects
-      # The expectation is declared per site (`expect_status`, default 200): a
-      # file_server over an empty directory legitimately answers 404 and the
-      # declaration should say so rather than the framework assuming.
+      # The expectation is declared per check (`expect_status`, default 200): a
+      # service can legitimately answer 404 and the declaration should say so
+      # rather than the framework assuming.
       ansible.builtin.assert:
         that:
           - item.status | int == item.expect_status | int
         fail_msg: >-
           {{ item.target }} {{ item.address }} answered {{ item.status | default('nothing') }}
-          but the declaration expects {{ item.expect_status }}. The Caddyfile may be
+          but the declaration expects {{ item.expect_status }}. The service may be
           deployed but not serving, or the guest may be unreachable from here.
         success_msg: "{{ item.target }} {{ item.address }} answered {{ item.status }} as declared."
       loop: "{{ l2_probe_report | default([]) }}"

@@ -238,14 +238,14 @@
   loop_control:
     label: "{{ item.hostname }}"
 
-# Two declared sources feed the external proof: a Caddy site's own address/body,
-# and an explicit `config.http` check list (any service: TiddlyWiki, an app behind
-# a proxy, anything that must answer a status and a body from the control node).
-- name: Build the external probe list (declared Caddy sites + HTTP checks)
+# The external proof is DECLARED: an explicit `config.http` check list on a guest
+# (any service that must answer a status —and optionally a body— from the control
+# node). Whatever should answer is what the declaration says, so the proof is an
+# HTTP request from here, not a task exit status.
+- name: Build the external probe list (the declared HTTP checks)
   ansible.builtin.set_fact:
     l2_probes: >-
       {{ (l2_probes | default([]))
-         + (item.config.caddy.sites | default([]) | map('combine', {'_target': item.address}) | list)
          + (item.config.http | default([]) | map('combine', {'_target': item.address}) | list) }}
   loop: "{{ l2_targets }}"
   loop_control:

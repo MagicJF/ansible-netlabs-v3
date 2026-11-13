@@ -34,23 +34,12 @@
           set +e
           echo "### os";             head -2 /etc/os-release
           echo "### kernel";         uname -r
-          echo "### caddy in PATH";  command -v caddy || echo "(not installed)"
-          echo "### caddy version";  caddy version 2>&1 | head -1
-          echo "### package";        dpkg-query -W -f='${Package} ${Version} ${Status}\n' caddy 2>&1
-          echo "### unit";           systemctl is-enabled caddy 2>&1; systemctl is-active caddy 2>&1
-          echo "### unit path";      systemctl show -p FragmentPath caddy 2>/dev/null | cut -d= -f2
-          echo "### /etc/caddy";     ls -la /etc/caddy 2>&1
-          echo "### Caddyfile";      cat /etc/caddy/Caddyfile 2>&1
-          echo "### caddy timers";   systemctl list-timers --all --no-pager 2>/dev/null | grep -i caddy || echo "(none)"
+          echo "### listeners";      ss -lntp 2>/dev/null | tail -n +2
+          echo "### running services"; systemctl list-units --type=service --state=running --no-pager 2>/dev/null | head -15
+          echo "### timers";         systemctl list-timers --all --no-pager 2>/dev/null | head -8
           echo "### /etc/cron.d";    ls /etc/cron.d 2>&1
           echo "### root crontab";   crontab -l 2>&1 | head -20
-          echo "### listeners";      ss -lntp 2>/dev/null | tail -n +2
-          echo "### apt sources";    grep -rl caddy /etc/apt/sources.list.d/ 2>/dev/null || echo "(no caddy repo configured)"
-          echo "### node";           command -v node >/dev/null && node --version || echo "(not installed)"
-          echo "### tiddlywiki";     command -v tiddlywiki >/dev/null && tiddlywiki --version || echo "(not installed)"
-          echo "### tw unit";        systemctl is-enabled tiddlywiki 2>&1; systemctl is-active tiddlywiki 2>&1
-          echo "### tw process";     pgrep -af tiddlywiki || echo "(not running)"
-          echo "### tw wiki dir";    ls -la /srv/tiddlywiki 2>&1 | head -8
+          echo "### apt sources";    ls /etc/apt/sources.list.d/ 2>&1
           echo "### disk";           df -h / | tail -1
         executable: /bin/bash
       register: l2_audit
@@ -64,6 +53,6 @@
       ansible.builtin.debug:
         msg: >-
           Audit of {{ inventory_hostname }} finished: nothing was changed. The output
-          may contain secrets (a token inside a Caddyfile) — do not paste it into a
+          may contain secrets (a service config, a token) — do not paste it into a
           tracked file. Converging this guest is machinery/configure/site.yml, and only happens
           when its declaration says manage true.
