@@ -285,7 +285,7 @@ lab_control_via: "10.10.10.1"
 #
 # Aquí NO va su ruta: la clave es del framework y vive con él, no con la
 # topología. Se declara UNA vez, en el entorno de la máquina de control
-# (`secrets.yaml`, plantilla `secrets.example.yaml`), en
+# (`secrets.yaml`, que se crea con `entorno.py crear`), en
 # `pve_ssh_key_path`; y su `.pub` se DERIVA de esa ruta (la misma más `.pub`),
 # así que no hay dos sitios que puedan desfasarse. Ver `tools/entorno.py`.
 # ---------------------------------------------------------------------------

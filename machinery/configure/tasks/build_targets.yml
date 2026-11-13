@@ -32,7 +32,7 @@
       No existe secrets.yaml: es el entorno de ESTA máquina de control
       (credenciales, rutas de claves, puerto) y aquí es donde se resuelve quién es
       cada invitado. Cópialo de la plantilla y rellénalo —
-      `cp secrets.example.yaml secrets.yaml`— o migra lo
+      `python3 machinery/playbooks/tools/entorno.py crear`— o migra lo
       que ya tengas con `python3 machinery/playbooks/tools/entorno.py crear --desde-secrets`.
       Compruébalo con `python3 machinery/playbooks/tools/entorno.py verificar`.
 

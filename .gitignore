@@ -17,7 +17,8 @@ machinery/logs/*
 # El entorno de ESTA máquina de control (secrets.yaml): credenciales,
 # puerto y rutas de claves. Lo cargan los playbooks y lo leen las herramientas, pero
 # nunca se commitea: el token de PVE equivale a root, no caduca, y el repositorio es
-# público. La plantilla versionada es secrets.example.yaml.
+# público. La plantilla vive en la herramienta (entorno.py), que lo escribe con sus
+# propios ejemplos comentados.
 secrets.yaml
 
 # El nombre antiguo del mismo fichero, para que uno que quedara por ahí no se cuele.

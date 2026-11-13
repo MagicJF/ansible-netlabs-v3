@@ -34,7 +34,7 @@ direccionamiento, por dónde va un paquete y cómo se verifica— tiene su propi
 labs/active -> <un-laboratorio>               # symlink: la topología VIVA. Cambiar de laboratorio = repuntarlo
 machinery/inventory/hosts.yml     #   los hosts, y el grupo pve_config_targets que llena la capa 2
 labs/<nombre>.yml  # EL estado deseado — el único fichero que cambia por petición
-secrets.example.yaml    # LA PLANTILLA del entorno de la máquina: credenciales, puerto, rutas de claves
+secrets.yaml             # el entorno de ESTA máquina (NO se versiona): credenciales, puerto, rutas de claves
 lab                                # el ÚNICO punto de entrada: verbos fijos, con ansible.cfg y el entorno resueltos
 ansible.cfg                            # pipelining, reutilización SSH, forks, rutas de plugins y log
 .ansible-lint                          # las reglas de lint que se exigen, y por qué no las demás
@@ -111,12 +111,12 @@ llamada `all` y rompe todas las referencias.
 
 Todo lo que cambia de una máquina a otra —las credenciales, el puerto de la API,
 las rutas de las claves y dónde vive el `config` de ssh— se declara UNA vez, en
-`secrets.yaml`. La plantilla versionada es
-`secrets.example.yaml`, y quien lo escribe, lo comprueba y sabe con
-qué nombres alternativos se acepta cada valor es `machinery/playbooks/tools/entorno.py`.
+`secrets.yaml`. No hay plantilla aparte: lo crea `machinery/playbooks/tools/entorno.py`,
+que lo escribe con sus propios ejemplos comentados, y es quien lo comprueba y sabe con
+qué nombres alternativos se acepta cada valor.
 
 ```bash
-cp secrets.example.yaml secrets.yaml   # y edítalo
+lab entorno crear          # lo escribe con comentarios; después edítalo
 lab entorno verificar      # ¿está completo, con rutas que existen, 0600, fuera de git?
 lab entorno mostrar        # revísalo con los secretos tapados
 lab entorno crear --desde-secrets   # si vienes del antiguo secrets.yaml
@@ -181,7 +181,7 @@ Un clon nuevo, en una máquina nueva, en cuatro pasos:
 
 1. `python3 -m pip install -r requirements.txt`
 2. `ansible-galaxy collection install -r requirements.yml -p .ansible/collections`
-3. `cp secrets.example.yaml secrets.yaml` y rellenarlo —o
+3. `lab entorno crear` y rellenar lo que va entre `<>` —o
    `lab entorno crear --desde-secrets` si esa máquina ya tenía el fichero antiguo—
 4. `lab entorno verificar` y, cuando esté verde, `lab preflight`
 

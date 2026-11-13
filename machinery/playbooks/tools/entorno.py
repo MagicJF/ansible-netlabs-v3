@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shlex
 import stat
 import subprocess
@@ -40,7 +41,109 @@ import yaml
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 RUTA = os.path.join(RAIZ, "secrets.yaml")
-PLANTILLA = os.path.join(RAIZ, "secrets.example.yaml")
+# La plantilla del entorno —con sus comentarios y sus ejemplos— vive AQUÍ, en el
+# código, y no en un fichero aparte: `secrets.yaml` es el ÚNICO fichero de entorno
+# que existe, y `crear` lo escribe de aquí. Tener `secrets.yaml` y
+# `secrets.example.yaml` era dos ficheros para lo mismo.
+PLANTILLA_TEXTO = """\
+---
+# ===========================================================================
+# EL ENTORNO DE ESTA MÁQUINA DE CONTROL
+#
+# Todo lo que cambia de una máquina a otra vive AQUÍ y en ningún otro sitio:
+# credenciales, puerto, rutas de claves y dónde vive el `config` de ssh. La
+# topología —los invitados, las redes, los cables— vive en el manifiesto del
+# laboratorio: esto es del FRAMEWORK, y por eso sirve a todos los laboratorios
+# que corran en este nodo.
+#
+# Este fichero es el ÚNICO del entorno: no hay plantilla aparte. Lo escribe
+# `entorno.py crear` con estos comentarios; rellena lo que va entre <> y valida
+# con `entorno.py verificar`.
+#
+#     python3 machinery/playbooks/tools/entorno.py crear
+#     $EDITOR secrets.yaml
+#     python3 machinery/playbooks/tools/entorno.py verificar
+#
+# Si la máquina ya traía credenciales (el antiguo `secrets.yml`) se migran sin
+# transcribir nada a mano:
+#
+#     python3 machinery/playbooks/tools/entorno.py crear --desde-secrets
+#
+# Está IGNORADO POR GIT a propósito: el token de Proxmox equivale a root y no
+# caduca, y este repositorio es público. La herramienta lo escribe con permisos
+# 0600 y comprueba que git no lo tenga en el índice.
+#
+# UNA SOLA FUENTE: este fichero. No hay variables de entorno de respaldo; lo que
+# cambia de una máquina a otra se declara aquí y se revisa aquí.
+# Convención: lo que hay que rellenar va entre <>, y `verificar` lo denuncia
+# mientras siga así. Lo que no lleva <> es un valor por defecto legítimo.
+# ===========================================================================
+
+# --- la API de Proxmox -----------------------------------------------------
+# `host` tiene que ser un nombre o una IP presentes en el SAN del certificado,
+# no cualquier dirección por la que se llegue a la máquina.
+pve_api_host: <nombre o IP que esté en el SAN del certificado>
+pve_api_port: 8006
+# El token se declara ENTERO (`usuario@realm!nombre-del-token`), que es como lo
+# espera la cabecera del API. El módulo Proxmox lo parte por su cuenta.
+pve_api_token_id: <usuario@realm!nombre-del-token>
+pve_api_token_secret: <secreto del token>
+# El certificado o CA de confianza con el que se valida la API. Ruta ABSOLUTA:
+# las herramientas no adivinan desde dónde se las llama.
+pve_api_ca_path: <ruta absoluta al ca.pem>
+
+# --- el acceso SSH a los invitados ----------------------------------------
+pve_ssh_user: root
+# La clave privada de automatización. Su `.pub` NO se declara: se DERIVA de esta
+# ruta (la misma más `.pub`), así que no hay dos sitios que puedan desfasarse.
+pve_ssh_key_path: <ruta absoluta a la clave privada>
+
+# --- la clave del túnel de gestión ----------------------------------------
+# Sólo hace falta si el laboratorio declara túnel (`pve_tunnel`). Su `.pub`
+# también se deriva.
+pve_tunnel_key_path: <ruta absoluta a la clave del túnel>
+
+# --- opciones EXTRA del cliente ssh de Ansible ----------------------------
+# Se AÑADEN a las que declara ansible.cfg (que es donde vive el ControlMaster).
+# En una máquina sana va vacío: ssh lee /etc/ssh/ssh_config y ~/.ssh/config solos.
+# Se declara cuando NO es así — por ejemplo si el ssh del sistema no se puede leer
+# (`-F <ruta del config de ssh de esta máquina>`), que en un contenedor con malos
+# permisos en /etc/ssh pasa y deja a la capa 2 sin poder entrar.
+pve_ssh_args_extra: ""
+
+# --- el entorno de ejecución de Ansible en esta máquina -------------------
+# Dónde deja Ansible sus ficheros de trabajo. Vacío = su sitio habitual
+# (~/.ansible/tmp). Se declara cuando el home no se puede escribir o cuando se
+# quiere que todo lo temporal viva en un sitio concreto. Lo exporta lab.
+control_tmp_dir: ""
+
+# --- esta máquina de control ----------------------------------------------
+# Dónde escribe la capa 2 el camino SSH hacia los invitados que están detrás de
+# un router. Es un fichero DEL USUARIO que ejecuta el framework, no del
+# repositorio (por eso `~` vale, y se expande al usarlo).
+pve_ssh_config_path: "~/.ssh/config"
+
+# --- credenciales de los equipos del laboratorio --------------------------
+# La contraseña de administración de RouterOS. VACÍA es un valor legítimo: los
+# CHR nacen con la contraseña de fábrica (ninguna), que es como los usa el
+# framework. Sólo hace falta si se le puso una.
+pve_routeros_password: ""
+"""
+
+
+def _plantilla_dict():
+    """La plantilla como diccionario: su orden y sus valores por defecto."""
+    return yaml.safe_load(PLANTILLA_TEXTO) or {}
+
+
+def _escalar(valor):
+    """Un valor como escalar YAML de una línea. `safe_dump` añade un `...` de fin
+    de documento a un escalar suelto; incrustado en medio de la plantilla rompería
+    el fichero, así que se quita."""
+    return re.sub(r"(?m)^\.\.\.\s*$", "", yaml.safe_dump(
+        valor, allow_unicode=True, default_flow_style=True)).strip()
+
+
 SECRETS_ANTIGUO = os.path.join(RAIZ, "secrets.yml")
 MANIFIESTO = os.path.join(RAIZ, "labs", "active")
 
@@ -150,7 +253,7 @@ def api(ruta=None):
         raise EntornoIncompleto(
             "entorno.py: faltan credenciales de la API de Proxmox: "
             + ", ".join(faltan)
-            + f". Decláralas en {ruta or RUTA} (plantilla: {PLANTILLA}).")
+            + f". Decláralas en {ruta or RUTA} (o créalo con `entorno.py crear`).")
     return salida
 
 
@@ -203,13 +306,13 @@ def verificar(ruta=None, manifiesto=None, detallado=False):
 
     if not os.path.exists(ruta):
         errores.append(
-            f"no existe {ruta}. Créalo desde la plantilla: "
-            f"`cp {os.path.relpath(PLANTILLA, RAIZ)} {os.path.relpath(ruta, RAIZ)}` y edítalo, "
-            f"o migra lo que ya tengas con `entorno.py crear --desde-secrets`.")
+            f"no existe {ruta}. Créalo con `python3 machinery/playbooks/tools/entorno.py crear`, "
+            f"que lo escribe con sus ejemplos comentados; o migra lo que ya tengas con "
+            f"`entorno.py crear --desde-secrets`.")
         return errores, avisos
 
     declarado = leer(ruta)
-    plantilla = leer(PLANTILLA)
+    plantilla = _plantilla_dict()
 
     # 1) las claves obligatorias, presentes y sin el valor de la plantilla
     for clave, que_es in OBLIGATORIAS:
@@ -365,9 +468,7 @@ def crear(destino=None, desde_secrets=False, forzar=False, manifiesto=None):
             f"entorno.py: {destino} ya existe. Muévelo si quieres rehacerlo, o pasa --forzar "
             f"(y cuenta con perder lo que tuviera).")
 
-    plantilla = leer(PLANTILLA)
-    if not plantilla:
-        raise EntornoIncompleto(f"entorno.py: no encuentro la plantilla en {PLANTILLA}")
+    plantilla = _plantilla_dict()
 
     valores = valores_para_crear(desde_secrets=desde_secrets, manifiesto=manifiesto)
     salida = {}
@@ -376,14 +477,18 @@ def crear(destino=None, desde_secrets=False, forzar=False, manifiesto=None):
     for clave, valor in valores.items():         # lo que se sepa y la plantilla no declare
         salida.setdefault(clave, valor)
 
-    cabecera = (
-        "# Generado por machinery/playbooks/tools/entorno.py — el entorno de ESTA máquina.\n"
-        "# Git lo ignora a propósito (el token de PVE equivale a root y el repo es\n"
-        "# público). Revísalo con `entorno.py mostrar` y valídalo con `entorno.py verificar`.\n"
-    )
+    # Se escribe la PLANTILLA tal cual —con sus comentarios y sus ejemplos— para que
+    # el fichero resultante sea a la vez el juego de valores y su documentación. Sólo
+    # se sustituye la línea de cada clave; lo que la plantilla no declare se añade.
+    texto = PLANTILLA_TEXTO
+    for clave, valor in salida.items():
+        escalar = _escalar(valor)
+        if re.search(rf"(?m)^{re.escape(clave)}:", texto):
+            texto = re.sub(rf"(?m)^{re.escape(clave)}:.*$", f"{clave}: {escalar}", texto)
+        else:
+            texto = texto.rstrip("\n") + f"\n{clave}: {escalar}\n"
     with open(destino, "w", encoding="utf-8") as fh:
-        fh.write(cabecera)
-        yaml.safe_dump(salida, fh, sort_keys=False, allow_unicode=True, default_flow_style=False)
+        fh.write(texto)
     os.chmod(destino, 0o600)
     return destino, [clave for clave, valor in salida.items() if _sin_rellenar(valor)]
 

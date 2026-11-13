@@ -45,38 +45,14 @@ import sys
 
 import jinja2
 import requests
-import yaml
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(AQUI)))
 POR_DEFECTO = os.path.join(RAIZ, "labs/active")
-ENTORNO = os.path.join(RAIZ, "secrets.yaml")
-ROUTEROS_DEFAULTS = os.path.join(RAIZ, "machinery/configure/roles/routeros/defaults/main.yml")
 
 sys.path.insert(0, AQUI)
 import declaracion  # noqa: E402
-
-
-def credenciales():
-    """Las mismas que usa el rol RouterOS: una sola fuente para las dos puertas."""
-    valores = yaml.safe_load(open(ROUTEROS_DEFAULTS)) or {}
-    clave = ""
-    if os.path.exists(ENTORNO):
-        clave = (yaml.safe_load(open(ENTORNO)) or {}).get("pve_routeros_password", "")
-    return (valores.get("routeros_user", "admin"), clave,
-            valores.get("routeros_scheme", "http"), valores.get("routeros_port", 80))
-
-
-def leer(sesion, base, menu):
-    """Las entradas de un menú del equipo, o None si no se puede leer."""
-    try:
-        r = sesion.get(f"{base}/rest/{menu}", timeout=8)
-        if r.status_code != 200:
-            return None
-        datos = r.json()
-        return datos if isinstance(datos, list) else datos.get("data", [])
-    except Exception:
-        return None
+from routeros_rest import credenciales, leer  # noqa: E402
 
 
 # La plantilla de `leases` usa piezas de Ansible que Jinja2 no trae de fábrica

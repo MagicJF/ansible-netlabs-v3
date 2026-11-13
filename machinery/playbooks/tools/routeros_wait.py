@@ -33,40 +33,14 @@ import sys
 import time
 
 import requests
-import yaml
 
-REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-ENTORNO = os.path.join(REPO, "secrets.yaml")
-ROUTEROS_DEFAULTS = os.path.join(REPO, "machinery/configure/roles/routeros/defaults/main.yml")
+from routeros_rest import credenciales, leer
 
 # Menús que se consultan para saber si el equipo sirve para algo, en el orden en que
 # se necesitan: de los puentes salen las interfaces usadas, y de las direcciones, las
 # que deben tener enlace.
 MENUS = ("interface/bridge", "interface/bridge/port", "interface/ethernet",
          "ip/address", "ip/route", "ip/dhcp-server", "ip/pool")
-
-
-def credenciales():
-    secretos = yaml.safe_load(open(ENTORNO)) or {}
-    valores = yaml.safe_load(open(ROUTEROS_DEFAULTS)) or {}
-    return (
-        valores.get("routeros_user", "admin"),
-        secretos.get("pve_routeros_password", ""),
-        valores.get("routeros_scheme", "http"),
-        valores.get("routeros_port", 80),
-    )
-
-
-def leer(sesion, base, menu):
-    """Las entradas de un menú, o None si no se puede leer."""
-    try:
-        r = sesion.get(f"{base}/rest/{menu}", timeout=8)
-        if r.status_code != 200:
-            return None
-        datos = r.json()
-        return datos if isinstance(datos, list) else datos.get("data", [])
-    except Exception:
-        return None
 
 
 def funciona(sesion, base, credenciales_http):
