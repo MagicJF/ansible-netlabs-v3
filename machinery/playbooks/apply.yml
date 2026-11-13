@@ -98,7 +98,11 @@
   # reader tool inherits it too, so its reads land in the journal as well.
   environment:
     PYTHONPATH: "{{ playbook_dir }}/tracing"
-    REQUESTS_CA_BUNDLE: "{{ pve_api_ca_path }}"
+    # El CA llega con `secrets.yaml`, que se carga en `pre_tasks`: en la propia tarea
+    # que lo carga todavía no está definido, y el `environment:` del play se evalúa en
+    # CADA tarea. Se usa '' ahí —esas tareas no hablan con la API— y el valor real a
+    # partir de entonces. Sin el `default`, el verbo ni arranca.
+    REQUESTS_CA_BUNDLE: "{{ pve_api_ca_path | default('') }}"
     API_HTTP_TRACE: "{{ pve_log_dir }}/pve-api.jsonl"
   pre_tasks:
     - name: Look for the machine environment file
